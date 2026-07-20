@@ -4,9 +4,9 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The application allows first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record, verify ownership with their registered mobile number and check in without completing the full registration process again.
 
-> Project status: Foundation setup in progress  
-> Current implementation stage: Stage 1 — React, Vite and Tailwind foundation  
-> Documentation version: 1.0
+> Project status: Database foundation completed; secure environment connection in progress  
+> Current implementation stage: Stage 3 — Environment configuration and Supabase clients  
+> Documentation version: 1.3
 
 ## Table of contents
 
@@ -81,23 +81,65 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stage 1 establishes the application foundation with React, Vite and Tailwind CSS.
+Stages 1 and 2 established the React application and Supabase database foundation. Stage 3 introduces separate browser-safe and server-only Supabase clients, protected environment files and a development connection check.
 
-### Stage 1 completion checklist
+### Stage 1 completion checklist — completed
 
-- [ ] React JavaScript project created with Vite
-- [ ] Project dependencies installed
-- [ ] Tailwind CSS v4 configured through the Vite plugin
-- [ ] Mobile-first global styles added
-- [ ] Visitor landing interface created
-- [ ] Safe-area support added for recent mobile devices
-- [ ] Visible keyboard focus styles added
-- [ ] Mobile viewport inspection completed
+- [x] React JavaScript project created with Vite
+- [x] Project dependencies installed
+- [x] Tailwind CSS v4 configured through the Vite plugin
+- [x] Mobile-first global styles added
+- [x] Visitor landing interface created
+- [x] Safe-area support added for recent mobile devices
+- [x] Visible keyboard focus styles added
+- [x] Mobile viewport inspection completed
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] Stage 1 Git commit created
+
+### Stage 2 completion checklist — completed
+
+- [x] Development Supabase project created
+- [x] Supabase region and test-data limitations documented
+- [x] `supabase/schema.sql` added to the repository
+- [x] `supabase/seed.sql` added with invented development records
+- [x] Host, visitor, visit, staff and audit tables created
+- [x] Foreign keys, checks and unique constraints verified
+- [x] Required indexes created
+- [x] Row Level Security enabled on every application table
+- [x] Staff-role helper functions created
+- [x] Atomic first-registration function created
+- [x] Anonymous visitor and visit table access denied
+- [x] Development seed data loaded
+- [x] All five application tables confirmed with Row Level Security enabled
+- [x] Seven expected authenticated staff and administrator policies confirmed
+- [x] Required visitor-name and visit-status/time indexes confirmed
+- [x] Four required database functions confirmed
+- [x] Three invented development hosts confirmed
+- [x] Visitor and visit record counts confirmed as zero
+- [x] Database verification queries completed successfully
+- [x] README updated for Stage 2
+- [x] Stage 2 Git commit created
+
+### Stage 3 completion checklist — in progress
+
+- [ ] `.env.example` added without real credentials
+- [ ] `.gitignore` protects `.env.local` and other environment files
+- [ ] `.env.local` created locally and remains untracked
+- [ ] Browser-safe Supabase client created in `src/lib/supabase.js`
+- [ ] Server-only Supabase admin client created in `api/_lib/supabase.js`
+- [ ] `VISITOR_LOOKUP_SECRET` generated locally
+- [ ] ESLint recognises Node globals only in `api/` and `scripts/`
+- [ ] `process is not defined` lint error prevented
+- [ ] Supabase connection-check script added
+- [ ] `npm run check:supabase` completed successfully
+- [ ] Secret values confirmed absent from Git changes
 - [ ] `npm run lint` completed successfully
 - [ ] `npm run build` completed successfully
-- [ ] Stage 1 Git commit created
+- [ ] README updated for Stage 3
+- [ ] Stage 3 Git commit created
 
-Do not mark Stage 1 as complete until all checks above have passed.
+Do not mark Stage 3 as complete until all checks above have passed.
 
 ## Technology stack
 
@@ -155,9 +197,7 @@ npm install
 
 ### 3. Create the local environment file
 
-Environment variables will be introduced during the Supabase connection stage.
-
-When `.env.example` becomes available:
+Copy `.env.example` to `.env.local`, then replace its placeholders with development Supabase values:
 
 ```bash
 cp .env.example .env.local
@@ -200,6 +240,7 @@ Both commands must succeed before a development stage is committed.
 | `npm run lint` | Check the source code with ESLint |
 | `npm run build` | Create the optimised production build |
 | `npm run preview` | Preview the production build locally |
+| `npm run check:supabase` | Verify the server-side development connection without printing credentials |
 
 Additional testing scripts will be documented when the automated test stage is implemented.
 
@@ -244,12 +285,15 @@ mof-visitor-management/
 │   ├── App.jsx                  # Routes and application entry component
 │   ├── index.css                # Tailwind import and global styles
 │   └── main.jsx                 # React browser entry point
+├── scripts/
+│   └── check-supabase.mjs       # Safe development connection check
 ├── supabase/
 │   ├── migrations/              # Version-controlled database migrations
 │   ├── schema.sql               # Development schema reference
-│   └── seed.sql                 # Non-sensitive development seed data
+│   ├── seed.sql                 # Non-sensitive development seed data
+│   └── verify.sql               # Read-only database verification queries
 ├── .env.example                 # Environment variable names only
-├── .gitignore
+├── .gitignore                   # Excludes secrets, dependencies and generated files
 ├── eslint.config.js
 ├── index.html
 ├── package.json
@@ -273,7 +317,7 @@ The planned Supabase database contains:
 | `staff_profiles` | Application role attached to a Supabase Auth user |
 | `audit_events` | Staff actions, access changes, corrections and exports |
 
-The database schema and Row Level Security policies will be added during Stage 2.
+The Stage 2 schema introduces the five planned tables, constraints, indexes, role helper functions and the first-registration transaction. Row Level Security is enabled on every application table.
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
 
@@ -364,8 +408,8 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 
 ## Development roadmap
 
-- [ ] Stage 1 — React, Vite and Tailwind foundation
-- [ ] Stage 2 — Supabase database schema and Row Level Security
+- [x] Stage 1 — React, Vite and Tailwind foundation
+- [x] Stage 2 — Supabase database schema and Row Level Security
 - [ ] Stage 3 — Environment configuration and Supabase clients
 - [ ] Stage 4 — Application routing and shared layout
 - [ ] Stage 5 — First-time visitor registration
@@ -420,9 +464,9 @@ The README update should normally be included in the same commit as the feature 
 
 ### Stage 1 — Project foundation
 
-Status: In progress
+Status: Completed
 
-Planned work:
+Implemented:
 
 - Create the React JavaScript application with Vite.
 - Install the shared project dependencies.
@@ -431,7 +475,49 @@ Planned work:
 - Establish mobile safe-area and focus styles.
 - Validate linting, production build and supported mobile widths.
 
-Stage 1 should be changed to **Completed** only after all Stage 1 checklist items pass.
+Validation completed:
+
+- `npm run lint`
+- `npm run build`
+- Mobile viewport inspection
+
+### Stage 2 — Supabase database and Row Level Security
+
+Status: Completed
+
+Implemented:
+
+- Create the development Supabase project.
+- Add the version-controlled database schema and invented seed data.
+- Create visitor, visit, host, staff and audit tables.
+- Add relational and data-integrity constraints.
+- Enable Row Level Security on all application tables.
+- Add staff-role helper functions and policies.
+- Add an atomic first-registration function.
+- Verify the schema without entering real visitor information.
+
+Validation completed:
+
+- Five application tables were returned with Row Level Security enabled: `audit_events`, `hosts`, `staff_profiles`, `visitor_profiles` and `visits`.
+- Seven policies were returned for authenticated staff and administrator operations.
+- The required `visitor_profiles_name_idx`, `visits_checked_in_at_idx` and `visits_status_idx` indexes were returned. Primary-key and unique-constraint indexes were also present.
+- Four required functions were returned: `is_active_staff`, `is_admin`, `register_first_visit` and `set_updated_at`.
+- Three invented development hosts were returned as active records.
+- `visitor_profiles` and `visits` each returned a record count of `0`, confirming that no visitor test records were added during setup.
+
+### Stage 3 — Environment configuration and Supabase clients
+
+Status: In progress
+
+Planned work:
+
+- Add `.env.example` containing names and placeholders only.
+- Protect local environment files with `.gitignore`.
+- Configure the browser-safe Supabase publishable client.
+- Configure the server-only Supabase secret client.
+- Generate a signing secret for returning-visitor verification tokens.
+- Configure ESLint Node globals for server and script files only.
+- Add and run the Supabase development connection check.
 
 Future stages will add a new entry under this section describing:
 
