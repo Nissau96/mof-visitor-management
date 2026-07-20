@@ -4,9 +4,9 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The application allows first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record, verify ownership with their registered mobile number and check in without completing the full registration process again.
 
-> Project status: Foundation setup in progress  
-> Current implementation stage: Stage 1 — React, Vite and Tailwind foundation  
-> Documentation version: 1.0
+> Project status: Application foundation completed; database implementation in progress  
+> Current implementation stage: Stage 2 — Supabase database schema and Row Level Security  
+> Documentation version: 1.1
 
 ## Table of contents
 
@@ -81,23 +81,41 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stage 1 establishes the application foundation with React, Vite and Tailwind CSS.
+Stage 1 established the application foundation with React, Vite and Tailwind CSS. Stage 2 introduces the Supabase relational database, constraints, indexes, transactional registration function and Row Level Security baseline.
 
-### Stage 1 completion checklist
+### Stage 1 completion checklist — completed
 
-- [ ] React JavaScript project created with Vite
-- [ ] Project dependencies installed
-- [ ] Tailwind CSS v4 configured through the Vite plugin
-- [ ] Mobile-first global styles added
-- [ ] Visitor landing interface created
-- [ ] Safe-area support added for recent mobile devices
-- [ ] Visible keyboard focus styles added
-- [ ] Mobile viewport inspection completed
-- [ ] `npm run lint` completed successfully
-- [ ] `npm run build` completed successfully
-- [ ] Stage 1 Git commit created
+- [x] React JavaScript project created with Vite
+- [x] Project dependencies installed
+- [x] Tailwind CSS v4 configured through the Vite plugin
+- [x] Mobile-first global styles added
+- [x] Visitor landing interface created
+- [x] Safe-area support added for recent mobile devices
+- [x] Visible keyboard focus styles added
+- [x] Mobile viewport inspection completed
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] Stage 1 Git commit created
 
-Do not mark Stage 1 as complete until all checks above have passed.
+### Stage 2 completion checklist — in progress
+
+- [ ] Development Supabase project created
+- [ ] Supabase region and test-data limitations documented
+- [ ] `supabase/schema.sql` added to the repository
+- [ ] `supabase/seed.sql` added with invented development records
+- [ ] Host, visitor, visit, staff and audit tables created
+- [ ] Foreign keys, checks and unique constraints verified
+- [ ] Required indexes created
+- [ ] Row Level Security enabled on every application table
+- [ ] Staff-role helper functions created
+- [ ] Atomic first-registration function created
+- [ ] Anonymous visitor and visit table access denied
+- [ ] Development seed data loaded
+- [ ] Database verification queries completed
+- [ ] README updated for Stage 2
+- [ ] Stage 2 Git commit created
+
+Do not mark Stage 2 as complete until all checks above have passed.
 
 ## Technology stack
 
@@ -247,7 +265,8 @@ mof-visitor-management/
 ├── supabase/
 │   ├── migrations/              # Version-controlled database migrations
 │   ├── schema.sql               # Development schema reference
-│   └── seed.sql                 # Non-sensitive development seed data
+│   ├── seed.sql                 # Non-sensitive development seed data
+│   └── verify.sql               # Read-only database verification queries
 ├── .env.example                 # Environment variable names only
 ├── .gitignore
 ├── eslint.config.js
@@ -273,7 +292,7 @@ The planned Supabase database contains:
 | `staff_profiles` | Application role attached to a Supabase Auth user |
 | `audit_events` | Staff actions, access changes, corrections and exports |
 
-The database schema and Row Level Security policies will be added during Stage 2.
+The Stage 2 schema introduces the five planned tables, constraints, indexes, role helper functions and the first-registration transaction. Row Level Security is enabled on every application table.
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
 
@@ -364,7 +383,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 
 ## Development roadmap
 
-- [ ] Stage 1 — React, Vite and Tailwind foundation
+- [x] Stage 1 — React, Vite and Tailwind foundation
 - [ ] Stage 2 — Supabase database schema and Row Level Security
 - [ ] Stage 3 — Environment configuration and Supabase clients
 - [ ] Stage 4 — Application routing and shared layout
@@ -420,9 +439,9 @@ The README update should normally be included in the same commit as the feature 
 
 ### Stage 1 — Project foundation
 
-Status: In progress
+Status: Completed
 
-Planned work:
+Implemented:
 
 - Create the React JavaScript application with Vite.
 - Install the shared project dependencies.
@@ -431,7 +450,26 @@ Planned work:
 - Establish mobile safe-area and focus styles.
 - Validate linting, production build and supported mobile widths.
 
-Stage 1 should be changed to **Completed** only after all Stage 1 checklist items pass.
+Validation completed:
+
+- `npm run lint`
+- `npm run build`
+- Mobile viewport inspection
+
+### Stage 2 — Supabase database and Row Level Security
+
+Status: In progress
+
+Planned work:
+
+- Create the development Supabase project.
+- Add the version-controlled database schema and invented seed data.
+- Create visitor, visit, host, staff and audit tables.
+- Add relational and data-integrity constraints.
+- Enable Row Level Security on all application tables.
+- Add staff-role helper functions and policies.
+- Add an atomic first-registration function.
+- Verify the schema without entering real visitor information.
 
 Future stages will add a new entry under this section describing:
 
