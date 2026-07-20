@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-600: #15803d;
+  --color-brand-700: #166534;
+  --color-brand-800: #14532d;
+  --color-brand-900: #052e16;
+
+  --color-accent: #fcd116;
+  --color-danger: #ce1126;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-slate-50 text-slate-950 antialiased;
+    margin: 0;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    @apply focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-600/30;
+  }
+
+  button,
+  select {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  label {
+    @apply text-sm font-semibold text-slate-800;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-950 shadow-sm transition;
+  }
+
+  input:hover,
+  select:hover,
+  textarea:hover {
+    @apply border-slate-400;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-brand-600;
+  }
+}
