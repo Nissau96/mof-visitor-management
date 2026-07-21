@@ -121,7 +121,7 @@ Stages 1 and 2 established the React application and Supabase database foundatio
 - [x] README updated for Stage 2
 - [x] Stage 2 Git commit created
 
-### Stage 3 completion checklist — in progress
+### Stage 3 completion checklist — completed
 
 - [x] `.env.example` added without real credentials
 - [x] `.gitignore` protects `.env.local` and other environment files
@@ -139,7 +139,7 @@ Stages 1 and 2 established the React application and Supabase database foundatio
 - [x] README updated for Stage 3
 - [x] Stage 3 Git commit created
 
-### Stage 4 completion checklist — validation pending
+### Stage 4 completion checklist — completed
 
 - [x] `BrowserRouter` configured at the React entry point
 - [x] Shared `VisitorLayout` created with header, footer and skip link
@@ -161,19 +161,19 @@ Stages 1 and 2 established the React application and Supabase database foundatio
 
 ## Technology stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Frontend | React.js with JavaScript | Component-based visitor and staff interfaces |
-| Build tool | Vite | Local development server and production build |
-| Routing | React Router | Visitor, login, dashboard and administration routes |
-| Styling | Tailwind CSS | Responsive mobile-first interface and design tokens |
-| Forms | React Hook Form | Form state, validation feedback and submission handling |
-| Validation | Zod | Browser and server input validation |
-| Database | Supabase Postgres | Visitors, visits, hosts, staff and audit records |
-| Authentication | Supabase Auth | Receptionist and administrator authentication |
-| Backend | Vercel Functions | Protected registration, lookup and verification operations |
-| Hosting | Vercel | Frontend and serverless Function deployment |
-| Icons | Lucide React | Consistent accessible interface icons |
+| Layer          | Technology               | Purpose                                                    |
+| -------------- | ------------------------ | ---------------------------------------------------------- |
+| Frontend       | React.js with JavaScript | Component-based visitor and staff interfaces               |
+| Build tool     | Vite                     | Local development server and production build              |
+| Routing        | React Router             | Visitor, login, dashboard and administration routes        |
+| Styling        | Tailwind CSS             | Responsive mobile-first interface and design tokens        |
+| Forms          | React Hook Form          | Form state, validation feedback and submission handling    |
+| Validation     | Zod                      | Browser and server input validation                        |
+| Database       | Supabase Postgres        | Visitors, visits, hosts, staff and audit records           |
+| Authentication | Supabase Auth            | Receptionist and administrator authentication              |
+| Backend        | Vercel Functions         | Protected registration, lookup and verification operations |
+| Hosting        | Vercel                   | Frontend and serverless Function deployment                |
+| Icons          | Lucide React             | Consistent accessible interface icons                      |
 
 Package versions are controlled by `package.json` and `package-lock.json`. Always commit the lock file and test dependency upgrades before merging them.
 
@@ -252,12 +252,12 @@ Both commands must succeed before a development stage is committed.
 
 ## Available scripts
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start the Vite development server |
-| `npm run lint` | Check the source code with ESLint |
-| `npm run build` | Create the optimised production build |
-| `npm run preview` | Preview the production build locally |
+| Command                  | Purpose                                                                    |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `npm run dev`            | Start the Vite development server                                          |
+| `npm run lint`           | Check the source code with ESLint                                          |
+| `npm run build`          | Create the optimised production build                                      |
+| `npm run preview`        | Preview the production build locally                                       |
 | `npm run check:supabase` | Verify the server-side development connection without printing credentials |
 
 Additional testing scripts will be documented when the automated test stage is implemented.
@@ -327,13 +327,13 @@ Only directories and files introduced by completed stages should be treated as c
 
 The planned Supabase database contains:
 
-| Table | Purpose |
-|---|---|
-| `visitor_profiles` | Reusable visitor identity and contact information |
-| `visits` | One record for each arrival and departure |
-| `hosts` | Active people or offices that can receive visitors |
-| `staff_profiles` | Application role attached to a Supabase Auth user |
-| `audit_events` | Staff actions, access changes, corrections and exports |
+| Table              | Purpose                                                |
+| ------------------ | ------------------------------------------------------ |
+| `visitor_profiles` | Reusable visitor identity and contact information      |
+| `visits`           | One record for each arrival and departure              |
+| `hosts`            | Active people or offices that can receive visitors     |
+| `staff_profiles`   | Application role attached to a Supabase Auth user      |
+| `audit_events`     | Staff actions, access changes, corrections and exports |
 
 The Stage 2 schema introduces the five planned tables, constraints, indexes, role helper functions and the first-registration transaction. Row Level Security is enabled on every application table.
 
@@ -414,11 +414,11 @@ The application will be deployed through Vercel.
 
 The planned deployment environments are:
 
-| Environment | Purpose | Database |
-|---|---|---|
-| Development | Local implementation | Development Supabase project |
-| Preview | Pull-request review and UAT | Staging/development Supabase project |
-| Production | Approved live visitor service | Production Supabase project |
+| Environment | Purpose                       | Database                             |
+| ----------- | ----------------------------- | ------------------------------------ |
+| Development | Local implementation          | Development Supabase project         |
+| Preview     | Pull-request review and UAT   | Staging/development Supabase project |
+| Production  | Approved live visitor service | Production Supabase project          |
 
 Preview deployments must never connect to the production visitor database.
 
@@ -525,9 +525,9 @@ Validation completed:
 
 ### Stage 3 — Environment configuration and Supabase clients
 
-Status: In progress
+Status: Completed
 
-Planned work:
+Implemented:
 
 - Add `.env.example` containing names and placeholders only.
 - Protect local environment files with `.gitignore`.
