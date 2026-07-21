@@ -21,6 +21,7 @@ export function getAdminClient() {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
   });
 
