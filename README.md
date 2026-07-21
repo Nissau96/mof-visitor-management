@@ -6,7 +6,7 @@ The application allows first-time visitors to register their details and record 
 
 > Project status: Database foundation completed; secure environment connection in progress  
 > Current implementation stage: Stage 3 — Environment configuration and Supabase clients  
-> Documentation version: 1.3
+> Documentation version: 1.4
 
 ## Table of contents
 
@@ -123,20 +123,21 @@ Stages 1 and 2 established the React application and Supabase database foundatio
 
 ### Stage 3 completion checklist — in progress
 
-- [ ] `.env.example` added without real credentials
-- [ ] `.gitignore` protects `.env.local` and other environment files
-- [ ] `.env.local` created locally and remains untracked
-- [ ] Browser-safe Supabase client created in `src/lib/supabase.js`
-- [ ] Server-only Supabase admin client created in `api/_lib/supabase.js`
-- [ ] `VISITOR_LOOKUP_SECRET` generated locally
-- [ ] ESLint recognises Node globals only in `api/` and `scripts/`
+- [x] `.env.example` added without real credentials
+- [x] `.gitignore` protects `.env.local` and other environment files
+- [x] `.env.local` created locally and remains untracked
+- [x] Browser-safe Supabase client created in `src/lib/supabase.js`
+- [x] Server-only Supabase admin client created in `api/_lib/supabase.js`
+- [x] `VISITOR_LOOKUP_SECRET` generated locally
+- [x] Supabase connection-check script added
+- [x] ESLint scopes browser globals to `src/` and Node globals to `api/`, `scripts/` and configuration files
+- [x] Official `@eslint/compat` wrappers configured for React plugins used with ESLint 10
 - [ ] `process is not defined` lint error prevented
-- [ ] Supabase connection-check script added
 - [ ] `npm run check:supabase` completed successfully
 - [ ] Secret values confirmed absent from Git changes
 - [ ] `npm run lint` completed successfully
 - [ ] `npm run build` completed successfully
-- [ ] README updated for Stage 3
+- [x] README updated with the Stage 3 implementation and pending validation
 - [ ] Stage 3 Git commit created
 
 Do not mark Stage 3 as complete until all checks above have passed.
@@ -156,6 +157,7 @@ Do not mark Stage 3 as complete until all checks above have passed.
 | Backend | Vercel Functions | Protected registration, lookup and verification operations |
 | Hosting | Vercel | Frontend and serverless Function deployment |
 | Icons | Lucide React | Consistent accessible interface icons |
+| Code quality | ESLint 10 with `@eslint/compat` | Browser, React and server linting with temporary compatibility wrappers for plugins using older rule APIs |
 
 Package versions are controlled by `package.json` and `package-lock.json`. Always commit the lock file and test dependency upgrades before merging them.
 
@@ -374,6 +376,7 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:supabase
 npm run lint
 npm run build
 ```
@@ -509,15 +512,32 @@ Validation completed:
 
 Status: In progress
 
-Planned work:
+Implemented:
 
 - Add `.env.example` containing names and placeholders only.
 - Protect local environment files with `.gitignore`.
 - Configure the browser-safe Supabase publishable client.
 - Configure the server-only Supabase secret client.
 - Generate a signing secret for returning-visitor verification tokens.
-- Configure ESLint Node globals for server and script files only.
-- Add and run the Supabase development connection check.
+- Add a Supabase development connection-check script.
+- Keep browser configuration on `import.meta.env` and server configuration on `process.env`.
+- Scope Node globals to Vercel Functions, scripts and configuration files so browser code cannot silently depend on `process`.
+- Add the official `@eslint/compat` layer for React plugins that still use rule APIs removed by ESLint 10.
+
+Validation pending:
+
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- Review tracked changes for secret values and confirm `.env.local` remains ignored.
+
+Planned Stage 3 commit:
+
+```text
+chore: configure secure Supabase connections
+```
+
+Stage 3 must remain in progress until the pending validation succeeds and the commit is created.
 
 Future stages will add a new entry under this section describing:
 
