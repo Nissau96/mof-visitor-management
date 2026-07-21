@@ -4,9 +4,9 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The application allows first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record, verify ownership with their registered mobile number and check in without completing the full registration process again.
 
-> Project status: Database foundation completed; secure environment connection in progress  
-> Current implementation stage: Stage 3 — Environment configuration and Supabase clients  
-> Documentation version: 1.4
+> Project status: Stage 4 routing and shared layout completed
+> Current implementation stage: Stage 5 — First-time visitor registration
+> Documentation version: 1.8
 
 ## Table of contents
 
@@ -129,18 +129,35 @@ Stages 1 and 2 established the React application and Supabase database foundatio
 - [x] Browser-safe Supabase client created in `src/lib/supabase.js`
 - [x] Server-only Supabase admin client created in `api/_lib/supabase.js`
 - [x] `VISITOR_LOOKUP_SECRET` generated locally
+- [x] ESLint recognises Node globals only in `api/` and `scripts/`
+- [x] `process is not defined` lint error prevented
 - [x] Supabase connection-check script added
-- [x] ESLint scopes browser globals to `src/` and Node globals to `api/`, `scripts/` and configuration files
-- [x] Official `@eslint/compat` wrappers configured for React plugins used with ESLint 10
-- [ ] `process is not defined` lint error prevented
-- [ ] `npm run check:supabase` completed successfully
-- [ ] Secret values confirmed absent from Git changes
-- [ ] `npm run lint` completed successfully
-- [ ] `npm run build` completed successfully
-- [x] README updated with the Stage 3 implementation and pending validation
-- [ ] Stage 3 Git commit created
+- [x] `npm run check:supabase` completed successfully
+- [x] Secret values confirmed absent from Git changes
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] README updated for Stage 3
+- [x] Stage 3 Git commit created
 
-Do not mark Stage 3 as complete until all checks above have passed.
+### Stage 4 completion checklist — validation pending
+
+- [x] `BrowserRouter` configured at the React entry point
+- [x] Shared `VisitorLayout` created with header, footer and skip link
+- [x] `/` redirects to `/visit`
+- [x] `/visit` visitor landing route created
+- [x] `/visit/new` first-time visitor route created
+- [x] `/visit/returning` returning-visitor route created
+- [x] Accessible not-found route created
+- [x] Reusable action, field, page-header, loading and error components created
+- [x] Mobile-first safe-area and reduced-motion styles added
+- [x] Vercel SPA rewrite configuration added
+- [x] Direct route and refresh validation completed
+- [x] Keyboard and mobile viewport validation completed
+- [x] `npm run check:supabase` completed successfully
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
+- [x] Stage 4 Git commit created and pushed
 
 ## Technology stack
 
@@ -157,7 +174,6 @@ Do not mark Stage 3 as complete until all checks above have passed.
 | Backend | Vercel Functions | Protected registration, lookup and verification operations |
 | Hosting | Vercel | Frontend and serverless Function deployment |
 | Icons | Lucide React | Consistent accessible interface icons |
-| Code quality | ESLint 10 with `@eslint/compat` | Browser, React and server linting with temporary compatibility wrappers for plugins using older rule APIs |
 
 Package versions are controlled by `package.json` and `package-lock.json`. Always commit the lock file and test dependency upgrades before merging them.
 
@@ -376,7 +392,6 @@ The interface should:
 ### Current required checks
 
 ```bash
-npm run check:supabase
 npm run lint
 npm run build
 ```
@@ -413,8 +428,8 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 
 - [x] Stage 1 — React, Vite and Tailwind foundation
 - [x] Stage 2 — Supabase database schema and Row Level Security
-- [ ] Stage 3 — Environment configuration and Supabase clients
-- [ ] Stage 4 — Application routing and shared layout
+- [x] Stage 3 — Environment configuration and Supabase clients
+- [x] Stage 4 — Application routing and shared layout
 - [ ] Stage 5 — First-time visitor registration
 - [ ] Stage 6 — Returning-visitor search and verification
 - [ ] Stage 7 — Returning-visitor check-in
@@ -512,32 +527,15 @@ Validation completed:
 
 Status: In progress
 
-Implemented:
+Planned work:
 
 - Add `.env.example` containing names and placeholders only.
 - Protect local environment files with `.gitignore`.
 - Configure the browser-safe Supabase publishable client.
 - Configure the server-only Supabase secret client.
 - Generate a signing secret for returning-visitor verification tokens.
-- Add a Supabase development connection-check script.
-- Keep browser configuration on `import.meta.env` and server configuration on `process.env`.
-- Scope Node globals to Vercel Functions, scripts and configuration files so browser code cannot silently depend on `process`.
-- Add the official `@eslint/compat` layer for React plugins that still use rule APIs removed by ESLint 10.
-
-Validation pending:
-
-- `npm run check:supabase`
-- `npm run lint`
-- `npm run build`
-- Review tracked changes for secret values and confirm `.env.local` remains ignored.
-
-Planned Stage 3 commit:
-
-```text
-chore: configure secure Supabase connections
-```
-
-Stage 3 must remain in progress until the pending validation succeeds and the commit is created.
+- Configure ESLint Node globals for server and script files only.
+- Add and run the Supabase development connection check.
 
 Future stages will add a new entry under this section describing:
 
