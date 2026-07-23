@@ -1,4 +1,3 @@
-
 # Visitor Management Application
 
 A simple, secure and mobile-first visitor registration and check-in application built with React.js, JavaScript, Tailwind CSS, Supabase and Vercel.
@@ -6,7 +5,7 @@ A simple, secure and mobile-first visitor registration and check-in application 
 The application allows first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record, verify ownership with their registered mobile number and check in without completing the full registration process again.
 
 > Project status: Stage 5 first-time visitor registration completed
-> Current implementation stage: Stage 6 â€” Returning-visitor search and verification
+> Current implementation stage: Stage 6 — Returning-visitor search and verification
 > Documentation version: 2.0
 
 ## Table of contents
@@ -84,7 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completes the mobile-first registration workflow for first-time visitors, including conditional visit fields, meeting selection, shared validation, protected Vercel Functions and transactional database registration.
 
-### Stage 1 completion checklist â€” completed
+### Stage 1 completion checklist — completed
 
 - [x] React JavaScript project created with Vite
 - [x] Project dependencies installed
@@ -98,7 +97,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run build` completed successfully
 - [x] Stage 1 Git commit created
 
-### Stage 2 completion checklist â€” completed
+### Stage 2 completion checklist — completed
 
 - [x] Development Supabase project created
 - [x] Supabase region and test-data limitations documented
@@ -122,7 +121,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] README updated for Stage 2
 - [x] Stage 2 Git commit created
 
-### Stage 3 completion checklist â€” completed
+### Stage 3 completion checklist — completed
 
 - [x] `.env.example` added without real credentials
 - [x] `.gitignore` protects `.env.local` and other environment files
@@ -140,7 +139,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] README updated for Stage 3
 - [x] Stage 3 Git commit created
 
-### Stage 4 completion checklist â€” completed
+### Stage 4 completion checklist — completed
 
 - [x] `BrowserRouter` configured at the React entry point
 - [x] Shared `VisitorLayout` created with header, footer and skip link
@@ -160,7 +159,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `git diff --check` completed successfully
 - [x] Stage 4 Git commit created and pushed
 
-### Stage 5 completion checklist â€” completed
+### Stage 5 completion checklist — completed
 
 - [x] Mobile-first first-time visitor form implemented
 - [x] First name and last name collected separately and stored as one full name
@@ -300,14 +299,14 @@ All commands must succeed before a development stage is committed.
 
 ## Available scripts
 
-| Command                  | Purpose                                                                    |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `npm run dev`            | Start the Vite development server                                          |
-| `npm run lint`           | Check the source code with ESLint                                          |
-| `npm run build`          | Create the optimised production build                                      |
-| `npm run preview`        | Preview the production build locally                                       |
-| `npm run check:supabase` | Verify the server-side development connection without printing credentials |
-| `npm run check:registration` | Run visitor registration schema and API contract checks                |
+| Command                      | Purpose                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| `npm run dev`                | Start the Vite development server                                          |
+| `npm run lint`               | Check the source code with ESLint                                          |
+| `npm run build`              | Create the optimised production build                                      |
+| `npm run preview`            | Preview the production build locally                                       |
+| `npm run check:supabase`     | Verify the server-side development connection without printing credentials |
+| `npm run check:registration` | Run visitor registration schema and API contract checks                    |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -342,9 +341,9 @@ The expected project structure will grow as stages are completed:
 mof-visitor-management/
 â”œâ”€â”€ api/                         # Vercel Functions
 â”‚   â”œâ”€â”€ _lib/                    # Server-only Supabase and HTTP helpers
+â”‚   ├── hosts.js                 # Hosts endpoint
 â”‚   â”œâ”€â”€ meetings.js              # Public available-meetings endpoint
-â”‚   â””â”€â”€ register.js              # First-time visitor registration endpoint
-â”œâ”€â”€ public/                      # Public static files
+â”‚   â””â”€â”€ register.js              # First-time visitor registration endpointâ”œâ”€â”€ public/                      # Public static files
 â”œâ”€â”€ src/
 â”‚   â”œâ”€â”€ components/              # Reusable interface components
 â”‚   â”œâ”€â”€ constants/               # Shared privacy and visitor form options
@@ -488,21 +487,21 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 
 ## Development roadmap
 
-- [x] Stage 1 â€” React, Vite and Tailwind foundation
-- [x] Stage 2 â€” Supabase database schema and Row Level Security
-- [x] Stage 3 â€” Environment configuration and Supabase clients
-- [x] Stage 4 â€” Application routing and shared layout
-- [x] Stage 5 â€” First-time visitor registration
-- [ ] Stage 6 â€” Returning-visitor search and verification
-- [ ] Stage 7 â€” Returning-visitor check-in
-- [ ] Stage 8 â€” Staff authentication and protected routes
-- [ ] Stage 9 â€” Reception dashboard and pagination
-- [ ] Stage 10 â€” Visitor checkout and visit history
-- [ ] Stage 11 â€” Host and staff administration
-- [ ] Stage 12 â€” Security, privacy and abuse controls
-- [ ] Stage 13 â€” Automated testing and accessibility
-- [ ] Stage 14 â€” Vercel deployment and environments
-- [ ] Stage 15 â€” Production readiness and visitor QR code
+- [x] Stage 1 — React, Vite and Tailwind foundation
+- [x] Stage 2 — Supabase database schema and Row Level Security
+- [x] Stage 3 — Environment configuration and Supabase clients
+- [x] Stage 4 — Application routing and shared layout
+- [x] Stage 5 — First-time visitor registration
+- [ ] Stage 6 — Returning-visitor search and verification
+- [ ] Stage 7 — Returning-visitor check-in
+- [ ] Stage 8 — Staff authentication and protected routes
+- [ ] Stage 9 — Reception dashboard and pagination
+- [ ] Stage 10 — Visitor checkout and visit history
+- [ ] Stage 11 — Host and staff administration
+- [ ] Stage 12 — Security, privacy and abuse controls
+- [ ] Stage 13 — Automated testing and accessibility
+- [ ] Stage 14 — Vercel deployment and environments
+- [ ] Stage 15 — Production readiness and visitor QR code
 
 The roadmap checkboxes must be updated only after the relevant validation and commit have been completed.
 
@@ -548,7 +547,7 @@ The README update should normally be included in the same commit as the feature 
 
 ## Implementation history
 
-### Stage 1 â€” Project foundation
+### Stage 1 — Project foundation
 
 Status: Completed
 
@@ -567,7 +566,7 @@ Validation completed:
 - `npm run build`
 - Mobile viewport inspection
 
-### Stage 2 â€” Supabase database and Row Level Security
+### Stage 2 — Supabase database and Row Level Security
 
 Status: Completed
 
@@ -591,7 +590,7 @@ Validation completed:
 - Three invented development hosts were returned as active records.
 - `visitor_profiles` and `visits` each returned a record count of `0`, confirming that no visitor test records were added during setup.
 
-### Stage 3 â€” Environment configuration and Supabase clients
+### Stage 3 — Environment configuration and Supabase clients
 
 Status: Completed
 
@@ -612,7 +611,7 @@ Validation completed:
 - `npm run build`
 - Secret and generated-output inspection
 
-### Stage 4 â€” Application routing and shared layout
+### Stage 4 — Application routing and shared layout
 
 Status: Completed
 
@@ -635,7 +634,7 @@ Validation completed:
 - `npm run build`
 - `git diff --check`
 
-### Stage 5 â€” First-time visitor registration
+### Stage 5 — First-time visitor registration
 
 Status: Completed
 
@@ -690,18 +689,18 @@ The README is a required deliverable for every development stage.
 
 For each completed stage, update:
 
-1. **Project status** â€” show the latest completed and current stage.
-2. **Current implementation status** â€” replace the stage checklist and mark verified work.
-3. **Technology stack** â€” add or change only technologies actually introduced.
-4. **Getting started** â€” include new installation or configuration requirements.
-5. **Available scripts** â€” document new test, database or deployment commands.
-6. **Environment variables** â€” add variable names and purposes without including values.
-7. **Project structure** â€” add new important files and folders.
-8. **Database overview** â€” document new tables, functions, constraints and RLS changes.
-9. **Testing** â€” document the checks added or completed.
-10. **Development roadmap** â€” mark a stage complete only after verification.
-11. **Implementation history** â€” add a factual summary of the completed stage.
-12. **Git workflow** â€” include the exact commit used for the stage when useful.
+1. **Project status** — show the latest completed and current stage.
+2. **Current implementation status** — replace the stage checklist and mark verified work.
+3. **Technology stack** — add or change only technologies actually introduced.
+4. **Getting started** — include new installation or configuration requirements.
+5. **Available scripts** — document new test, database or deployment commands.
+6. **Environment variables** — add variable names and purposes without including values.
+7. **Project structure** — add new important files and folders.
+8. **Database overview** — document new tables, functions, constraints and RLS changes.
+9. **Testing** — document the checks added or completed.
+10. **Development roadmap** — mark a stage complete only after verification.
+11. **Implementation history** — add a factual summary of the completed stage.
+12. **Git workflow** — include the exact commit used for the stage when useful.
 
 README statements must describe the current repository truth. Do not document a feature as completed before its code and tests exist.
 
