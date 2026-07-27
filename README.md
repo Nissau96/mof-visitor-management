@@ -2,11 +2,11 @@
 
 A simple, secure and mobile-first visitor registration and check-in application built with React.js, JavaScript, Tailwind CSS, Supabase and Vercel.
 
-The application allows first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record, verify ownership with their registered mobile number and check in without completing the full registration process again.
+The implemented stages allow first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record and verify ownership with their registered mobile number. Repeat visit check-in will be added in Stage 7.
 
-> Project status: Stage 5 first-time visitor registration completed
-> Current implementation stage: Stage 6 — Returning-visitor search and verification
-> Documentation version: 2.0
+> Project status: Stage 6 returning-visitor search and verification completed
+> Current implementation stage: Stage 7 — Returning-visitor check-in
+> Documentation version: 2.1
 
 ## Table of contents
 
@@ -81,7 +81,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completes the mobile-first registration workflow for first-time visitors, including conditional visit fields, meeting selection, shared validation, protected Vercel Functions and transactional database registration.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 adds privacy-aware returning-visitor name search, masked results, registered-mobile-number verification, short-lived signed tokens and database-backed request throttling.
 
 ### Stage 1 completion checklist — completed
 
@@ -178,6 +178,36 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Transactional Supabase registration function updated
 - [x] Server-generated visitor reference codes verified
 - [x] Node.js 22 local runtime verified
+- [x] `npm run check:registration` completed successfully
+- [x] `npm run check:supabase` completed successfully
+- [x] `npm run lint` completed successfully without warnings
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
+
+### Stage 6 completion checklist — completed
+
+- [x] Returning-visitor name search implemented
+- [x] Minimum three-character search validation implemented
+- [x] Search requests sent by `POST` to keep names out of URLs
+- [x] Search results limited to six displayed records
+- [x] Visitor names, organisations and phone details masked before display
+- [x] Opaque lookup tokens used instead of exposing visitor database identifiers
+- [x] Full registered-mobile-number verification implemented
+- [x] Neutral verification failure messages implemented
+- [x] Five-minute lookup tokens implemented
+- [x] Ten-minute verified-visitor tokens implemented
+- [x] HMAC-SHA-256 token signing implemented with `VISITOR_LOOKUP_SECRET`
+- [x] Timing-safe token-signature comparison implemented
+- [x] Raw IP addresses excluded from database storage
+- [x] HMAC-derived request-limit keys implemented
+- [x] Database-backed search and verification throttling implemented
+- [x] Anonymous execution of lookup database functions denied
+- [x] Service-role-only execution of lookup database functions verified
+- [x] Row Level Security enabled on `public_request_limits`
+- [x] Trigram visitor-name search index created
+- [x] Mobile-first search, selection, verification and profile states implemented
+- [x] Incorrect-number and correct-number runtime flows verified
+- [x] `npm run check:returning` completed successfully
 - [x] `npm run check:registration` completed successfully
 - [x] `npm run check:supabase` completed successfully
 - [x] `npm run lint` completed successfully without warnings
@@ -288,6 +318,7 @@ http://localhost:3000
 ### 6. Run the quality checks
 
 ```bash
+npm run check:returning
 npm run check:registration
 npm run check:supabase
 npm run lint
@@ -307,6 +338,7 @@ All commands must succeed before a development stage is committed.
 | `npm run preview`            | Preview the production build locally                                       |
 | `npm run check:supabase`     | Verify the server-side development connection without printing credentials |
 | `npm run check:registration` | Run visitor registration schema and API contract checks                    |
+| `npm run check:returning`    | Run returning-visitor validation, masking, token and API contract checks    |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -339,39 +371,44 @@ The expected project structure will grow as stages are completed:
 
 ```text
 mof-visitor-management/
-â”œâ”€â”€ api/                         # Vercel Functions
-â”‚   â”œâ”€â”€ _lib/                    # Server-only Supabase and HTTP helpers
-â”‚   ├── hosts.js                 # Hosts endpoint
-â”‚   â”œâ”€â”€ meetings.js              # Public available-meetings endpoint
-â”‚   â””â”€â”€ register.js              # First-time visitor registration endpointâ”œâ”€â”€ public/                      # Public static files
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ components/              # Reusable interface components
-â”‚   â”œâ”€â”€ constants/               # Shared privacy and visitor form options
-â”‚   â”œâ”€â”€ context/                 # Authentication and shared state
-â”‚   â”œâ”€â”€ layouts/                 # Visitor and dashboard layouts
-â”‚   â”œâ”€â”€ lib/                     # Browser-safe API and Supabase utilities
-â”‚   â”œâ”€â”€ pages/                   # Application pages
-â”‚   â”œâ”€â”€ validation/              # Shared browser and server validation
-â”‚   â”œâ”€â”€ App.jsx                  # Routes and application entry component
-â”‚   â”œâ”€â”€ index.css                # Tailwind import and global styles
-â”‚   â””â”€â”€ main.jsx                 # React browser entry point
-â”œâ”€â”€ scripts/
-â”‚   â”œâ”€â”€ check-registration-validation.mjs
-â”‚   â””â”€â”€ check-supabase.mjs       # Safe development connection check
-â”œâ”€â”€ supabase/
-â”‚   â”œâ”€â”€ migrations/              # Version-controlled database migrations
-â”‚   â”œâ”€â”€ schema.sql               # Development schema reference
-â”‚   â”œâ”€â”€ seed.sql                 # Non-sensitive development seed data
-â”‚   â””â”€â”€ verify.sql               # Read-only database verification queries
-â”œâ”€â”€ .env.example                 # Environment variable names only
-â”œâ”€â”€ .gitignore                   # Excludes secrets, dependencies and generated files
-â”œâ”€â”€ eslint.config.js
-â”œâ”€â”€ index.html
-â”œâ”€â”€ package.json
-â”œâ”€â”€ package-lock.json
-â”œâ”€â”€ README.md
-â”œâ”€â”€ vercel.json
-â””â”€â”€ vite.config.js
+├── api/                         # Vercel Functions
+│   ├── _lib/                    # Server-only Supabase, HTTP, token and rate-limit helpers
+│   ├── returning/
+│   │   ├── search.js            # Masked returning-visitor lookup
+│   │   └── verify.js            # Registered-mobile-number verification
+│   ├── hosts.js                 # Hosts endpoint
+│   ├── meetings.js              # Public available-meetings endpoint
+│   └── register.js              # First-time visitor registration endpoint
+├── public/                      # Public static files
+├── src/
+│   ├── components/              # Reusable interface components
+│   ├── constants/               # Shared privacy and visitor form options
+│   ├── context/                 # Authentication and shared state
+│   ├── layouts/                 # Visitor and dashboard layouts
+│   ├── lib/                     # Browser-safe API and Supabase utilities
+│   ├── pages/                   # Application pages
+│   ├── validation/              # Shared browser and server validation
+│   ├── App.jsx                  # Routes and application entry component
+│   ├── index.css                # Tailwind import and global styles
+│   └── main.jsx                 # React browser entry point
+├── scripts/
+│   ├── check-registration-validation.mjs
+│   ├── check-returning-visitor-validation.mjs
+│   └── check-supabase.mjs       # Safe development connection check
+├── supabase/
+│   ├── migrations/              # Version-controlled database migrations
+│   ├── schema.sql               # Development schema reference
+│   ├── seed.sql                 # Non-sensitive development seed data
+│   └── verify.sql               # Read-only database verification queries
+├── .env.example                 # Environment variable names only
+├── .gitignore                   # Excludes secrets, dependencies and generated files
+├── eslint.config.js
+├── index.html
+├── package.json
+├── package-lock.json
+├── README.md
+├── vercel.json
+└── vite.config.js
 ```
 
 Only directories and files introduced by completed stages should be treated as currently available.
@@ -388,10 +425,19 @@ The planned Supabase database contains:
 | `hosts`            | Active people or offices that can receive visitors     |
 | `staff_profiles`   | Application role attached to a Supabase Auth user      |
 | `audit_events`     | Staff actions, access changes, corrections and exports |
+| `public_request_limits` | HMAC-keyed public search and verification counters |
 
 The Stage 2 schema introduced the original five application tables, constraints, indexes, role helper functions and first-registration transaction. Stage 5 adds meeting records and visit destination fields for the agency, Ministry division, person being visited, official meeting and custom meeting title.
 
 The Stage 5 migration also updates the registration transaction so the visitor profile and visit are created together. Meeting visits must reference either an available official meeting or a valid custom meeting title. Non-meeting visits require the person being visited.
+
+Stage 6 adds a case-insensitive trigram index for partial visitor-name lookup and the following protected database functions:
+
+- `search_returning_visitors(text, integer)`;
+- `verify_returning_visitor(uuid, text)`; and
+- `consume_public_rate_limit(text, integer, integer)`.
+
+Execution is revoked from `public`, `anon` and `authenticated`. The trusted server-side `service_role` is granted execution. The `public_request_limits` table has Row Level Security enabled and stores only HMAC-derived request keys, timestamps and counters—not raw visitor IP addresses.
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
 
@@ -448,6 +494,7 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:returning
 npm run check:registration
 npm run check:supabase
 npm run lint
@@ -455,10 +502,20 @@ npm run build
 git diff --check
 ```
 
+### Implemented automated checks
+
+- Returning-visitor search validation
+- Mobile-number normalisation and validation
+- Visitor-name, organisation and phone masking
+- Lookup and verified-token creation and validation
+- Tampered-token rejection
+- Token-purpose separation
+- API method restrictions
+- Invalid-request rejection
+
 ### Planned test coverage
 
-- Additional unit tests for masking and token handling
-- API tests for registration, lookup, verification and check-in
+- Expanded API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
 - End-to-end tests for first-time and returning visitors
 - Pagination and checkout tests
@@ -492,7 +549,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 3 — Environment configuration and Supabase clients
 - [x] Stage 4 — Application routing and shared layout
 - [x] Stage 5 — First-time visitor registration
-- [ ] Stage 6 — Returning-visitor search and verification
+- [x] Stage 6 — Returning-visitor search and verification
 - [ ] Stage 7 — Returning-visitor check-in
 - [ ] Stage 8 — Staff authentication and protected routes
 - [ ] Stage 9 — Reception dashboard and pagination
@@ -529,12 +586,12 @@ Stage only the files changed by the current development stage. Do not use `git a
 Example:
 
 ```bash
-git add src/pages/NewVisitorPage.jsx
-git add api/register.js api/meetings.js
-git add src/validation/visitorRegistration.js
+git add src/pages/ReturningVisitorPage.jsx
+git add api/returning/search.js api/returning/verify.js
+git add src/validation/returningVisitor.js
 git add README.md
 git diff --cached
-git commit -m "feat: implement first-time visitor registration"
+git commit -m "feat: add returning visitor verification"
 ```
 
 Push the branch:
@@ -667,6 +724,60 @@ Validation completed:
 - Custom meeting-title registration
 - Conditional Ministry division and person-being-visited behaviour
 - Successful Supabase registration and visitor reference generation
+- `npm run check:registration`
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
+### Stage 6 — Returning-visitor search and verification
+
+Status: Completed
+
+Implemented:
+
+- Add server-validated name search with a three-character minimum.
+- Send search data in a `POST` request instead of placing names in URLs.
+- Return no more than six masked results to the browser.
+- Mask visitor names, organisations and phone details before display.
+- Use signed, purpose-scoped lookup tokens instead of exposing visitor UUIDs.
+- Verify the complete normalised mobile number on the trusted server.
+- Return generic verification failures to reduce record enumeration.
+- Issue five-minute lookup tokens and ten-minute verified-visitor tokens.
+- Sign tokens with HMAC-SHA-256 and compare signatures using a timing-safe operation.
+- Derive request-limit keys with HMAC so raw IP addresses are not stored.
+- Add database-backed throttling for search and verification.
+- Add a trigram index for case-insensitive partial-name search.
+- Restrict lookup database functions to the server-side service role.
+- Add accessible mobile-first search, result-selection, verification and verified-profile states.
+
+Database migration:
+
+- `supabase/migrations/202607270001_returning_visitor_lookup.sql`
+
+API endpoints:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/returning/search` | `POST` | Return a limited set of masked visitor matches |
+| `/api/returning/verify` | `POST` | Verify the registered mobile number and issue a short-lived token |
+
+Configured request limits:
+
+- Search: 10 requests per keyed client in 10 minutes.
+- Verification: 20 attempts per keyed client in 10 minutes.
+- Record verification: 5 attempts per keyed client and visitor record in 10 minutes.
+
+These limits are initial application settings, not universal security standards. They must be reviewed during the security and abuse-control stage using approved risk, privacy and operational requirements.
+
+Validation completed:
+
+- Database table, RLS, functions, privileges and search-index verification
+- Masked-result runtime verification
+- Incorrect-mobile-number neutral error verification
+- Correct-mobile-number profile-release verification
+- Mobile-width and refresh-state verification
+- `npm run check:returning`
 - `npm run check:registration`
 - `npm run check:supabase`
 - `npm run lint`

@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "check:registration": "node scripts/check-registration-validation.mjs",
+    "check:returning": "node scripts/check-returning-visitor-validation.mjs",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
