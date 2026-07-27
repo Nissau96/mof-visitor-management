@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 7 returning-visitor check-in completed
+> Project status: Stage 8 staff authentication and protected routes completed
 >
-> Current implementation stage: Stage 8 — Staff authentication and protected routes
+> Current implementation stage: Stage 9 — Reception dashboard and pagination
 >
-> Documentation version: 2.2
+> Documentation version: 2.3
 
 ## Table of contents
 
@@ -83,9 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-### Current stage
-
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completes the returning-visitor workflow by collecting current visit details and creating a new, replay-protected visit check-in.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 adds Supabase staff authentication, server-verified staff sessions, role-based protected routes and secure sign-out.
 
 ### Stage 1 completion checklist — completed
 
@@ -250,6 +248,43 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `git diff --check` completed successfully
 
 
+### Stage 8 completion checklist — completed
+
+- [x] Development receptionist linked to Supabase Auth
+- [x] Existing receptionist and administrator roles verified
+- [x] Inactive staff-account enforcement verified
+- [x] Anonymous staff-profile table privileges removed
+- [x] Anonymous staff-role function execution removed
+- [x] Authenticated and service-role permissions preserved
+- [x] Row Level Security confirmed on `staff_profiles`
+- [x] Shared staff-login validation implemented
+- [x] Server-side bearer-token validation implemented
+- [x] Supabase Auth user verification implemented
+- [x] Active staff-profile verification implemented
+- [x] Staff session endpoint implemented
+- [x] Neutral invalid-credential response implemented
+- [x] Unauthorised and inactive staff accounts rejected
+- [x] React authentication provider implemented
+- [x] Persistent staff-session handling implemented
+- [x] Protected route component implemented
+- [x] Mobile-first staff login page implemented
+- [x] Shared staff layout and secure sign-out implemented
+- [x] Staff home page implemented
+- [x] Unknown staff routes safely redirected
+- [x] Visitor routes preserved
+- [x] Route-level code splitting implemented
+- [x] Initial oversized JavaScript chunk warning resolved
+- [x] Incorrect-password runtime test completed
+- [x] Authorised receptionist sign-in verified
+- [x] Browser-refresh session persistence verified
+- [x] Sign-out and route protection verified
+- [x] Mobile-width staff-login validation completed
+- [x] `npm run check:staff-auth` completed successfully
+- [x] All existing validation scripts completed successfully
+- [x] `npm run lint` completed successfully without warnings
+- [x] `npm run build` completed successfully without chunk-size warnings
+- [x] `git diff --check` completed successfully
+
 
 
 
@@ -265,7 +300,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 | Validation     | Zod                      | Browser and server input validation                        |
 | Database       | Supabase Postgres        | Visitors, visits, hosts, staff and audit records           |
 | Authentication | Supabase Auth            | Receptionist and administrator authentication              |
-| Backend        | Vercel Functions         | Protected registration, lookup and verification operations |
+| Backend        | Vercel Functions         | Protected registration, lookup, check-in and staff-session operations |
 | Hosting        | Vercel                   | Frontend and serverless Function deployment                |
 | Icons          | Lucide React             | Consistent accessible interface icons                      |
 
@@ -354,9 +389,31 @@ The complete application is normally available at:
 http://localhost:3000
 ```
 
-### 6. Run the quality checks
+### 6. Configure a development staff account
+
+Create an invented development user through the Supabase Authentication Users page. Use a strong password stored outside the repository.
+
+Copy the Auth user UUID and link it to an application role:
+
+```sql
+insert into public.staff_profiles (
+  user_id,
+  full_name,
+  role,
+  active
+)
+values (
+  'PASTE_DEVELOPMENT_AUTH_USER_UUID'::uuid,
+  'Development Receptionist',
+  'receptionist',
+  true
+);
+
+
+### 7. Run the quality checks
 
 ```bash
+npm run check:staff-auth
 npm run check:returning-check-in
 npm run check:returning
 npm run check:registration
@@ -380,6 +437,7 @@ All commands must succeed before a development stage is committed.
 | `npm run check:registration`         | Run visitor registration schema and API contract checks                    |
 | `npm run check:returning`            | Run returning-visitor validation, masking, token and API contract checks    |
 | `npm run check:returning-check-in`   | Run returning-visit validation, token and check-in API contract checks      |
+| `npm run check:staff-auth`          | Run staff-login validation and staff-session API contract checks           |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -412,40 +470,67 @@ The expected project structure will grow as stages are completed:
 
 ```text
 mof-visitor-management/
-├── api/                         # Vercel Functions
-│   ├── _lib/                    # Server-only Supabase, HTTP, token and rate-limit helpers
+├── api/
+│   ├── _lib/
+│   │   ├── http.js
+│   │   ├── rateLimit.js
+│   │   ├── staffAuth.js
+│   │   ├── supabase.js
+│   │   └── visitorLookup.js
 │   ├── returning/
-│   │   ├── check-in.js          # Verified returning-visitor check-in
-│   │   ├── search.js            # Masked returning-visitor lookup
-│   │   └── verify.js            # Registered-mobile-number verificationlookup
-│   │   └── verify.js            # Registered-mobile-number verification
-│   ├── hosts.js                 # Hosts endpoint
-│   ├── meetings.js              # Public available-meetings endpoint
-│   └── register.js              # First-time visitor registration endpoint
-├── public/                      # Public static files
-├── src/
-│   ├── components/              # Reusable interface components
-│   ├── constants/               # Shared privacy and visitor form options
-│   ├── context/                 # Authentication and shared state
-│   ├── layouts/                 # Visitor and dashboard layouts
-│   ├── lib/                     # Browser-safe API and Supabase utilities
-│   ├── pages/                   # Application pages
-│   ├── validation/              # Shared browser and server validation
-│   ├── App.jsx                  # Routes and application entry component
-│   ├── index.css                # Tailwind import and global styles
-│   └── main.jsx                 # React browser entry point
+│   │   ├── check-in.js
+│   │   ├── search.js
+│   │   └── verify.js
+│   ├── staff/
+│   │   └── session.js
+│   ├── hosts.js
+│   ├── meetings.js
+│   └── register.js
+├── public/
 ├── scripts/
 │   ├── check-registration-validation.mjs
 │   ├── check-returning-check-in-validation.mjs
 │   ├── check-returning-visitor-validation.mjs
-│   └── check-supabase.mjs       # Safe development connection check
+│   ├── check-staff-auth-validation.mjs
+│   └── check-supabase.mjs
+├── src/
+│   ├── components/
+│   │   └── ProtectedRoute.jsx
+│   ├── constants/
+│   ├── context/
+│   │   ├── AuthProvider.jsx
+│   │   └── authContext.js
+│   ├── hooks/
+│   │   └── useAuth.js
+│   ├── layouts/
+│   │   ├── StaffLayout.jsx
+│   │   └── VisitorLayout.jsx
+│   ├── lib/
+│   │   ├── api.js
+│   │   └── supabase.js
+│   ├── pages/
+│   │   ├── NewVisitorPage.jsx
+│   │   ├── NotFoundPage.jsx
+│   │   ├── ReturningVisitorPage.jsx
+│   │   ├── StaffHomePage.jsx
+│   │   ├── StaffLoginPage.jsx
+│   │   └── VisitorLandingPage.jsx
+│   ├── validation/
+│   │   ├── returningVisit.js
+│   │   ├── returningVisitor.js
+│   │   ├── staffLogin.js
+│   │   ├── visitDetails.js
+│   │   └── visitorRegistration.js
+│   ├── App.jsx
+│   ├── index.css
+│   └── main.jsx
 ├── supabase/
-│   ├── migrations/              # Version-controlled database migrations
-│   ├── schema.sql               # Development schema reference
-│   ├── seed.sql                 # Non-sensitive development seed data
-│   └── verify.sql               # Read-only database verification queries
-├── .env.example                 # Environment variable names only
-├── .gitignore                   # Excludes secrets, dependencies and generated files
+│   ├── migrations/
+│   ├── schema.sql
+│   ├── seed.sql
+│   └── verify.sql
+├── .env.example
+├── .gitignore
 ├── eslint.config.js
 ├── index.html
 ├── package.json
@@ -482,6 +567,9 @@ Stage 6 adds a case-insensitive trigram index for partial visitor-name lookup an
 - `verify_returning_visitor(uuid, text)`; and
 - `consume_public_rate_limit(text, integer, integer)`.
 
+Execution is revoked from `public`, `anon` and `authenticated`. The trusted server-side `service_role` is granted execution. The `public_request_limits` table has Row Level Security enabled and stores only HMAC-derived request keys, timestamps and counters—not raw visitor IP addresses.
+
+
 Stage 7 adds the `used_visitor_verification_tokens` table. The table records a cryptographically random token identifier, its expiry time, consumption time and the visit created from it. Row Level Security is enabled, and direct anonymous access is not permitted.
 
 The `register_return_visit` database function performs the returning check-in transaction. It:
@@ -510,7 +598,22 @@ Stage 7 database migrations:
 - `supabase/migrations/202607270003_return_check_in_idempotency.sql`.
 
 
-Execution is revoked from `public`, `anon` and `authenticated`. The trusted server-side `service_role` is granted execution. The `public_request_limits` table has Row Level Security enabled and stores only HMAC-derived request keys, timestamps and counters—not raw visitor IP addresses.
+Stage 8 uses the existing `staff_profiles` relationship with `auth.users`. Each staff profile uses the Auth user UUID as its primary key and supports either the `receptionist` or `admin` role.
+
+The Stage 8 permission-hardening migration:
+
+- removes anonymous table privileges from `staff_profiles`;
+- removes anonymous execution of `is_active_staff()` and `is_admin()`;
+- preserves authenticated execution required by Row Level Security;
+- preserves trusted service-role access; and
+- retains Row Level Security on `staff_profiles`.
+
+Stage 8 database migration:
+
+- `supabase/migrations/202607270004_harden_staff_auth_permissions.sql`.
+
+Development staff accounts are created outside migrations so passwords, email addresses and Auth identifiers are not committed.
+
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
 
@@ -526,17 +629,21 @@ The implementation must:
 - mask returning-visitor search results;
 - require mobile-number verification before returning profile details;
 - use short-lived, signed and purpose-scoped verification tokens;
-- rate-limit public search, verification and registration endpoints;
-- avoid personal data in URLs, routine logs and analytics;
-- return neutral public error messages;
-- restrict staff features by authenticated role;
-- record privileged actions in the audit trail; and
-- complete privacy, accessibility and security review before production use.
 - consume verified returning-visitor tokens only once;
 - prevent token replay from creating duplicate visits;
 - enforce one active checked-in visit per visitor at the database level;
-- perform returning check-in through a single protected database transaction; and
-- preserve successful check-in results for safe idempotent retries.
+- perform returning check-in through a protected database transaction;
+- preserve successful check-in results for safe idempotent retries;
+- authenticate staff through Supabase Auth;
+- verify staff access tokens through the trusted server;
+- require an active authorised staff profile;
+- restrict staff features by assigned role;
+- deny anonymous access to staff-profile information;
+- rate-limit public search, verification and registration endpoints;
+- avoid personal data in URLs, routine logs and analytics;
+- return neutral public authentication and verification errors;
+- record privileged actions in the audit trail; and
+- complete privacy, accessibility and security review before production use.
 
 Never commit:
 
@@ -597,6 +704,10 @@ git diff --check
 - Verified-token audience and expiry validation
 - Returning check-in API method restrictions
 - Invalid and missing verified-token rejection
+- Staff email and password input validation
+- Staff session endpoint method restrictions
+- Missing bearer-token rejection
+- Unsupported authorization-scheme rejection
 
 ### Planned test coverage
 
@@ -608,6 +719,18 @@ git diff --check
 - Automated accessibility checks
 - Manual keyboard and screen-reader testing
 - Security and penetration testing before production launch
+
+
+### Completed Stage 8 runtime checks
+
+- Protected-route redirection
+- Neutral incorrect-password response
+- Authorised receptionist sign-in
+- Persistent session after browser refresh
+- Secure sign-out
+- Unknown staff-route redirection
+- Visitor-route regression validation
+- Mobile-width staff-login validation
 
 ## Deployment
 
@@ -636,7 +759,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 5 — First-time visitor registration
 - [x] Stage 6 — Returning-visitor search and verification
 - [x] Stage 7 — Returning-visitor check-in
-- [ ] Stage 8 — Staff authentication and protected routes
+- [x] Stage 8 — Staff authentication and protected routes
 - [ ] Stage 9 — Reception dashboard and pagination
 - [ ] Stage 10 — Visitor checkout and visit history
 - [ ] Stage 11 — Host and staff administration
@@ -909,6 +1032,69 @@ Validation completed:
 - Checkout followed by successful return check-in
 - Consumed-token table, constraints, indexes and Row Level Security verification
 - Service-role and anonymous function privilege verification
+- `npm run check:returning-check-in`
+- `npm run check:returning`
+- `npm run check:registration`
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
+### Stage 8 — Staff authentication and protected routes
+
+Status: Completed
+
+Implemented:
+
+- Link application staff profiles to Supabase Auth users.
+- Preserve the existing receptionist and administrator roles.
+- Remove unnecessary anonymous staff-profile and role-function privileges.
+- Validate staff bearer tokens through the Supabase Auth server.
+- Verify that the authenticated user has an active authorised staff profile.
+- Add a protected staff-session Vercel Function.
+- Add shared staff-login validation.
+- Add a React authentication provider and authentication hook.
+- Listen for Supabase authentication and token-refresh events.
+- Persist authorised staff sessions across browser refreshes.
+- Add protected staff routes.
+- Add a mobile-first staff login page.
+- Add a responsive staff layout and secure sign-out.
+- Add an authenticated staff landing page.
+- Preserve all public visitor routes.
+- Add route-level lazy loading to reduce the initial JavaScript bundle.
+
+Database migration:
+
+- `supabase/migrations/202607270004_harden_staff_auth_permissions.sql`
+
+Routes:
+
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/staff/login` | Public | Staff authentication |
+| `/staff` | Active receptionist or administrator | Protected staff landing page |
+
+API endpoint:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/staff/session` | `GET` | Verify the bearer token and return the authorised staff role |
+
+Validation completed:
+
+- Staff profile constraints, policies and role functions inspected
+- Anonymous staff-profile table access removed
+- Anonymous staff-role function execution removed
+- Authenticated and service-role permissions verified
+- `staff_profiles` Row Level Security verified
+- Incorrect-password runtime test
+- Authorised receptionist sign-in
+- Browser-refresh session persistence
+- Sign-out and protected-route validation
+- Visitor-route regression validation
+- Mobile-width staff-login validation
+- Route-level code-splitting build verification
+- `npm run check:staff-auth`
 - `npm run check:returning-check-in`
 - `npm run check:returning`
 - `npm run check:registration`
