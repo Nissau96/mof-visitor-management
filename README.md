@@ -2,11 +2,13 @@
 
 A simple, secure and mobile-first visitor registration and check-in application built with React.js, JavaScript, Tailwind CSS, Supabase and Vercel.
 
-The implemented stages allow first-time visitors to register their details and record a visit. Returning visitors can locate a masked visitor record and verify ownership with their registered mobile number. Repeat visit check-in will be added in Stage 7.
+The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 6 returning-visitor search and verification completed
-> Current implementation stage: Stage 7 — Returning-visitor check-in
-> Documentation version: 2.1
+> Project status: Stage 7 returning-visitor check-in completed
+>
+> Current implementation stage: Stage 8 — Staff authentication and protected routes
+>
+> Documentation version: 2.2
 
 ## Table of contents
 
@@ -81,7 +83,9 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 adds privacy-aware returning-visitor name search, masked results, registered-mobile-number verification, short-lived signed tokens and database-backed request throttling.
+### Current stage
+
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completes the returning-visitor workflow by collecting current visit details and creating a new, replay-protected visit check-in.
 
 ### Stage 1 completion checklist — completed
 
@@ -214,6 +218,41 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run build` completed successfully
 - [x] `git diff --check` completed successfully
 
+
+### Stage 7 completion checklist — completed
+
+- [x] Verified returning visitors can enter current visit details
+- [x] Shared visit-detail validation implemented for first-time and returning visitors
+- [x] Controlled agency and purpose selections reused
+- [x] Ministry of Finance division selection displayed conditionally
+- [x] Person-being-visited field displayed only for non-meeting visits
+- [x] Official and custom meeting selection supported
+- [x] Returning check-in Vercel Function implemented
+- [x] Returning check-in database transaction implemented
+- [x] Verified visitor tokens assigned unique token identifiers
+- [x] Verified visitor tokens consumed once during check-in
+- [x] Token replay protection implemented
+- [x] Idempotent retry protection links a consumed token to its created visit
+- [x] One active check-in per visitor enforced at the database level
+- [x] Active check-in conflict displayed with a clear public message
+- [x] New visit reference generated for successful returning check-in
+- [x] Previous checked-out visits retained as history
+- [x] Returning non-meeting visit runtime flow verified
+- [x] Active check-in protection verified
+- [x] Database function privileges verified for service-role-only execution
+- [x] Row Level Security enabled on the consumed-token table
+- [x] `npm run check:returning-check-in` completed successfully
+- [x] `npm run check:returning` completed successfully
+- [x] `npm run check:registration` completed successfully
+- [x] `npm run check:supabase` completed successfully
+- [x] `npm run lint` completed successfully without warnings
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
+
+
+
+
+
 ## Technology stack
 
 | Layer          | Technology               | Purpose                                                    |
@@ -318,6 +357,7 @@ http://localhost:3000
 ### 6. Run the quality checks
 
 ```bash
+npm run check:returning-check-in
 npm run check:returning
 npm run check:registration
 npm run check:supabase
@@ -330,15 +370,16 @@ All commands must succeed before a development stage is committed.
 
 ## Available scripts
 
-| Command                      | Purpose                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------- |
-| `npm run dev`                | Start the Vite development server                                          |
-| `npm run lint`               | Check the source code with ESLint                                          |
-| `npm run build`              | Create the optimised production build                                      |
-| `npm run preview`            | Preview the production build locally                                       |
-| `npm run check:supabase`     | Verify the server-side development connection without printing credentials |
-| `npm run check:registration` | Run visitor registration schema and API contract checks                    |
-| `npm run check:returning`    | Run returning-visitor validation, masking, token and API contract checks    |
+| Command                              | Purpose                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| `npm run dev`                        | Start the Vite development server                                          |
+| `npm run lint`                       | Check the source code with ESLint                                          |
+| `npm run build`                      | Create the optimised production build                                      |
+| `npm run preview`                    | Preview the production build locally                                       |
+| `npm run check:supabase`             | Verify the server-side development connection without printing credentials |
+| `npm run check:registration`         | Run visitor registration schema and API contract checks                    |
+| `npm run check:returning`            | Run returning-visitor validation, masking, token and API contract checks    |
+| `npm run check:returning-check-in`   | Run returning-visit validation, token and check-in API contract checks      |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -374,7 +415,9 @@ mof-visitor-management/
 ├── api/                         # Vercel Functions
 │   ├── _lib/                    # Server-only Supabase, HTTP, token and rate-limit helpers
 │   ├── returning/
+│   │   ├── check-in.js          # Verified returning-visitor check-in
 │   │   ├── search.js            # Masked returning-visitor lookup
+│   │   └── verify.js            # Registered-mobile-number verificationlookup
 │   │   └── verify.js            # Registered-mobile-number verification
 │   ├── hosts.js                 # Hosts endpoint
 │   ├── meetings.js              # Public available-meetings endpoint
@@ -393,6 +436,7 @@ mof-visitor-management/
 │   └── main.jsx                 # React browser entry point
 ├── scripts/
 │   ├── check-registration-validation.mjs
+│   ├── check-returning-check-in-validation.mjs
 │   ├── check-returning-visitor-validation.mjs
 │   └── check-supabase.mjs       # Safe development connection check
 ├── supabase/
@@ -426,6 +470,7 @@ The planned Supabase database contains:
 | `staff_profiles`   | Application role attached to a Supabase Auth user      |
 | `audit_events`     | Staff actions, access changes, corrections and exports |
 | `public_request_limits` | HMAC-keyed public search and verification counters |
+| `used_visitor_verification_tokens` | One-time verified-token consumption and check-in retry protection |
 
 The Stage 2 schema introduced the original five application tables, constraints, indexes, role helper functions and first-registration transaction. Stage 5 adds meeting records and visit destination fields for the agency, Ministry division, person being visited, official meeting and custom meeting title.
 
@@ -436,6 +481,34 @@ Stage 6 adds a case-insensitive trigram index for partial visitor-name lookup an
 - `search_returning_visitors(text, integer)`;
 - `verify_returning_visitor(uuid, text)`; and
 - `consume_public_rate_limit(text, integer, integer)`.
+
+Stage 7 adds the `used_visitor_verification_tokens` table. The table records a cryptographically random token identifier, its expiry time, consumption time and the visit created from it. Row Level Security is enabled, and direct anonymous access is not permitted.
+
+The `register_return_visit` database function performs the returning check-in transaction. It:
+
+- verifies the short-lived token identifier and expiry;
+- locks the visitor record during check-in;
+- rejects a new check-in when the visitor already has an active visit;
+- validates the agency, division, purpose, meeting and person-being-visited values;
+- consumes the verified token;
+- creates the visit and reference code; and
+- links the consumed token to the created visit.
+
+A partial unique index on `visits(visitor_id)` where the status is `checked_in` provides database-level enforcement of one active check-in per visitor.
+
+The consumed-token-to-visit relationship makes retrying the same successful request idempotent within the verified token’s validity period. A retry returns the original visit reference instead of creating another visit.
+
+Stage 7 introduces the following protected function:
+
+- `register_return_visit(uuid, uuid, timestamp with time zone, text, text, text, text, uuid, text)`.
+
+Execution is revoked from anonymous users and granted only to the trusted server-side service role.
+
+Stage 7 database migrations:
+
+- `supabase/migrations/202607270002_returning_visitor_check_in.sql`;
+- `supabase/migrations/202607270003_return_check_in_idempotency.sql`.
+
 
 Execution is revoked from `public`, `anon` and `authenticated`. The trusted server-side `service_role` is granted execution. The `public_request_limits` table has Row Level Security enabled and stores only HMAC-derived request keys, timestamps and counters—not raw visitor IP addresses.
 
@@ -459,6 +532,11 @@ The implementation must:
 - restrict staff features by authenticated role;
 - record privileged actions in the audit trail; and
 - complete privacy, accessibility and security review before production use.
+- consume verified returning-visitor tokens only once;
+- prevent token replay from creating duplicate visits;
+- enforce one active checked-in visit per visitor at the database level;
+- perform returning check-in through a single protected database transaction; and
+- preserve successful check-in results for safe idempotent retries.
 
 Never commit:
 
@@ -494,6 +572,7 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:returning-check-in
 npm run check:returning
 npm run check:registration
 npm run check:supabase
@@ -512,10 +591,16 @@ git diff --check
 - Token-purpose separation
 - API method restrictions
 - Invalid-request rejection
+- Shared first-time and returning-visit detail validation
+- Returning check-in request validation
+- Verified-token unique identifier validation
+- Verified-token audience and expiry validation
+- Returning check-in API method restrictions
+- Invalid and missing verified-token rejection
 
 ### Planned test coverage
 
-- Expanded API integration tests for registration, lookup, verification and check-in
+- Expanded database-connected API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
 - End-to-end tests for first-time and returning visitors
 - Pagination and checkout tests
@@ -550,7 +635,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 4 — Application routing and shared layout
 - [x] Stage 5 — First-time visitor registration
 - [x] Stage 6 — Returning-visitor search and verification
-- [ ] Stage 7 — Returning-visitor check-in
+- [x] Stage 7 — Returning-visitor check-in
 - [ ] Stage 8 — Staff authentication and protected routes
 - [ ] Stage 9 — Reception dashboard and pagination
 - [ ] Stage 10 — Visitor checkout and visit history
@@ -783,6 +868,55 @@ Validation completed:
 - `npm run lint`
 - `npm run build`
 - `git diff --check`
+
+
+### Stage 7 — Returning-visitor check-in
+
+Status: Completed
+
+Implemented:
+
+- Add a mobile-first current-visit form after successful visitor verification.
+- Reuse controlled agency, Ministry division, purpose and meeting options.
+- Display the person-being-visited field only for non-meeting visits.
+- Support official meetings and visitor-supplied meeting titles.
+- Share visit-detail validation between first-time and returning-visitor workflows.
+- Add unique identifiers to verified visitor tokens.
+- Add a protected returning check-in Vercel Function.
+- Add a transactional `register_return_visit` database function.
+- Consume verified tokens once to prevent replay.
+- Enforce one active checked-in visit per visitor.
+- Link consumed tokens to created visits for idempotent request retries.
+- Preserve completed visit records while creating a new visit for each return.
+- Generate a new public reference for each successful return visit.
+
+Database migrations:
+
+- `supabase/migrations/202607270002_returning_visitor_check_in.sql`
+- `supabase/migrations/202607270003_return_check_in_idempotency.sql`
+
+API endpoint:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/returning/check-in` | `POST` | Validate a verified visitor token and create the return visit |
+
+Validation completed:
+
+- Returning non-meeting check-in
+- Successful new visit-reference generation
+- Existing active check-in rejection
+- Checkout followed by successful return check-in
+- Consumed-token table, constraints, indexes and Row Level Security verification
+- Service-role and anonymous function privilege verification
+- `npm run check:returning-check-in`
+- `npm run check:returning`
+- `npm run check:registration`
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
 
 Future stages will add a new entry under this section describing:
 

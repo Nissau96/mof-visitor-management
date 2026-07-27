@@ -1,5 +1,6 @@
 import {
   createHmac,
+  randomUUID,
   timingSafeEqual,
 } from "node:crypto";
 import process from "node:process";
@@ -38,9 +39,16 @@ function createSignature(encodedPayload) {
     .digest();
 }
 
-function createVisitorToken(visitorId, audience, lifetimeSeconds) {
+function createVisitorToken(
+  visitorId,
+  audience,
+  lifetimeSeconds,
+  oneTime = false,
+) {
   if (!UUID_PATTERN.test(visitorId)) {
-    throw new Error("Cannot create a token for an invalid visitor.");
+    throw new Error(
+      "Cannot create a token for an invalid visitor.",
+    );
   }
 
   const issuedAt = Math.floor(Date.now() / 1000);
@@ -54,14 +62,18 @@ function createVisitorToken(visitorId, audience, lifetimeSeconds) {
     v: TOKEN_VERSION,
   };
 
+  if (oneTime) {
+    payload.jti = randomUUID();
+  }
+
   const encodedPayload = Buffer.from(
     JSON.stringify(payload),
     "utf8",
   ).toString("base64url");
 
-  const signature = createSignature(encodedPayload).toString(
-    "base64url",
-  );
+  const signature = createSignature(
+    encodedPayload,
+  ).toString("base64url");
 
   return `${encodedPayload}.${signature}`;
 }
@@ -79,10 +91,14 @@ export function createVerifiedVisitorToken(visitorId) {
     visitorId,
     VERIFIED_VISITOR_AUDIENCE,
     VERIFIED_TOKEN_TTL_SECONDS,
+    true,
   );
 }
 
-export function readVisitorToken(token, expectedAudience) {
+export function readVisitorToken(
+  token,
+  expectedAudience,
+) {
   if (
     typeof token !== "string" ||
     token.length < 20 ||
@@ -98,8 +114,8 @@ export function readVisitorToken(token, expectedAudience) {
   }
 
   const [encodedPayload, encodedSignature] = segments;
-
-  const expectedSignature = createSignature(encodedPayload);
+  const expectedSignature =
+    createSignature(encodedPayload);
 
   let suppliedSignature;
 
@@ -113,8 +129,12 @@ export function readVisitorToken(token, expectedAudience) {
   }
 
   if (
-    suppliedSignature.length !== expectedSignature.length ||
-    !timingSafeEqual(suppliedSignature, expectedSignature)
+    suppliedSignature.length !==
+      expectedSignature.length ||
+    !timingSafeEqual(
+      suppliedSignature,
+      expectedSignature,
+    )
   ) {
     throw new Error("Invalid visitor token.");
   }
@@ -123,7 +143,10 @@ export function readVisitorToken(token, expectedAudience) {
 
   try {
     payload = JSON.parse(
-      Buffer.from(encodedPayload, "base64url").toString("utf8"),
+      Buffer.from(
+        encodedPayload,
+        "base64url",
+      ).toString("utf8"),
     );
   } catch {
     throw new Error("Invalid visitor token.");
@@ -144,11 +167,26 @@ export function readVisitorToken(token, expectedAudience) {
     payload.exp - payload.iat >
       MAXIMUM_TOKEN_LIFETIME_SECONDS
   ) {
-    throw new Error("Invalid or expired visitor token.");
+    throw new Error(
+      "Invalid or expired visitor token.",
+    );
+  }
+
+  const requiresOneTimeIdentifier =
+    expectedAudience === VERIFIED_VISITOR_AUDIENCE;
+
+  if (
+    requiresOneTimeIdentifier &&
+    !UUID_PATTERN.test(payload?.jti || "")
+  ) {
+    throw new Error(
+      "Invalid verified visitor token.",
+    );
   }
 
   return {
     visitorId: payload.sub,
+    tokenId: payload.jti || null,
     expiresAt: payload.exp,
   };
 }
@@ -191,7 +229,10 @@ export function maskVisitorOrganization(organization) {
 }
 
 export function maskPhoneSuffix(phoneSuffix) {
-  const suffix = String(phoneSuffix || "").replace(/\D/g, "");
+  const suffix = String(phoneSuffix || "").replace(
+    /\D/g,
+    "",
+  );
 
   if (suffix.length !== 2) {
     return "•••• ••••";
@@ -222,6 +263,8 @@ export function createPrivateRequestKey(
   const address = getClientAddress(request);
 
   return createHmac("sha256", getLookupSecret())
-    .update(`${scope}\u0000${address}\u0000${subject}`)
+    .update(
+      `${scope}\u0000${address}\u0000${subject}`,
+    )
     .digest("hex");
 }
