@@ -83,7 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 adds Supabase staff authentication, server-verified staff sessions, role-based protected routes and secure sign-out.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified staff sessions, role-based protected routes and secure sign-out.
 
 ### Stage 1 completion checklist — completed
 
@@ -374,7 +374,7 @@ The frontend-only server does not run the Vercel Functions in `api/`.
 
 ### 5. Start the complete local application
 
-The registration and meeting endpoints require the Vercel development server. In Git Bash, load `.env.local` into the current shell and start Vercel:
+The registration, returning-visitor, meeting and staff-session endpoints require the Vercel development server. In Git Bash, load `.env.local` into the current shell and start Vercel:
 
 ```bash
 set -a
@@ -389,7 +389,7 @@ The complete application is normally available at:
 http://localhost:3000
 ```
 
-### 6. Configure a development staff account
+### 6. Configure a development staff account### 6. Configure a development staff account
 
 Create an invented development user through the Supabase Authentication Users page. Use a strong password stored outside the repository.
 
@@ -407,8 +407,20 @@ values (
   'Development Receptionist',
   'receptionist',
   true
-);
+)
+on conflict (user_id)
+do update set
+  full_name = excluded.full_name,
+  role = excluded.role,
+  active = excluded.active;
+```
 
+Supported application roles are:
+
+- `receptionist`;
+- `admin`.
+
+Do not place staff passwords, real staff email addresses or Auth user identifiers in migrations, source files, tests or documentation.
 
 ### 7. Run the quality checks
 
@@ -424,6 +436,7 @@ git diff --check
 ```
 
 All commands must succeed before a development stage is committed.
+
 
 ## Available scripts
 
@@ -679,6 +692,7 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:staff-auth
 npm run check:returning-check-in
 npm run check:returning
 npm run check:registration
