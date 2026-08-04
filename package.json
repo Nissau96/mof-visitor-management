@@ -9,6 +9,7 @@
   "scripts": {
   "dev": "vite",
   "build": "vite build",
+  "check:staff-visits": "node scripts/check-staff-visits-validation.mjs",
   "check:dashboard": "node scripts/check-reception-dashboard-validation.mjs",
   "check:registration": "node scripts/check-registration-validation.mjs",
   "check:returning": "node scripts/check-returning-visitor-validation.mjs",
