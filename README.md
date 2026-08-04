@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 8 staff authentication and protected routes completed
+> Project status: Stage 9 reception dashboard and pagination completed
 >
-> Current implementation stage: Stage 9 — Reception dashboard and pagination
+> Current implementation stage: Stage 10 — Visitor checkout and visit history
 >
-> Documentation version: 2.3
+> Documentation version: 2.4
 
 ## Table of contents
 
@@ -83,7 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified staff sessions, role-based protected routes and secure sign-out.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 adds the protected reception dashboard, active-visitor metrics, staff search and filtering, and server-side pagination with 10 records per page.
 
 ### Stage 1 completion checklist — completed
 
@@ -285,7 +285,39 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run build` completed successfully without chunk-size warnings
 - [x] `git diff --check` completed successfully
 
+### Stage 9 completion checklist — completed
 
+- [x] Protected reception dashboard implemented
+- [x] Active-visitor summary metrics implemented
+- [x] Ghana operational-day calculations use the `Africa/Accra` timezone
+- [x] Currently checked-in visitor list implemented
+- [x] Visitor-name and visit-reference search implemented
+- [x] Search values submitted by `POST` instead of URL parameters
+- [x] Agency filtering implemented
+- [x] Conditional Ministry division filtering implemented
+- [x] Server-side pagination implemented
+- [x] Dashboard page size restricted to 10 records
+- [x] Page-number, previous-page and next-page controls implemented
+- [x] Responsive mobile visitor cards implemented
+- [x] Responsive desktop visitor table implemented
+- [x] Loading, empty, error and refresh states implemented
+- [x] Staff bearer-token authorization enforced
+- [x] Invalid or expired staff sessions rejected
+- [x] Dashboard database function restricted to `service_role`
+- [x] Anonymous and direct authenticated function execution denied
+- [x] Visitor email addresses and visitor UUIDs excluded from dashboard responses
+- [x] Five existing active visitors displayed successfully
+- [x] Pagination verified using 11 active development records
+- [x] Page 1 displayed 10 records
+- [x] Page 2 displayed the remaining record
+- [x] Search and agency filters verified
+- [x] Six invented pagination records removed after testing
+- [x] Original five active visitors restored
+- [x] `npm run check:dashboard` completed successfully
+- [x] All existing validation scripts completed successfully
+- [x] `npm run lint` completed successfully without warnings
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
 
 
 ## Technology stack
@@ -389,7 +421,7 @@ The complete application is normally available at:
 http://localhost:3000
 ```
 
-### 6. Configure a development staff account### 6. Configure a development staff account
+### 6. Configure a development staff account
 
 Create an invented development user through the Supabase Authentication Users page. Use a strong password stored outside the repository.
 
@@ -425,6 +457,7 @@ Do not place staff passwords, real staff email addresses or Auth user identifier
 ### 7. Run the quality checks
 
 ```bash
+npm run check:dashboard
 npm run check:staff-auth
 npm run check:returning-check-in
 npm run check:returning
@@ -451,6 +484,7 @@ All commands must succeed before a development stage is committed.
 | `npm run check:returning`            | Run returning-visitor validation, masking, token and API contract checks    |
 | `npm run check:returning-check-in`   | Run returning-visit validation, token and check-in API contract checks      |
 | `npm run check:staff-auth`          | Run staff-login validation and staff-session API contract checks           |
+| `npm run check:dashboard`           | Run reception-dashboard validation and API contract checks                 |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -495,6 +529,7 @@ mof-visitor-management/
 │   │   ├── search.js
 │   │   └── verify.js
 │   ├── staff/
+│   │   ├── dashboard.js
 │   │   └── session.js
 │   ├── hosts.js
 │   ├── meetings.js
@@ -505,6 +540,7 @@ mof-visitor-management/
 │   ├── check-returning-check-in-validation.mjs
 │   ├── check-returning-visitor-validation.mjs
 │   ├── check-staff-auth-validation.mjs
+│   ├── check-reception-dashboard-validation.mjs
 │   └── check-supabase.mjs
 ├── src/
 │   ├── components/
@@ -531,6 +567,7 @@ mof-visitor-management/
 │   ├── validation/
 │   │   ├── returningVisit.js
 │   │   ├── returningVisitor.js
+│   │   ├── receptionDashboard.js
 │   │   ├── staffLogin.js
 │   │   ├── visitDetails.js
 │   │   └── visitorRegistration.js
@@ -625,10 +662,31 @@ Stage 8 database migration:
 
 - `supabase/migrations/202607270004_harden_staff_auth_permissions.sql`.
 
+Stage 9 adds the `get_reception_dashboard` database function. It returns active-visitor metrics, filtered visitor records and pagination metadata to the trusted dashboard Vercel Function.
+
+The function:
+
+- returns only currently checked-in visits in the visitor list;
+- calculates active, checked-in-today and checked-out-today metrics;
+- uses the `Africa/Accra` timezone for operational-day boundaries;
+- searches visitor names and visit references;
+- filters by agency and Ministry division;
+- orders active visits by latest check-in time;
+- limits each page to no more than 10 records;
+- excludes visitor email addresses and visitor UUIDs; and
+- is executable only by the trusted `service_role`.
+
+Stage 9 database migration:
+
+- `supabase/migrations/202608040001_reception_dashboard.sql`.
+
+
 Development staff accounts are created outside migrations so passwords, email addresses and Auth identifiers are not committed.
 
-
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
+
+
+
 
 ## Security and privacy
 
@@ -657,6 +715,11 @@ The implementation must:
 - return neutral public authentication and verification errors;
 - record privileged actions in the audit trail; and
 - complete privacy, accessibility and security review before production use.
+- keep staff dashboard searches out of URLs;
+- restrict reception dashboard data to active authorised staff;
+- enforce dashboard pagination and input limits on the server;
+- return only visitor information required for reception operations; and
+- prevent anonymous and direct browser execution of dashboard database functions.
 
 Never commit:
 
@@ -692,6 +755,7 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:dashboard
 npm run check:staff-auth
 npm run check:returning-check-in
 npm run check:returning
@@ -722,13 +786,19 @@ git diff --check
 - Staff session endpoint method restrictions
 - Missing bearer-token rejection
 - Unsupported authorization-scheme rejection
+- Reception dashboard request validation
+- Dashboard page-boundary validation
+- Dashboard search-length validation
+- Agency and Ministry division filter validation
+- Dashboard API method restriction
+- Missing staff bearer-token rejection
 
 ### Planned test coverage
 
 - Expanded database-connected API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
 - End-to-end tests for first-time and returning visitors
-- Pagination and checkout tests
+- Checkout and visit-history tests
 - Mobile viewport tests
 - Automated accessibility checks
 - Manual keyboard and screen-reader testing
@@ -745,6 +815,23 @@ git diff --check
 - Unknown staff-route redirection
 - Visitor-route regression validation
 - Mobile-width staff-login validation
+
+### Completed Stage 9 runtime checks
+
+- Active-visitor summary metrics
+- Active-visitor mobile cards
+- Active-visitor desktop table
+- Visitor-name search
+- Visit-reference search
+- Agency filtering
+- Ministry division filtering
+- Filter clearing
+- Manual dashboard refresh
+- Loading and empty-result states
+- Pagination with 11 active development visits
+- Previous, next and numbered page navigation
+- Pagination test-data cleanup
+
 
 ## Deployment
 
@@ -774,7 +861,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 6 — Returning-visitor search and verification
 - [x] Stage 7 — Returning-visitor check-in
 - [x] Stage 8 — Staff authentication and protected routes
-- [ ] Stage 9 — Reception dashboard and pagination
+- [x] Stage 9 — Reception dashboard and pagination
 - [ ] Stage 10 — Visitor checkout and visit history
 - [ ] Stage 11 — Host and staff administration
 - [ ] Stage 12 — Security, privacy and abuse controls
@@ -1127,6 +1214,63 @@ Future stages will add a new entry under this section describing:
 - new routes and APIs;
 - validation completed; and
 - the associated Git commit.
+
+
+### Stage 9 — Reception dashboard and pagination
+
+Status: Completed
+
+Implemented:
+
+- Add a protected reception dashboard for active staff.
+- Add active, checked-in-today and checked-out-today metrics.
+- Calculate operational-day statistics in the `Africa/Accra` timezone.
+- Add active-visitor name and reference search.
+- Submit staff searches in request bodies instead of URLs.
+- Add agency and conditional Ministry division filtering.
+- Add server-side pagination with 10 records per page.
+- Add responsive mobile visitor cards.
+- Add a responsive desktop visitor table.
+- Add loading, empty, error and refresh states.
+- Reject invalid and expired staff sessions.
+- Exclude visitor email addresses and visitor UUIDs from responses.
+- Keep checkout actions out of Stage 9.
+
+Database migration:
+
+- `supabase/migrations/202608040001_reception_dashboard.sql`
+
+API endpoint:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/staff/dashboard` | `POST` | Return protected, filtered and paginated active-visitor data |
+
+Database function:
+
+- `get_reception_dashboard(integer, integer, text, text, text)`
+
+Validation completed:
+
+- Database function signature and `SECURITY DEFINER` verification
+- Service-role-only function execution verification
+- Dashboard metrics and pagination metadata verification
+- Active-visitor runtime display
+- Name and reference search
+- Agency and Ministry division filtering
+- Mobile-card and desktop-table layouts
+- Pagination using 11 active development visits
+- Pagination test-data cleanup
+- `npm run check:dashboard`
+- `npm run check:staff-auth`
+- `npm run check:returning-check-in`
+- `npm run check:returning`
+- `npm run check:registration`
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
 
 ## README update policy
 
