@@ -798,7 +798,7 @@ function VisitorCard({ visitor }) {
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="break-words text-lg font-black text-slate-950">
+          <h3 className="wrap-break-word text-lg font-black text-slate-950">
             {visitor.fullName}
           </h3>
 
@@ -866,7 +866,7 @@ function VisitDetail({
         <dt className="font-semibold text-slate-600">
           {label}
         </dt>
-        <dd className="mt-1 break-words font-bold text-slate-950">
+        <dd className="mt-1 wrap-break-word font-bold text-slate-950">
           {value}
         </dd>
       </div>
