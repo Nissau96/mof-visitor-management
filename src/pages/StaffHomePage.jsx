@@ -1,8 +1,11 @@
 import {
   Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   Clock,
+  LoaderCircle,
   LogIn,
   LogOut,
   Phone,
@@ -145,6 +148,33 @@ function normalizeDashboardResult(result) {
   };
 }
 
+function normalizeCheckoutResult(result) {
+  const checkout = result?.checkout;
+
+  if (
+    !checkout ||
+    typeof checkout !== "object" ||
+    typeof checkout.visitId !== "string" ||
+    typeof checkout.reference !== "string" ||
+    checkout.status !== "checked_out" ||
+    typeof checkout.checkedOutAt !== "string"
+  ) {
+    throw new Error(
+      "Check-out returned an invalid response.",
+    );
+  }
+
+  return {
+    alreadyCheckedOut: Boolean(
+      checkout.alreadyCheckedOut,
+    ),
+    checkedOutAt: checkout.checkedOutAt,
+    reference: checkout.reference,
+    status: checkout.status,
+    visitId: checkout.visitId,
+  };
+}
+
 function getVisiblePages(currentPage, totalPages) {
   if (totalPages <= 0) {
     return [];
@@ -199,6 +229,18 @@ export default function StaffHomePage() {
 
   const [refreshKey, setRefreshKey] =
     useState(0);
+
+  const [checkoutTarget, setCheckoutTarget] =
+    useState(null);
+
+  const [checkoutError, setCheckoutError] =
+    useState("");
+
+  const [checkoutSuccess, setCheckoutSuccess] =
+    useState("");
+
+  const [checkingOut, setCheckingOut] =
+    useState(false);
 
   const accessToken =
     session?.access_token || "";
@@ -368,6 +410,88 @@ export default function StaffHomePage() {
     }
   }
 
+  function openCheckout(visitor) {
+    setCheckoutError("");
+    setCheckoutSuccess("");
+    setCheckoutTarget(visitor);
+  }
+
+  function closeCheckout() {
+    if (checkingOut) {
+      return;
+    }
+
+    setCheckoutError("");
+    setCheckoutTarget(null);
+  }
+
+  async function confirmCheckout() {
+    if (!checkoutTarget || checkingOut) {
+      return;
+    }
+
+    setCheckoutError("");
+    setCheckingOut(true);
+
+    try {
+      const result = await apiRequest(
+        "/api/staff/checkout",
+        {
+          body: JSON.stringify({
+            visitId: checkoutTarget.visitId,
+          }),
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          method: "POST",
+        },
+      );
+
+      const checkout =
+        normalizeCheckoutResult(result);
+
+      const visitorName =
+        checkoutTarget.fullName;
+
+      setCheckoutTarget(null);
+
+      setCheckoutSuccess(
+        checkout.alreadyCheckedOut
+          ? `${visitorName} was already checked out at ${formatDateTime(
+              checkout.checkedOutAt,
+            )}.`
+          : `${visitorName} has been checked out successfully at ${formatDateTime(
+              checkout.checkedOutAt,
+            )}.`,
+      );
+
+      setDashboard(null);
+      setRequestError("");
+      setStatus("loading");
+      setPage(1);
+      setRefreshKey(
+        (currentKey) => currentKey + 1,
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 ||
+          error.status === 403)
+      ) {
+        void signOut().catch(() => undefined);
+        return;
+      }
+
+      setCheckoutError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Check-out could not be completed. Please try again.",
+      );
+    } finally {
+      setCheckingOut(false);
+    }
+  }
+
   const loading = status === "loading";
 
   const filtersApplied = Boolean(
@@ -394,8 +518,8 @@ export default function StaffHomePage() {
           </h1>
 
           <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-            Review visitors who are currently checked in.
-            Visitor checkout will be added in Stage 10.
+            Review visitors who are currently checked in
+            and record their departure securely.
           </p>
         </div>
 
@@ -414,6 +538,36 @@ export default function StaffHomePage() {
           Refresh dashboard
         </button>
       </header>
+
+      {checkoutSuccess ? (
+        <div
+          className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"
+          role="status"
+        >
+          <CheckCircle2
+            aria-hidden="true"
+            className="mt-0.5 size-5 shrink-0 text-emerald-700"
+          />
+
+          <p className="flex-1 text-sm font-semibold leading-6">
+            {checkoutSuccess}
+          </p>
+
+          <button
+            aria-label="Dismiss check-out confirmation"
+            className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
+            onClick={() =>
+              setCheckoutSuccess("")
+            }
+            type="button"
+          >
+            <X
+              aria-hidden="true"
+              className="size-4"
+            />
+          </button>
+        </div>
+      ) : null}
 
       {dashboard ? (
         <section
@@ -690,6 +844,7 @@ export default function StaffHomePage() {
                   (visitor) => (
                     <VisitorCard
                       key={visitor.visitId}
+                      onCheckout={openCheckout}
                       visitor={visitor}
                     />
                   ),
@@ -724,6 +879,12 @@ export default function StaffHomePage() {
                       >
                         Checked in
                       </th>
+                      <th
+                        className="px-6 py-4 text-right font-bold"
+                        scope="col"
+                      >
+                        Action
+                      </th>
                     </tr>
                   </thead>
 
@@ -732,6 +893,9 @@ export default function StaffHomePage() {
                       (visitor) => (
                         <VisitorRow
                           key={visitor.visitId}
+                          onCheckout={
+                            openCheckout
+                          }
                           visitor={visitor}
                         />
                       ),
@@ -753,6 +917,16 @@ export default function StaffHomePage() {
             />
           ) : null}
         </section>
+      ) : null}
+
+      {checkoutTarget ? (
+        <CheckoutDialog
+          checkingOut={checkingOut}
+          error={checkoutError}
+          onCancel={closeCheckout}
+          onConfirm={confirmCheckout}
+          visitor={checkoutTarget}
+        />
       ) : null}
     </div>
   );
@@ -793,7 +967,26 @@ function MetricCard({
   );
 }
 
-function VisitorCard({ visitor }) {
+function CheckoutButton({ onClick }) {
+  return (
+    <button
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-4 text-sm font-black text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200"
+      onClick={onClick}
+      type="button"
+    >
+      <LogOut
+        aria-hidden="true"
+        className="size-4"
+      />
+      Check out
+    </button>
+  );
+}
+
+function VisitorCard({
+  onCheckout,
+  visitor,
+}) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -846,6 +1039,12 @@ function VisitorCard({ visitor }) {
           )}
         />
       </dl>
+
+      <div className="mt-5 border-t border-slate-200 pt-5">
+        <CheckoutButton
+          onClick={() => onCheckout(visitor)}
+        />
+      </div>
     </article>
   );
 }
@@ -874,7 +1073,10 @@ function VisitDetail({
   );
 }
 
-function VisitorRow({ visitor }) {
+function VisitorRow({
+  onCheckout,
+  visitor,
+}) {
   return (
     <tr className="align-top hover:bg-slate-50">
       <td className="px-6 py-5">
@@ -922,7 +1124,138 @@ function VisitorRow({ visitor }) {
       <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-700">
         {formatDateTime(visitor.checkedInAt)}
       </td>
+
+      <td className="px-6 py-5 text-right">
+        <CheckoutButton
+          onClick={() => onCheckout(visitor)}
+        />
+      </td>
     </tr>
+  );
+}
+
+function CheckoutDialog({
+  checkingOut,
+  error,
+  onCancel,
+  onConfirm,
+  visitor,
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
+      role="presentation"
+    >
+      <section
+        aria-describedby="checkout-dialog-description"
+        aria-labelledby="checkout-dialog-heading"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
+        role="dialog"
+      >
+        <div className="flex items-start gap-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
+            <CircleAlert
+              aria-hidden="true"
+              className="size-6"
+            />
+          </span>
+
+          <div>
+            <h2
+              className="text-xl font-black text-slate-950"
+              id="checkout-dialog-heading"
+            >
+              Confirm visitor check-out
+            </h2>
+
+            <p
+              className="mt-2 leading-7 text-slate-600"
+              id="checkout-dialog-description"
+            >
+              Confirm that this visitor is leaving the
+              premises. This records the departure time and
+              staff account performing the action.
+            </p>
+          </div>
+        </div>
+
+        <dl className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4">
+          <div>
+            <dt className="text-sm font-semibold text-slate-600">
+              Visitor
+            </dt>
+            <dd className="mt-1 font-black text-slate-950">
+              {visitor.fullName}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm font-semibold text-slate-600">
+              Visit reference
+            </dt>
+            <dd className="mt-1 font-mono font-black text-brand-800">
+              {visitor.reference}
+            </dd>
+          </div>
+
+          <div>
+            <dt className="text-sm font-semibold text-slate-600">
+              Checked in
+            </dt>
+            <dd className="mt-1 font-bold text-slate-950">
+              {formatDateTime(
+                visitor.checkedInAt,
+              )}
+            </dd>
+          </div>
+        </dl>
+
+        {error ? (
+          <div
+            className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800"
+            role="alert"
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            autoFocus
+            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={checkingOut}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={checkingOut}
+            onClick={onConfirm}
+            type="button"
+          >
+            {checkingOut ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-5 animate-spin"
+              />
+            ) : (
+              <LogOut
+                aria-hidden="true"
+                className="size-5"
+              />
+            )}
+
+            {checkingOut
+              ? "Checking out…"
+              : "Confirm check-out"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

@@ -40,6 +40,12 @@ const StaffLoginPage = lazy(() =>
   import("./pages/StaffLoginPage.jsx"),
 );
 
+const StaffVisitHistoryPage = lazy(() =>
+  import(
+    "./pages/StaffVisitHistoryPage.jsx"
+  ),
+);
+
 const VisitorLandingPage = lazy(() =>
   import("./pages/VisitorLandingPage.jsx"),
 );
@@ -82,6 +88,14 @@ export default function App() {
               index
               element={<StaffHomePage />}
             />
+
+            <Route
+              element={
+                <StaffVisitHistoryPage />
+              }
+              path="history"
+            />
+
             <Route
               path="*"
               element={
@@ -98,18 +112,22 @@ export default function App() {
               <Navigate replace to="/visit" />
             }
           />
+
           <Route
             path="visit"
             element={<VisitorLandingPage />}
           />
+
           <Route
             path="visit/new"
             element={<NewVisitorPage />}
           />
+
           <Route
             path="visit/returning"
             element={<ReturningVisitorPage />}
           />
+
           <Route
             path="*"
             element={<NotFoundPage />}
