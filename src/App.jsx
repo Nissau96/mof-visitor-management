@@ -20,6 +20,14 @@ const VisitorLayout = lazy(() =>
   import("./layouts/VisitorLayout.jsx"),
 );
 
+const AdminHostsPage = lazy(() =>
+  import("./pages/AdminHostsPage.jsx"),
+);
+
+const AdminStaffPage = lazy(() =>
+  import("./pages/AdminStaffPage.jsx"),
+);
+
 const NewVisitorPage = lazy(() =>
   import("./pages/NewVisitorPage.jsx"),
 );
@@ -38,6 +46,10 @@ const StaffHomePage = lazy(() =>
 
 const StaffLoginPage = lazy(() =>
   import("./pages/StaffLoginPage.jsx"),
+);
+
+const StaffSetupPage = lazy(() =>
+  import("./pages/StaffSetupPage.jsx"),
 );
 
 const StaffVisitHistoryPage = lazy(() =>
@@ -79,6 +91,11 @@ export default function App() {
           path="staff/login"
         />
 
+        <Route
+          element={<StaffSetupPage />}
+          path="staff/setup"
+        />
+
         <Route element={<ProtectedRoute />}>
           <Route
             element={<StaffLayout />}
@@ -95,6 +112,24 @@ export default function App() {
               }
               path="history"
             />
+
+            <Route
+              element={
+                <ProtectedRoute
+                  allowedRoles={["admin"]}
+                />
+              }
+            >
+              <Route
+                element={<AdminHostsPage />}
+                path="admin/hosts"
+              />
+
+              <Route
+                element={<AdminStaffPage />}
+                path="admin/staff"
+              />
+            </Route>
 
             <Route
               path="*"
