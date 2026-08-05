@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
-import hostListEndpoint from "../api/admin/hosts/list.js";
-import hostSaveEndpoint from "../api/admin/hosts/save.js";
-import staffInviteEndpoint from "../api/admin/staff/invite.js";
-import staffListEndpoint from "../api/admin/staff/list.js";
-import staffUpdateEndpoint from "../api/admin/staff/update.js";
+import adminEndpoint from "../api/admin.js";
 import {
   adminHostListSchema,
   adminHostSaveSchema,
@@ -399,7 +395,7 @@ const endpointChecks = [
       search: "",
       status: "all",
     },
-    endpoint: hostListEndpoint,
+    endpoint: adminEndpoint,
     path: "/api/admin/hosts/list",
   },
   {
@@ -409,7 +405,7 @@ const endpointChecks = [
       fullName: "Development Host",
       hostId: null,
     },
-    endpoint: hostSaveEndpoint,
+    endpoint: adminEndpoint,
     path: "/api/admin/hosts/save",
   },
   {
@@ -418,7 +414,7 @@ const endpointChecks = [
       fullName: "Invited User",
       role: "receptionist",
     },
-    endpoint: staffInviteEndpoint,
+    endpoint: adminEndpoint,
     path: "/api/admin/staff/invite",
   },
   {
@@ -429,7 +425,7 @@ const endpointChecks = [
       search: "",
       status: "all",
     },
-    endpoint: staffListEndpoint,
+    endpoint: adminEndpoint,
     path: "/api/admin/staff/list",
   },
   {
@@ -439,7 +435,7 @@ const endpointChecks = [
       role: "receptionist",
       userId: TEST_USER_ID,
     },
-    endpoint: staffUpdateEndpoint,
+    endpoint: adminEndpoint,
     path: "/api/admin/staff/update",
   },
 ];

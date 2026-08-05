@@ -1,6 +1,26 @@
 {
   "rewrites": [
     {
+      "source": "/api/admin/hosts/list",
+      "destination": "/api/admin?operation=host-list"
+    },
+    {
+      "source": "/api/admin/hosts/save",
+      "destination": "/api/admin?operation=host-save"
+    },
+    {
+      "source": "/api/admin/staff/invite",
+      "destination": "/api/admin?operation=staff-invite"
+    },
+    {
+      "source": "/api/admin/staff/list",
+      "destination": "/api/admin?operation=staff-list"
+    },
+    {
+      "source": "/api/admin/staff/update",
+      "destination": "/api/admin?operation=staff-update"
+    },
+    {
       "source": "/visit",
       "destination": "/index.html"
     },

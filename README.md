@@ -404,6 +404,10 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Administration database functions restricted to `service_role`
 - [x] Anonymous and direct authenticated function execution denied
 - [x] `npm run check:admin` completed successfully
+- [x] Five logical administration endpoints consolidated behind one Vercel Function
+- [x] Existing administration API URLs preserved through internal rewrites
+- [x] Total deployable Vercel Function count verified as 11
+- [x] Vercel Hobby-plan 12-function limit satisfied
 - [x] All existing automated validation scripts completed successfully
 - [x] Node.js 22 final validation completed
 - [x] `npm run lint` completed successfully
@@ -648,14 +652,7 @@ mof-visitor-management/
 │   │   ├── staffAuth.js
 │   │   ├── supabase.js
 │   │   └── visitorLookup.js
-│   ├── admin/
-│   │   ├── hosts/
-│   │   │   ├── list.js
-│   │   │   └── save.js
-│   │   └── staff/
-│   │       ├── invite.js
-│   │       ├── list.js
-│   │       └── update.js
+│   ├── admin.js
 │   ├── returning/
 │   │   ├── check-in.js
 │   │   ├── search.js
@@ -888,6 +885,8 @@ These functions are executable only by the trusted `service_role`. Host and staf
 Stage 11 database migration:
 
 - `supabase/migrations/202608050001_host_staff_administration.sql`.
+
+To remain within the Vercel Hobby deployment limit, the five logical administration endpoints are dispatched through a single consolidated `api/admin.js` Vercel Function, while `vercel.json` rewrites preserve the logical route paths (`/api/admin/hosts/list`, `/api/admin/hosts/save`, `/api/admin/staff/list`, `/api/admin/staff/invite`, `/api/admin/staff/update`).
 
 Development staff accounts are created outside migrations so passwords, email addresses and Auth identifiers are not committed.
 
