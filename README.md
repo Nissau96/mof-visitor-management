@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 10 visitor checkout and visit history completed
+> Project status: Stage 11 host and staff administration completed
 >
-> Current implementation stage: Stage 11 — Host and staff administration
+> Current implementation stage: Stage 12 — Security, privacy and abuse controls
 >
-> Documentation version: 2.5
+> Documentation version: 2.6
 
 ## Table of contents
 
@@ -83,7 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 adds transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 adds administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination.
 
 ### Stage 1 completion checklist — completed
 
@@ -364,6 +364,52 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Node.js 22 final validation completed
 - [x] `git diff --check` completed successfully
 
+### Stage 11 completion checklist — completed
+
+- [x] Administrator-only host administration implemented
+- [x] Administrator-only staff administration implemented
+- [x] Active administrator authorization enforced by every administration endpoint
+- [x] Receptionists prevented from accessing administration routes
+- [x] Administrator navigation displayed conditionally by role
+- [x] Protected `/staff/admin/hosts` route implemented
+- [x] Protected `/staff/admin/staff` route implemented
+- [x] Public invitation-completion route implemented at `/staff/setup`
+- [x] Host-name and department search implemented
+- [x] Host active-status filtering implemented
+- [x] Host creation implemented
+- [x] Host editing implemented
+- [x] Host activation and deactivation implemented
+- [x] Permanent host deletion excluded from the administration workflow
+- [x] Staff-name and email search implemented
+- [x] Staff role and active-status filtering implemented
+- [x] Receptionist and administrator role management implemented
+- [x] Staff activation and deactivation implemented
+- [x] Email-based Supabase Auth staff invitations implemented
+- [x] Invitation redirect configuration validated on the server
+- [x] Invitation email delivery verified
+- [x] Invited staff password setup implemented
+- [x] Strong invited-staff password validation implemented
+- [x] Invited Auth users linked to application staff profiles
+- [x] Failed profile creation triggers invited-user cleanup
+- [x] Signed-in administrators prevented from demoting themselves
+- [x] Signed-in administrators prevented from deactivating themselves
+- [x] Last-active-administrator protection implemented
+- [x] Host and staff lists limited to 10 records per page
+- [x] Responsive mobile administration cards implemented
+- [x] Responsive desktop administration tables implemented
+- [x] Loading, empty, error and refresh states implemented
+- [x] Host and staff mutations recorded in the audit trail
+- [x] Direct authenticated host mutations removed
+- [x] Direct authenticated staff-profile mutations removed
+- [x] Administration database functions restricted to `service_role`
+- [x] Anonymous and direct authenticated function execution denied
+- [x] `npm run check:admin` completed successfully
+- [x] All existing automated validation scripts completed successfully
+- [x] Node.js 22 final validation completed
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
+
 ## Technology stack
 
 | Layer          | Technology               | Purpose                                                    |
@@ -376,7 +422,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 | Validation     | Zod                      | Browser and server input validation                        |
 | Database       | Supabase Postgres        | Visitors, visits, hosts, staff and audit records           |
 | Authentication | Supabase Auth            | Receptionist and administrator authentication              |
-| Backend        | Vercel Functions         | Protected registration, lookup, check-in, dashboard, checkout, history and staff-session operations |
+| Backend        | Vercel Functions         | Protected registration, lookup, check-in, dashboard, checkout, history, invitation and administration operations |
 | Hosting        | Vercel                   | Frontend and serverless Function deployment                |
 | Icons          | Lucide React             | Consistent accessible interface icons                      |
 
@@ -450,7 +496,7 @@ The frontend-only server does not run the Vercel Functions in `api/`.
 
 ### 5. Start the complete local application
 
-The registration, returning-visitor, meeting, staff-session, dashboard, checkout and visit-history endpoints require the Vercel development server.
+The registration, returning-visitor, meeting, staff-session, dashboard, checkout, visit-history and administration endpoints require the Vercel development server.
 
 ```bash
 set -a
@@ -498,9 +544,37 @@ Supported application roles are:
 
 Do not place staff passwords, real staff email addresses or Auth user identifiers in migrations, source files, tests or documentation.
 
-### 7. Run the quality checks
+### 7. Configure staff invitations
+
+Add the local invitation-completion route to the Supabase allowed redirect URLs:
+
+```text
+http://localhost:3000/staff/setup
+```
+
+Add the matching server-only value to `.env.local`:
+
+```text
+STAFF_INVITE_REDIRECT_URL=http://localhost:3000/staff/setup
+```
+
+Load the environment file before starting the complete local application:
 
 ```bash
+set -a
+source .env.local
+set +a
+npx vercel dev
+```
+
+The invitation redirect must use the approved HTTPS application URL in preview and production environments.
+
+Supabase's built-in email sender is suitable only for limited development testing. Configure an approved custom SMTP provider before using staff invitations in production.
+
+### 8. Run the quality checks
+
+```bash
+npm run check:admin
 npm run check:staff-visits
 npm run check:dashboard
 npm run check:staff-auth
@@ -531,6 +605,7 @@ All commands must succeed before a development stage is committed.
 | `npm run check:staff-auth`          | Run staff-login validation and staff-session API contract checks           |
 | `npm run check:dashboard`           | Run reception-dashboard validation and API contract checks                 |
 | `npm run check:staff-visits`          | Run staff checkout, visit-history validation and API contract checks       |
+| `npm run check:admin`                 | Run host and staff administration validation and API contract checks       |
 
 Additional test coverage will be introduced during the dedicated automated testing stage.
 
@@ -553,7 +628,10 @@ Only variables intended to be visible in browser code may use the `VITE_` prefix
 SUPABASE_URL
 SUPABASE_SECRET_KEY
 VISITOR_LOOKUP_SECRET
+STAFF_INVITE_REDIRECT_URL
 ```
+
+`STAFF_INVITE_REDIRECT_URL` controls where invited staff complete password setup. It must exactly match an approved Supabase Auth redirect URL. Local development uses `/staff/setup` on the Vercel development server; deployed environments must use their approved HTTPS application URL.
 
 Server-only values must be configured in the local server environment and Vercel Project Settings. They must never be placed in `src/`, prefixed with `VITE_` or committed to Git.
 
@@ -570,6 +648,14 @@ mof-visitor-management/
 │   │   ├── staffAuth.js
 │   │   ├── supabase.js
 │   │   └── visitorLookup.js
+│   ├── admin/
+│   │   ├── hosts/
+│   │   │   ├── list.js
+│   │   │   └── save.js
+│   │   └── staff/
+│   │       ├── invite.js
+│   │       ├── list.js
+│   │       └── update.js
 │   ├── returning/
 │   │   ├── check-in.js
 │   │   ├── search.js
@@ -584,6 +670,7 @@ mof-visitor-management/
 │   └── register.js
 ├── public/
 ├── scripts/
+│   ├── check-admin-management-validation.mjs
 │   ├── check-registration-validation.mjs
 │   ├── check-returning-check-in-validation.mjs
 │   ├── check-returning-visitor-validation.mjs
@@ -607,14 +694,18 @@ mof-visitor-management/
 │   │   ├── api.js
 │   │   └── supabase.js
 │   ├── pages/
+│   │   ├── AdminHostsPage.jsx
+│   │   ├── AdminStaffPage.jsx
 │   │   ├── NewVisitorPage.jsx
 │   │   ├── NotFoundPage.jsx
 │   │   ├── ReturningVisitorPage.jsx
 │   │   ├── StaffHomePage.jsx
 │   │   ├── StaffLoginPage.jsx
+│   │   ├── StaffSetupPage.jsx
 │   │   ├── StaffVisitHistoryPage.jsx
 │   │   └── VisitorLandingPage.jsx
 │   ├── validation/
+│   │   ├── adminManagement.js
 │   │   ├── returningVisit.js
 │   │   ├── returningVisitor.js
 │   │   ├── receptionDashboard.js
@@ -760,6 +851,44 @@ Stage 10 database migration:
 
 - `supabase/migrations/202608040002_visitor_checkout_history.sql`.
 
+Stage 11 adds protected host and staff administration functions. Active administrators access these operations through trusted Vercel Functions after bearer-token and administrator-role verification.
+
+Host administration supports:
+
+- paginated name and department search;
+- active and inactive status filtering;
+- host creation and editing;
+- reversible activation and deactivation; and
+- audit recording for created and updated hosts.
+
+Staff administration supports:
+
+- paginated name and email search;
+- role and active-status filtering;
+- email-based Supabase Auth invitations;
+- linking invited Auth users to application staff profiles;
+- receptionist and administrator role updates;
+- reversible staff activation and deactivation;
+- self-demotion and self-deactivation prevention;
+- protection of the last active administrator; and
+- audit recording for invitations and profile updates.
+
+Stage 11 removes direct authenticated `INSERT`, `UPDATE` and `DELETE` privileges from `hosts` and `staff_profiles`. Mutations are performed by the trusted `service_role` through protected database functions.
+
+Stage 11 introduces the following protected functions:
+
+- `get_admin_hosts(integer, integer, text, text)`;
+- `save_admin_host(uuid, uuid, text, text, boolean)`;
+- `get_admin_staff(integer, integer, text, text, text)`;
+- `create_invited_staff_profile(uuid, uuid, text, text)`; and
+- `update_admin_staff(uuid, uuid, text, text, boolean)`.
+
+These functions are executable only by the trusted `service_role`. Host and staff administration lists are limited to 10 records per page.
+
+Stage 11 database migration:
+
+- `supabase/migrations/202608050001_host_staff_administration.sql`.
+
 Development staff accounts are created outside migrations so passwords, email addresses and Auth identifiers are not committed.
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
@@ -806,7 +935,18 @@ The implementation must:
 - prevent authenticated browser clients from directly inserting audit records;
 - keep visit-history searches and filters out of URLs;
 - restrict checkout and visit history to active authorised staff; and
-- enforce visit-history pagination, filter limits and date boundaries on the server;
+Administrator operations must also:
+
+- verify an active administrator profile on the trusted server;
+- prevent receptionists from accessing host and staff administration;
+- keep staff searches and filters out of URLs;
+- prevent authenticated browser clients from directly mutating hosts or staff profiles;
+- protect the last active administrator from deactivation or demotion;
+- prevent administrators from deactivating or demoting their own signed-in account;
+- record host and staff administration actions in the audit trail;
+- validate staff invitation redirect URLs on the server;
+- keep staff invitation credentials and SMTP credentials outside browser code; and
+- use an approved custom SMTP provider before production deployment.
 
 Never commit:
 
@@ -842,6 +982,8 @@ The interface should:
 ### Current required checks
 
 ```bash
+npm run check:admin
+npm run check:staff-visits
 npm run check:dashboard
 npm run check:staff-auth
 npm run check:returning-check-in
@@ -890,6 +1032,18 @@ git diff --check
 - Checkout API method restriction
 - Visit-history API method restriction
 - Missing staff bearer-token rejection for checkout and history
+- Host administration list validation
+- Host creation and update validation
+- Host-name and department length validation
+- Host active-status validation
+- Staff administration list validation
+- Staff role and active-status validation
+- Staff invitation validation
+- Invited-staff password complexity validation
+- Password-confirmation matching validation
+- Administration API method restrictions
+- Missing administrator bearer-token rejection
+- Invalid invitation-redirect configuration rejection
 
 ### Planned test coverage
 
@@ -953,6 +1107,24 @@ git diff --check
 - Desktop history-table layout
 - Staff-session persistence on history refresh
 
+### Completed Stage 11 runtime checks
+
+- Administrator-only navigation
+- Receptionist administration-route redirection
+- Host creation and editing
+- Host activation and deactivation
+- Host search and filtering
+- Staff search and filtering
+- Email-based staff invitation
+- Supabase invitation email delivery
+- Invitation redirect to `/staff/setup`
+- Invited-staff password setup
+- Invited-staff sign-in
+- Staff role updates
+- Staff activation and deactivation
+- Self-demotion and self-deactivation protection
+- Responsive host and staff administration layouts
+
 
 ## Deployment
 
@@ -984,7 +1156,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 8 — Staff authentication and protected routes
 - [x] Stage 9 — Reception dashboard and pagination
 - [x] Stage 10 — Visitor checkout and visit history
-- [ ] Stage 11 — Host and staff administration
+- [x] Stage 11 — Host and staff administration
 - [ ] Stage 12 — Security, privacy and abuse controls
 - [ ] Stage 13 — Automated testing and accessibility
 - [ ] Stage 14 — Vercel deployment and environments
@@ -1462,6 +1634,84 @@ Validation completed:
 - `npm run lint`
 - `npm run build`
 - `git diff --check`
+
+### Stage 11 — Host and staff administration
+
+Status: Completed
+
+Implemented:
+
+- Add administrator-only host and staff administration routes.
+- Add paginated host and staff lists limited to 10 records per page.
+- Add search and status filters for hosts.
+- Add search, role and status filters for staff.
+- Add host creation, editing, activation and deactivation.
+- Add email-based Supabase Auth staff invitations.
+- Add invited-staff password setup.
+- Add staff role and active-status management.
+- Add self-demotion, self-deactivation and last-active-administrator protection.
+- Remove direct authenticated host and staff-profile mutations.
+- Add protected service-role database functions.
+- Record host and staff administration actions in the audit trail.
+- Add shared Zod validation and automated administration API checks.
+- Add responsive mobile and desktop administration interfaces.
+
+Database migration:
+
+- `supabase/migrations/202608050001_host_staff_administration.sql`
+
+Routes:
+
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/staff/setup` | Invited staff session | Complete invited-account password setup |
+| `/staff/admin/hosts` | Active administrator | Manage hosts |
+| `/staff/admin/staff` | Active administrator | Invite and manage staff |
+
+API endpoints:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/admin/hosts/list` | `POST` | Return filtered and paginated hosts |
+| `/api/admin/hosts/save` | `POST` | Create or update a host |
+| `/api/admin/staff/list` | `POST` | Return filtered and paginated staff |
+| `/api/admin/staff/invite` | `POST` | Invite a staff member through Supabase Auth |
+| `/api/admin/staff/update` | `POST` | Update a staff profile, role or active status |
+
+Validation completed:
+
+- Administrator database-function signature verification
+- Service-role-only function execution verification
+- Direct authenticated mutation restriction verification
+- Administrator-only route validation
+- Receptionist-route rejection
+- Host creation, editing and deactivation
+- Staff invitation and email delivery
+- Invited-staff password setup
+- Staff role and status updates
+- Self-demotion and self-deactivation protection
+- `npm run check:admin`
+- `npm run check:staff-visits`
+- `npm run check:dashboard`
+- `npm run check:staff-auth`
+- `npm run check:returning-check-in`
+- `npm run check:returning`
+- `npm run check:registration`
+- `npm run check:supabase`
+- `npm run lint`
+- `npm run build`
+- Node.js 22 runtime verification
+- `git diff --check`
+
+Future stages will add a new entry under this section describing:
+
+- what was implemented;
+- important architectural decisions;
+- new environment variables;
+- database changes;
+- new routes and APIs;
+- validation completed; and
+- the associated Git commit.
 
 
 ## README update policy

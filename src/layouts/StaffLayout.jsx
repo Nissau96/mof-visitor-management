@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -138,6 +139,32 @@ export default function StaffLayout() {
             />
             Visit history
           </NavLink>
+
+          {profile?.role === "admin" ? (
+            <>
+              <NavLink
+                className={getNavigationClass}
+                to="/staff/admin/hosts"
+              >
+                <Building2
+                  aria-hidden="true"
+                  className="size-4"
+                />
+                Hosts
+              </NavLink>
+
+              <NavLink
+                className={getNavigationClass}
+                to="/staff/admin/staff"
+              >
+                <UserCog
+                  aria-hidden="true"
+                  className="size-4"
+                />
+                Staff
+              </NavLink>
+            </>
+          ) : null}
 
           <Link
             className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold text-slate-700 hover:bg-slate-100"
