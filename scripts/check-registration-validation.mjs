@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { RateLimitExceededError } from "../api/_lib/rateLimit.js";
 import hostsHandler from "../api/hosts.js";
 import meetingsHandler from "../api/meetings.js";
-import registerHandler from "../api/register.js";
+import registerHandler, {
+  REGISTRATION_RATE_LIMIT,
+  createRegisterHandler,
+} from "../api/register.js";
 import {
   CUSTOM_MEETING_OPTION,
   MEETING_PURPOSE,
@@ -31,20 +35,24 @@ assert.equal(
   "+442079460000",
 );
 
+const validOfficialMeetingRequest = {
+  agency: MINISTRY_OF_FINANCE_AGENCY,
+  consent: true,
+  customMeetingTitle: "",
+  division: MOF_DIVISIONS[0],
+  email: "test.visitor@example.invalid",
+  firstName: "Test",
+  lastName: "Visitor",
+  meetingId: TEST_MEETING_ID,
+  organization: "Test Organisation",
+  phone: "024 000 0000",
+  purpose: MEETING_PURPOSE,
+};
+
 const validOfficialMeeting =
-  visitorRegistrationSchema.safeParse({
-    agency: MINISTRY_OF_FINANCE_AGENCY,
-    consent: true,
-    customMeetingTitle: "",
-    division: MOF_DIVISIONS[0],
-    email: "test.visitor@example.invalid",
-    firstName: "Test",
-    lastName: "Visitor",
-    meetingId: TEST_MEETING_ID,
-    organization: "Test Organisation",
-    phone: "024 000 0000",
-    purpose: MEETING_PURPOSE,
-  });
+  visitorRegistrationSchema.safeParse(
+    validOfficialMeetingRequest,
+  );
 
 assert.equal(validOfficialMeeting.success, true);
 
@@ -248,6 +256,12 @@ const invalidRegistration =
 
 assert.equal(invalidRegistration.success, false);
 
+assert.deepEqual(REGISTRATION_RATE_LIMIT, {
+  limit: 5,
+  scope: "first-visit-registration",
+  windowSeconds: 10 * 60,
+});
+
 const rejectedRegistrationMethod =
   await registerHandler.fetch(
     new Request("http://localhost/api/register", {
@@ -256,6 +270,7 @@ const rejectedRegistrationMethod =
   );
 
 assert.equal(rejectedRegistrationMethod.status, 405);
+
 assert.equal(
   rejectedRegistrationMethod.headers.get("allow"),
   "POST",
@@ -269,34 +284,100 @@ const rejectedMeetingsMethod =
   );
 
 assert.equal(rejectedMeetingsMethod.status, 405);
+
 assert.equal(
   rejectedMeetingsMethod.headers.get("allow"),
   "GET",
 );
 
-const rejectedHostsMethod = await hostsHandler.fetch(
-  new Request("http://localhost/api/hosts", {
-    method: "POST",
-  }),
-);
+const rejectedHostsMethod =
+  await hostsHandler.fetch(
+    new Request("http://localhost/api/hosts", {
+      method: "POST",
+    }),
+  );
 
 assert.equal(rejectedHostsMethod.status, 405);
+
 assert.equal(
   rejectedHostsMethod.headers.get("allow"),
   "GET",
 );
 
-const invalidBodyResponse = await registerHandler.fetch(
-  new Request("http://localhost/api/register", {
-    body: JSON.stringify({}),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  }),
-);
+const validationRegisterHandler = createRegisterHandler({
+  enforceRateLimitForRequest: async () => {},
+});
+
+const invalidBodyResponse =
+  await validationRegisterHandler.fetch(
+    new Request("http://localhost/api/register", {
+      body: JSON.stringify({}),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
 
 assert.equal(invalidBodyResponse.status, 400);
+
+assert.equal(
+  invalidBodyResponse.headers.get("cache-control"),
+  "no-store",
+);
+
+let observedRateLimit = null;
+
+const rateLimitedRegisterHandler = createRegisterHandler({
+  enforceRateLimitForRequest: async (
+    request,
+    rateLimit,
+  ) => {
+    assert.equal(request.method, "POST");
+
+    observedRateLimit = rateLimit;
+
+    throw new RateLimitExceededError(
+      rateLimit.windowSeconds,
+    );
+  },
+});
+
+const rateLimitedResponse =
+  await rateLimitedRegisterHandler.fetch(
+    new Request("http://localhost/api/register", {
+      body: JSON.stringify({}),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }),
+  );
+
+assert.deepEqual(
+  observedRateLimit,
+  REGISTRATION_RATE_LIMIT,
+);
+
+assert.equal(rateLimitedResponse.status, 429);
+
+assert.equal(
+  rateLimitedResponse.headers.get("retry-after"),
+  String(REGISTRATION_RATE_LIMIT.windowSeconds),
+);
+
+assert.equal(
+  rateLimitedResponse.headers.get("cache-control"),
+  "no-store",
+);
+
+assert.deepEqual(
+  await rateLimitedResponse.json(),
+  {
+    error:
+      "Too many registration attempts. Please wait before trying again.",
+  },
+);
 
 console.log(
   "Visitor registration validation checks passed.",

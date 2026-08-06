@@ -1726,7 +1726,15 @@ Future stages will add a new entry under this section describing:
   `supabase_admin`; the migration does not alter, drop, reinstall, or
   change privileges on provider-owned extension objects.
 - No additional Vercel Function was introduced; the count remains 11.
-
+- Added first-visit registration throttling through the shared
+  database-backed rate limiter.
+- Limited registration POST requests to five attempts per private
+  request key within ten minutes.
+- Added neutral `429 Too Many Requests` responses with
+  `Retry-After` and `Cache-Control: no-store`.
+- Added isolated registration rate-limit validation without using
+  production data or making a live Supabase request.
+- Preserved the deployment count at 11 Vercel Functions.
 
 ## README update policy
 
