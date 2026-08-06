@@ -1712,6 +1712,21 @@ Future stages will add a new entry under this section describing:
 - validation completed; and
 - the associated Git commit.
 
+### Stage 12 — Database privilege hardening
+
+- Enforced server-only access to application tables and sequences.
+- Revoked direct `anon` and `authenticated` table and sequence privileges.
+- Restricted all `postgres`-owned application RPCs.
+- Retained authenticated execution only for the RLS authorization helpers.
+- Preserved full `service_role` access for trusted Vercel Functions.
+- Hardened `SECURITY DEFINER` function search paths.
+- Hardened default privileges for future `postgres`-owned public objects.
+- Retained existing RLS policies as defence in depth.
+- Documented `pg_trgm` as a Supabase-managed extension owned by
+  `supabase_admin`; the migration does not alter, drop, reinstall, or
+  change privileges on provider-owned extension objects.
+- No additional Vercel Function was introduced; the count remains 11.
+
 
 ## README update policy
 
