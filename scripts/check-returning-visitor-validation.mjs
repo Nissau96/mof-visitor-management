@@ -37,6 +37,7 @@ const invalidSearch = returningVisitorSearchSchema.safeParse({
 assert.equal(invalidSearch.success, false);
 
 const lookupToken = createLookupToken(visitorId);
+
 const lookupPayload = readVisitorToken(
   lookupToken,
   VISITOR_LOOKUP_AUDIENCE,
@@ -61,7 +62,12 @@ const verificationPayload = readVisitorToken(
 
 assert.equal(verificationPayload.visitorId, visitorId);
 
-const tamperedToken = `${lookupToken.slice(0, -1)}x`;
+const replacementCharacter = lookupToken.endsWith("x")
+  ? "y"
+  : "x";
+
+const tamperedToken =
+  `${lookupToken.slice(0, -1)}${replacementCharacter}`;
 
 assert.throws(() =>
   readVisitorToken(
@@ -89,6 +95,7 @@ const validVerification =
   });
 
 assert.equal(validVerification.success, true);
+
 assert.equal(
   validVerification.data.phone,
   "+233240000000",
@@ -109,6 +116,7 @@ const rejectedSearchMethod = await searchHandler.fetch(
 );
 
 assert.equal(rejectedSearchMethod.status, 405);
+
 assert.equal(
   rejectedSearchMethod.headers.get("allow"),
   "POST",
@@ -121,6 +129,7 @@ const rejectedVerifyMethod = await verifyHandler.fetch(
 );
 
 assert.equal(rejectedVerifyMethod.status, 405);
+
 assert.equal(
   rejectedVerifyMethod.headers.get("allow"),
   "POST",
@@ -140,15 +149,19 @@ const invalidSearchResponse = await searchHandler.fetch(
 
 assert.equal(invalidSearchResponse.status, 400);
 
-const invalidVerificationResponse = await verifyHandler.fetch(
-  new Request("http://localhost/api/returning/verify", {
-    body: JSON.stringify({}),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  }),
-);
+const invalidVerificationResponse =
+  await verifyHandler.fetch(
+    new Request(
+      "http://localhost/api/returning/verify",
+      {
+        body: JSON.stringify({}),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      },
+    ),
+  );
 
 assert.equal(invalidVerificationResponse.status, 400);
 
