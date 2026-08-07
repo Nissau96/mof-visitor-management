@@ -17,6 +17,7 @@
     "check:returning-check-in": "node scripts/check-returning-check-in-validation.mjs",
     "check:staff-auth": "node scripts/check-staff-auth-validation.mjs",
     "check:admin": "node scripts/check-admin-management-validation.mjs",
+    "check:security-headers": "node scripts/check-security-headers-validation.mjs",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "lint": "eslint .",
     "preview": "vite preview"

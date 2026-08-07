@@ -1735,7 +1735,15 @@ Future stages will add a new entry under this section describing:
 - Added isolated registration rate-limit validation without using
   production data or making a live Supabase request.
 - Preserved the deployment count at 11 Vercel Functions.
-
+- Added centralized production security headers through `vercel.json`.
+- Added a restrictive Content Security Policy permitting only self-hosted
+  resources and Supabase HTTPS/WebSocket connections.
+- Added HSTS, MIME-sniffing protection, clickjacking protection,
+  referrer suppression and browser-feature restrictions.
+- Preserved static asset caching while enforcing
+  `Cache-Control: no-store` on API responses.
+- Added automated validation for security headers, Vercel rewrites and
+  the 11-Function deployment limit.
 ## README update policy
 
 The README is a required deliverable for every development stage.
