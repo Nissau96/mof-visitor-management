@@ -1753,6 +1753,18 @@ Future stages will add a new entry under this section describing:
 - Prevented browser cross-origin simple requests from reaching JSON
   processing while retaining the same-origin application architecture.
 - No additional Vercel Function was introduced; the count remains 11.
+- Audited API responses, browser storage, token handling, error messages
+  and production bundle references for sensitive-data exposure.
+- Confirmed that server secrets are absent from the browser bundle and
+  authentication tokens are not persisted in local or session storage.
+- Confirmed that unexpected runtime and Supabase errors are replaced by
+  neutral responses; only controlled `HttpError` messages reach clients.
+- Minimized authenticated staff context so raw bearer tokens and complete
+  Supabase user objects remain local to authentication processing.
+- Added isolated validation proving that authenticated helpers return only
+  the restricted application staff profile.
+- No additional Vercel Function was introduced; the count remains 11.
+
 
 ## README update policy
 
