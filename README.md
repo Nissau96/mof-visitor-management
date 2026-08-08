@@ -1742,8 +1742,18 @@ Future stages will add a new entry under this section describing:
   referrer suppression and browser-feature restrictions.
 - Preserved static asset caching while enforcing
   `Cache-Control: no-store` on API responses.
-- Added automated validation for security headers, Vercel rewrites and
-  the 11-Function deployment limit.
+- Added automated validation for security headers, Vercel rewrites and the 11-Function deployment limit.
+- Required `application/json` for every body-bearing API request.
+- Accepted standard JSON media-type parameters such as UTF-8 charset
+  declarations while rejecting missing or unsupported media types with
+  `415 Unsupported Media Type`.
+- Preserved declared and actual UTF-8 request-body limits of 20,000 bytes.
+- Added isolated validation for media-type enforcement, malformed JSON,
+  invalid content lengths, exact byte boundaries and oversized bodies.
+- Prevented browser cross-origin simple requests from reaching JSON
+  processing while retaining the same-origin application architecture.
+- No additional Vercel Function was introduced; the count remains 11.
+
 ## README update policy
 
 The README is a required deliverable for every development stage.

@@ -18,6 +18,7 @@
     "check:staff-auth": "node scripts/check-staff-auth-validation.mjs",
     "check:admin": "node scripts/check-admin-management-validation.mjs",
     "check:security-headers": "node scripts/check-security-headers-validation.mjs",
+    "check:http-boundary": "node scripts/check-http-boundary-validation.mjs",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
