@@ -1814,6 +1814,21 @@ Future stages will add a new entry under this section describing:
 - Added isolated validation for key-mode separation, cross-address account
   enforcement, neutral `429` responses and method rejection.
 - No additional Vercel Function was introduced; the count remains 11.
+- Published privacy notice version `2.0`, effective 14 August 2026.
+- Documented the Ministry as the responsible organisation, the visitor data
+  collected, processing purposes, authorised access, retention periods,
+  returning-visitor reuse and available privacy rights.
+- Added Ministry and designated privacy-officer contact information and the
+  Data Protection Commission complaint route.
+- Required explicit acknowledgement of the current privacy notice for both
+  first-time and returning visitor check-ins.
+- Recorded privacy notice version `2.0` and a renewed acknowledgement timestamp
+  when a returning visitor completes check-in.
+- Added a compatibility overload for returning check-in so the deployed
+  nine-argument API remains operational during rollout.
+- Added isolated validation proving that an unchecked acknowledgement is
+  rejected and that the server supplies privacy notice version `2.0`.
+- No additional Vercel Function was introduced; the count remains 11.
 
 ## README update policy
 
