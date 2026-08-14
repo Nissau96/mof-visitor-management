@@ -3,6 +3,7 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
+import { isIP } from "node:net";
 import process from "node:process";
 
 export const VISITOR_LOOKUP_AUDIENCE =
@@ -242,17 +243,31 @@ export function maskPhoneSuffix(phoneSuffix) {
 }
 
 function getClientAddress(request) {
-  const forwardedAddress =
+  const vercelForwardedAddress =
+    request.headers.get(
+      "x-vercel-forwarded-for",
+    );
+
+  const standardForwardedAddress =
     request.headers.get("x-forwarded-for");
 
-  if (!forwardedAddress) {
+  const forwardedAddress =
+    vercelForwardedAddress ||
+    standardForwardedAddress;
+
+  const candidateAddress =
+    forwardedAddress
+      ?.split(",")[0]
+      ?.trim() || "";
+
+  if (
+    candidateAddress.length > 45 ||
+    isIP(candidateAddress) === 0
+  ) {
     return "local-or-unknown-client";
   }
 
-  return (
-    forwardedAddress.split(",")[0]?.trim() ||
-    "local-or-unknown-client"
-  );
+  return candidateAddress.toLowerCase();
 }
 
 export function createPrivateRequestKey(

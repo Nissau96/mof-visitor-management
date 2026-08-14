@@ -1786,7 +1786,20 @@ Future stages will add a new entry under this section describing:
 - Added automated validation for the retention migration, identity-safe
   audit insertion, privilege controls and deployment-function limit.
 - No additional Vercel Function was introduced; the count remains 11.
-
+- Extended database-backed throttling to the anonymous host and meeting
+  directory endpoints.
+- Allowed 300 requests per private request key within ten minutes for each
+  public directory, using independent scopes to prevent cross-endpoint
+  exhaustion.
+- Preferred Vercel's platform forwarding header while retaining local
+  `X-Forwarded-For` support.
+- Validated and bounded IPv4 and IPv6 address inputs before deriving
+  irreversible HMAC request keys.
+- Added isolated validation for successful directory responses, neutral
+  rate-limit responses, proxy-header precedence and method rejection.
+- Preserved `Cache-Control: no-store` and the existing minimal host and
+  meeting response fields.
+- No additional Vercel Function was introduced; the count remains 11.
 
 ## README update policy
 
