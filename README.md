@@ -1764,6 +1764,28 @@ Future stages will add a new entry under this section describing:
 - Added isolated validation proving that authenticated helpers return only
   the restricted application staff profile.
 - No additional Vercel Function was introduced; the count remains 11.
+- Adopted the project-approved two-year retention baseline for completed
+  visitor records and application audit events.
+- Limited expired verification tokens and inactive rate-limit counters to
+  a 24-hour cleanup window.
+- Added versioned retention-policy configuration and documented legal,
+  regulatory, security and investigation holds.
+- Added service-role-only dry-run and batched retention-cleanup functions.
+- Prevented automatic deletion of open visits and records protected by an
+  active retention hold.
+- Added policy confirmation, controlled batch sizes, serialized execution,
+  row-lock skipping and aggregate cleanup auditing.
+- Added retention indexes for rate-limit counters, audit events and orphaned
+  visitor-profile assessment.
+- Completed the first controlled cleanup: one expired verification token
+  and four inactive rate-limit counters were removed.
+- Confirmed that no completed visits, visitor profiles or historical audit
+  events were eligible for deletion during the first cleanup.
+- Flagged two stale open visits for staff review without automatically
+  modifying or deleting them.
+- Added automated validation for the retention migration, identity-safe
+  audit insertion, privilege controls and deployment-function limit.
+- No additional Vercel Function was introduced; the count remains 11.
 
 
 ## README update policy
