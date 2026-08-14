@@ -1800,6 +1800,20 @@ Future stages will add a new entry under this section describing:
 - Preserved `Cache-Control: no-store` and the existing minimal host and
   meeting response fields.
 - No additional Vercel Function was introduced; the count remains 11.
+- Added account-bound throttling for authenticated high-impact operations.
+- Limited host changes to 60 per administrator within ten minutes, staff
+  invitations to 20 per administrator within one hour and staff-account
+  changes to 30 per administrator within ten minutes.
+- Limited visitor checkout to 120 attempts per staff account within ten
+  minutes.
+- Changed record-specific returning-visitor verification to an account-
+  independent subject key, preventing client-address rotation from resetting
+  the five-attempt record limit.
+- Kept public throttling client-address-bound while deriving authenticated
+  limits solely from irreversible HMACs of trusted user or visitor IDs.
+- Added isolated validation for key-mode separation, cross-address account
+  enforcement, neutral `429` responses and method rejection.
+- No additional Vercel Function was introduced; the count remains 11.
 
 ## README update policy
 

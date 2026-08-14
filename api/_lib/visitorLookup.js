@@ -274,12 +274,40 @@ export function createPrivateRequestKey(
   request,
   scope,
   subject = "",
+  keyMode = "client",
 ) {
-  const address = getClientAddress(request);
+  if (
+    keyMode !== "client" &&
+    keyMode !== "subject"
+  ) {
+    throw new Error(
+      "The private request-key mode is invalid.",
+    );
+  }
 
-  return createHmac("sha256", getLookupSecret())
+  const normalizedSubject =
+    String(subject || "").trim();
+
+  if (
+    keyMode === "subject" &&
+    !normalizedSubject
+  ) {
+    throw new Error(
+      "A private request-key subject is required.",
+    );
+  }
+
+  const address =
+    keyMode === "subject"
+      ? "subject-only"
+      : getClientAddress(request);
+
+  return createHmac(
+    "sha256",
+    getLookupSecret(),
+  )
     .update(
-      `${scope}\u0000${address}\u0000${subject}`,
+      `${scope}\u0000${keyMode}\u0000${address}\u0000${normalizedSubject}`,
     )
     .digest("hex");
 }

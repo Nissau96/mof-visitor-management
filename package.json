@@ -21,6 +21,7 @@
     "check:http-boundary": "node scripts/check-http-boundary-validation.mjs",
     "check:retention": "node scripts/check-data-retention-validation.mjs",
     "check:public-rate-limits": "node scripts/check-public-api-rate-limits-validation.mjs",
+    "check:authenticated-rate-limits": "node scripts/check-authenticated-rate-limits-validation.mjs",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
