@@ -22,7 +22,14 @@
     "check:retention": "node scripts/check-data-retention-validation.mjs",
     "check:public-rate-limits": "node scripts/check-public-api-rate-limits-validation.mjs",
     "check:authenticated-rate-limits": "node scripts/check-authenticated-rate-limits-validation.mjs",
+    "check:validation": "npm run check:staff-visits && npm run check:dashboard && npm run check:registration && npm run check:returning && npm run check:returning-check-in && npm run check:staff-auth && npm run check:admin && npm run check:security-headers && npm run check:http-boundary && npm run check:retention && npm run check:public-rate-limits && npm run check:authenticated-rate-limits",
     "check:supabase": "node --env-file=.env.local scripts/check-supabase.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:headed": "npm run build && playwright test --headed",
+    "test:e2e:ui": "npm run build && playwright test --ui",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -39,17 +46,25 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/compat": "^2.1.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.6.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
-    "vite": "^8.1.1"
+    "jsdom": "^29.1.1",
+    "vite": "^8.1.1",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "eslint-plugin-react": {

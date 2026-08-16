@@ -1156,7 +1156,7 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 9 — Reception dashboard and pagination
 - [x] Stage 10 — Visitor checkout and visit history
 - [x] Stage 11 — Host and staff administration
-- [ ] Stage 12 — Security, privacy and abuse controls
+- [x] Stage 12 — Security, privacy and abuse controls
 - [ ] Stage 13 — Automated testing and accessibility
 - [ ] Stage 14 — Vercel deployment and environments
 - [ ] Stage 15 — Production readiness and visitor QR code
@@ -1829,6 +1829,34 @@ Future stages will add a new entry under this section describing:
 - Added isolated validation proving that an unchecked acknowledgement is
   rejected and that the server supplies privacy notice version `2.0`.
 - No additional Vercel Function was introduced; the count remains 11.
+
+
+### Stage 13 — Automated testing and accessibility
+
+Status: In progress
+
+Implemented in the testing-foundation checkpoint:
+
+- Added Vitest and Testing Library for repeatable unit and component testing.
+- Added V8 coverage reporting without introducing premature coverage thresholds.
+- Added Playwright browser testing using desktop, compact-mobile and large-mobile Chromium viewports.
+- Added automated axe checks for detectable WCAG 2.2 AA violations.
+- Added keyboard skip-link and horizontal-overflow checks for the public visitor landing page.
+- Added a GitHub Actions quality workflow for linting, validation harnesses, unit coverage, browser testing, accessibility testing, dependency auditing and Vercel Function-count enforcement.
+- Kept database-connected checks outside CI until a dedicated non-production test environment is configured.
+- Added no Vercel Function; the deployed Function count remains 11.
+
+Validation required for this checkpoint:
+
+- `npm run check:validation`
+- `npm run test`
+- `npm run test:coverage`
+- `npm run test:e2e`
+- `npm run lint`
+- `npm run build`
+- `npm audit --omit=dev`
+- `npm audit`
+- `git diff --check`
 
 ## README update policy
 
