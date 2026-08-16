@@ -1835,7 +1835,7 @@ Future stages will add a new entry under this section describing:
 
 Status: In progress
 
-Implemented in the testing-foundation checkpoint:
+Implemented in the automated-testing checkpoints:
 
 - Added Vitest and Testing Library for repeatable unit and component testing.
 - Added V8 coverage reporting without introducing premature coverage thresholds.
@@ -1857,6 +1857,12 @@ Validation required for this checkpoint:
 - `npm audit --omit=dev`
 - `npm audit`
 - `git diff --check`
+- Added mocked first-time visitor browser coverage for non-meeting visits, Ministry meetings, payload normalization and successful reference display.
+- Added browser validation proving that first-time registration cannot submit without privacy acknowledgement.
+- Added mocked returning-visitor coverage for masked search, mobile-number verification, visit check-in and successful reference display.
+- Added browser validation proving that returning check-in cannot submit without acknowledgement of the current privacy notice.
+- Added expired-verification coverage proving that protected profile details and the visit form are cleared before another search.
+- Kept all browser fixtures synthetic and intercepted all write requests, so the suite creates no visitor or visit records.
 
 ## README update policy
 
