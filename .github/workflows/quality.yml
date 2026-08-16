@@ -64,6 +64,9 @@ jobs:
         run: npm run test:coverage
 
       - name: Run browser and accessibility tests
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-public-key-placeholder
         run: npm run test:e2e
 
       - name: Audit production dependencies
