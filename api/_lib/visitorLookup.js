@@ -3,6 +3,7 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
+import { isIP } from "node:net";
 import process from "node:process";
 
 export const VISITOR_LOOKUP_AUDIENCE =
@@ -242,29 +243,71 @@ export function maskPhoneSuffix(phoneSuffix) {
 }
 
 function getClientAddress(request) {
-  const forwardedAddress =
+  const vercelForwardedAddress =
+    request.headers.get(
+      "x-vercel-forwarded-for",
+    );
+
+  const standardForwardedAddress =
     request.headers.get("x-forwarded-for");
 
-  if (!forwardedAddress) {
+  const forwardedAddress =
+    vercelForwardedAddress ||
+    standardForwardedAddress;
+
+  const candidateAddress =
+    forwardedAddress
+      ?.split(",")[0]
+      ?.trim() || "";
+
+  if (
+    candidateAddress.length > 45 ||
+    isIP(candidateAddress) === 0
+  ) {
     return "local-or-unknown-client";
   }
 
-  return (
-    forwardedAddress.split(",")[0]?.trim() ||
-    "local-or-unknown-client"
-  );
+  return candidateAddress.toLowerCase();
 }
 
 export function createPrivateRequestKey(
   request,
   scope,
   subject = "",
+  keyMode = "client",
 ) {
-  const address = getClientAddress(request);
+  if (
+    keyMode !== "client" &&
+    keyMode !== "subject"
+  ) {
+    throw new Error(
+      "The private request-key mode is invalid.",
+    );
+  }
 
-  return createHmac("sha256", getLookupSecret())
+  const normalizedSubject =
+    String(subject || "").trim();
+
+  if (
+    keyMode === "subject" &&
+    !normalizedSubject
+  ) {
+    throw new Error(
+      "A private request-key subject is required.",
+    );
+  }
+
+  const address =
+    keyMode === "subject"
+      ? "subject-only"
+      : getClientAddress(request);
+
+  return createHmac(
+    "sha256",
+    getLookupSecret(),
+  )
     .update(
-      `${scope}\u0000${address}\u0000${subject}`,
+      `${scope}\u0000${keyMode}\u0000${address}\u0000${normalizedSubject}`,
     )
     .digest("hex");
 }

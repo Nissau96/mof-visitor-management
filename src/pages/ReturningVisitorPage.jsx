@@ -21,6 +21,8 @@ import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import PrivacyNotice from "../components/PrivacyNotice.jsx";
+import { PRIVACY_NOTICE_VERSION } from "../constants/privacy.js";
 import {
   CUSTOM_MEETING_OPTION,
   MEETING_PURPOSE,
@@ -48,6 +50,7 @@ const EMPTY_VISIT = {
   division: "",
   meetingId: "",
   personVisiting: "",
+  privacyAcknowledged: false,
   purpose: "",
   verificationToken: "",
 };
@@ -1152,6 +1155,33 @@ function ReturningVisitForm({
           </Field>
         ) : null}
       </FormSection>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <PrivacyNotice />
+
+        <div className="mt-5">
+          <label className="flex cursor-pointer items-start gap-3 font-normal" htmlFor="privacyAcknowledged">
+            <input
+              aria-describedby={errors.privacyAcknowledged ? "privacyAcknowledged-error" : undefined}
+              aria-invalid={Boolean(errors.privacyAcknowledged)}
+              className="mt-0.5 size-5 min-h-0 w-5 shrink-0 accent-brand-800"
+              id="privacyAcknowledged"
+              type="checkbox"
+              {...register("privacyAcknowledged")}
+            />
+
+            <span className="text-sm leading-6 text-slate-800">
+              I acknowledge that I have read and understood privacy notice version {PRIVACY_NOTICE_VERSION}, including the two-year retention period and the reuse of my verified visitor profile for future visits.
+            </span>
+          </label>
+
+          {errors.privacyAcknowledged ? (
+            <p className="mt-2 text-sm font-semibold text-red-700" id="privacyAcknowledged-error" role="alert">
+              {errors.privacyAcknowledged.message}
+            </p>
+          ) : null}
+        </div>
+      </section>
 
       <div className="sticky bottom-0 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mx-0 sm:rounded-2xl sm:border sm:p-5 sm:shadow-sm">
         <button

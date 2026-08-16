@@ -49,11 +49,14 @@ function validateAllowedRoles(allowedRoles) {
 export async function requireActiveStaff(
   request,
   allowedRoles = [],
+  {
+    getAdminClientForRequest = getAdminClient,
+  } = {},
 ) {
   validateAllowedRoles(allowedRoles);
 
   const accessToken = readBearerToken(request);
-  const adminClient = getAdminClient();
+  const adminClient = getAdminClientForRequest();
 
   const {
     data: { user },
@@ -103,13 +106,11 @@ export async function requireActiveStaff(
   }
 
   return {
-    accessToken,
     profile: {
       active: profile.active,
       fullName: profile.full_name,
       role: profile.role,
       userId: profile.user_id,
     },
-    user,
   };
 }

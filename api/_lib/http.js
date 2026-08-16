@@ -30,23 +30,64 @@ export function methodNotAllowed(allowedMethods = []) {
   );
 }
 
+function readMediaType(request) {
+  const contentType =
+    request.headers.get("content-type") || "";
+
+  return contentType
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+}
+
 export async function readJsonBody(
   request,
   maximumBytes = 20_000,
 ) {
-  const declaredLength = Number(
-    request.headers.get("content-length") || 0,
-  );
+  const declaredLengthHeader =
+    request.headers.get("content-length");
 
-  if (declaredLength > maximumBytes) {
-    throw new HttpError("Request body is too large.", 413);
+  if (declaredLengthHeader !== null) {
+    if (!/^\d+$/.test(declaredLengthHeader)) {
+      throw new HttpError(
+        "Content-Length header is invalid.",
+        400,
+      );
+    }
+
+    const declaredLength = Number(declaredLengthHeader);
+
+    if (!Number.isSafeInteger(declaredLength)) {
+      throw new HttpError(
+        "Content-Length header is invalid.",
+        400,
+      );
+    }
+
+    if (declaredLength > maximumBytes) {
+      throw new HttpError(
+        "Request body is too large.",
+        413,
+      );
+    }
+  }
+
+  if (readMediaType(request) !== "application/json") {
+    throw new HttpError(
+      "Content-Type must be application/json.",
+      415,
+    );
   }
 
   const text = await request.text();
-  const actualLength = new TextEncoder().encode(text).byteLength;
+  const actualLength =
+    new TextEncoder().encode(text).byteLength;
 
   if (actualLength > maximumBytes) {
-    throw new HttpError("Request body is too large.", 413);
+    throw new HttpError(
+      "Request body is too large.",
+      413,
+    );
   }
 
   try {

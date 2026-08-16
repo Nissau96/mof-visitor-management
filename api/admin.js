@@ -1,6 +1,10 @@
 import process from "node:process";
 import { requireActiveStaff } from "./_lib/staffAuth.js";
 import {
+  RateLimitExceededError,
+  enforceRateLimit,
+} from "./_lib/rateLimit.js";
+import {
   HttpError,
   json,
   methodNotAllowed,
@@ -35,6 +39,50 @@ const UNEXPECTED_ERROR_MESSAGES = {
   "staff-update":
     "The staff profile could not be updated. Please try again.",
 };
+
+export const ADMIN_WRITE_RATE_LIMITS =
+  Object.freeze({
+    "host-save": Object.freeze({
+      limit: 60,
+      scope: "admin-host-save",
+      windowSeconds: 10 * 60,
+    }),
+
+    "staff-invite": Object.freeze({
+      limit: 20,
+      scope: "admin-staff-invite",
+      windowSeconds: 60 * 60,
+    }),
+
+    "staff-update": Object.freeze({
+      limit: 30,
+      scope: "admin-staff-update",
+      windowSeconds: 10 * 60,
+    }),
+  });
+
+export async function enforceAdminWriteRateLimit(
+  request,
+  operation,
+  userId,
+  enforceRateLimitForRequest = enforceRateLimit,
+) {
+  const configuration =
+    ADMIN_WRITE_RATE_LIMITS[operation];
+
+  if (!configuration) {
+    return;
+  }
+
+  await enforceRateLimitForRequest(
+    request,
+    {
+      ...configuration,
+      keyMode: "subject",
+      subject: userId,
+    },
+  );
+}
 
 function getOperation(request) {
   const url = new URL(request.url);
@@ -273,6 +321,12 @@ async function handleHostSave(request) {
       ["admin"],
     );
 
+    await enforceAdminWriteRateLimit(
+    request,
+    "host-save",
+    profile.userId,
+  );
+
   const body = await readJsonBody(request);
 
   const parsed =
@@ -384,6 +438,12 @@ async function handleStaffInvite(request) {
       request,
       ["admin"],
     );
+
+    await enforceAdminWriteRateLimit(
+  request,
+  "staff-invite",
+  profile.userId,
+);
 
   const body = await readJsonBody(request);
 
@@ -497,6 +557,12 @@ async function handleStaffUpdate(request) {
       ["admin"],
     );
 
+    await enforceAdminWriteRateLimit(
+  request,
+  "staff-update",
+  profile.userId,
+);
+
   const body = await readJsonBody(request);
 
   const parsed =
@@ -553,48 +619,72 @@ const OPERATION_HANDLERS = new Map([
   ["staff-update", handleStaffUpdate],
 ]);
 
-export default {
-  async fetch(request) {
-    if (request.method !== "POST") {
-      return methodNotAllowed(["POST"]);
-    }
+export function createAdminHandler({
+  operationHandlers = OPERATION_HANDLERS,
+} = {}) {
+  return {
+    async fetch(request) {
+      if (request.method !== "POST") {
+        return methodNotAllowed(["POST"]);
+      }
 
-    const operation = getOperation(request);
-    const handler =
-      OPERATION_HANDLERS.get(operation);
+      const operation = getOperation(request);
+      const handler =
+        operationHandlers.get(operation);
 
-    if (!handler) {
-      return json(
-        {
-          error:
-            "Administration operation not found.",
-        },
-        404,
-      );
-    }
-
-    try {
-      return await handler(request);
-    } catch (error) {
-      if (error instanceof HttpError) {
+      if (!handler) {
         return json(
           {
-            error: error.message,
+            error:
+              "Administration operation not found.",
           },
-          error.status,
+          404,
         );
       }
 
-      return json(
-        {
-          error:
-            UNEXPECTED_ERROR_MESSAGES[
-              operation
-            ] ||
-            "The administration request could not be completed. Please try again.",
-        },
-        500,
-      );
-    }
-  },
-};
+      try {
+        return await handler(request);
+      } catch (error) {
+        if (
+          error instanceof
+          RateLimitExceededError
+        ) {
+          return json(
+            {
+              error:
+                "Too many administration changes. Please wait before trying again.",
+            },
+            429,
+            {
+              "Retry-After": String(
+                error.retryAfterSeconds,
+              ),
+            },
+          );
+        }
+
+        if (error instanceof HttpError) {
+          return json(
+            {
+              error: error.message,
+            },
+            error.status,
+          );
+        }
+
+        return json(
+          {
+            error:
+              UNEXPECTED_ERROR_MESSAGES[
+                operation
+              ] ||
+              "The administration request could not be completed. Please try again.",
+          },
+          500,
+        );
+      }
+    },
+  };
+}
+
+export default createAdminHandler();

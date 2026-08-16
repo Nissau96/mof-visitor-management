@@ -3,7 +3,6 @@ import {
   CalendarDays,
   CheckCircle2,
   LockKeyhole,
-  ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -15,10 +14,8 @@ import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import PageHeader from "../components/PageHeader.jsx";
-import {
-  PRIVACY_NOTICE_SUMMARY,
-  PRIVACY_NOTICE_VERSION,
-} from "../constants/privacy.js";
+import PrivacyNotice from "../components/PrivacyNotice.jsx";
+import { PRIVACY_NOTICE_VERSION } from "../constants/privacy.js";
 import {
   CUSTOM_MEETING_OPTION,
   MEETING_PURPOSE,
@@ -449,26 +446,7 @@ const selectedMeeting =
         </FormSection>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-          <div className="flex items-start gap-3">
-            <ShieldCheck
-              aria-hidden="true"
-              className="mt-0.5 size-6 shrink-0 text-brand-800"
-            />
-
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                Privacy notice
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {PRIVACY_NOTICE_SUMMARY}
-              </p>
-
-              <p className="mt-2 text-xs font-semibold text-slate-500">
-                Notice version {PRIVACY_NOTICE_VERSION}
-              </p>
-            </div>
-          </div>
+          <PrivacyNotice />
 
           <div className="mt-5">
             <label
@@ -489,7 +467,7 @@ const selectedMeeting =
               />
 
               <span className="text-sm leading-6 text-slate-800">
-                I have read and understood the privacy notice.
+                I acknowledge that I have read and understood privacy notice version {PRIVACY_NOTICE_VERSION}, including the two-year retention period and the reuse of my verified visitor profile for future visits.
               </span>
             </label>
 

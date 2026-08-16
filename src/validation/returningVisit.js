@@ -19,6 +19,14 @@ export const returningVisitCheckInSchema = z
         "The visitor verification is invalid.",
       ),
 
+    privacyAcknowledged: z.boolean().refine(
+      (value) => value,
+      {
+        message:
+          "Acknowledge the current privacy notice before continuing.",
+      },
+    ),
+
     ...visitDetailsShape,
   })
   .superRefine(validateVisitDetails)

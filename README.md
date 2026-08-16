@@ -1712,6 +1712,123 @@ Future stages will add a new entry under this section describing:
 - validation completed; and
 - the associated Git commit.
 
+### Stage 12 — Database privilege hardening
+
+- Enforced server-only access to application tables and sequences.
+- Revoked direct `anon` and `authenticated` table and sequence privileges.
+- Restricted all `postgres`-owned application RPCs.
+- Retained authenticated execution only for the RLS authorization helpers.
+- Preserved full `service_role` access for trusted Vercel Functions.
+- Hardened `SECURITY DEFINER` function search paths.
+- Hardened default privileges for future `postgres`-owned public objects.
+- Retained existing RLS policies as defence in depth.
+- Documented `pg_trgm` as a Supabase-managed extension owned by
+  `supabase_admin`; the migration does not alter, drop, reinstall, or
+  change privileges on provider-owned extension objects.
+- No additional Vercel Function was introduced; the count remains 11.
+- Added first-visit registration throttling through the shared
+  database-backed rate limiter.
+- Limited registration POST requests to five attempts per private
+  request key within ten minutes.
+- Added neutral `429 Too Many Requests` responses with
+  `Retry-After` and `Cache-Control: no-store`.
+- Added isolated registration rate-limit validation without using
+  production data or making a live Supabase request.
+- Preserved the deployment count at 11 Vercel Functions.
+- Added centralized production security headers through `vercel.json`.
+- Added a restrictive Content Security Policy permitting only self-hosted
+  resources and Supabase HTTPS/WebSocket connections.
+- Added HSTS, MIME-sniffing protection, clickjacking protection,
+  referrer suppression and browser-feature restrictions.
+- Preserved static asset caching while enforcing
+  `Cache-Control: no-store` on API responses.
+- Added automated validation for security headers, Vercel rewrites and the 11-Function deployment limit.
+- Required `application/json` for every body-bearing API request.
+- Accepted standard JSON media-type parameters such as UTF-8 charset
+  declarations while rejecting missing or unsupported media types with
+  `415 Unsupported Media Type`.
+- Preserved declared and actual UTF-8 request-body limits of 20,000 bytes.
+- Added isolated validation for media-type enforcement, malformed JSON,
+  invalid content lengths, exact byte boundaries and oversized bodies.
+- Prevented browser cross-origin simple requests from reaching JSON
+  processing while retaining the same-origin application architecture.
+- No additional Vercel Function was introduced; the count remains 11.
+- Audited API responses, browser storage, token handling, error messages
+  and production bundle references for sensitive-data exposure.
+- Confirmed that server secrets are absent from the browser bundle and
+  authentication tokens are not persisted in local or session storage.
+- Confirmed that unexpected runtime and Supabase errors are replaced by
+  neutral responses; only controlled `HttpError` messages reach clients.
+- Minimized authenticated staff context so raw bearer tokens and complete
+  Supabase user objects remain local to authentication processing.
+- Added isolated validation proving that authenticated helpers return only
+  the restricted application staff profile.
+- No additional Vercel Function was introduced; the count remains 11.
+- Adopted the project-approved two-year retention baseline for completed
+  visitor records and application audit events.
+- Limited expired verification tokens and inactive rate-limit counters to
+  a 24-hour cleanup window.
+- Added versioned retention-policy configuration and documented legal,
+  regulatory, security and investigation holds.
+- Added service-role-only dry-run and batched retention-cleanup functions.
+- Prevented automatic deletion of open visits and records protected by an
+  active retention hold.
+- Added policy confirmation, controlled batch sizes, serialized execution,
+  row-lock skipping and aggregate cleanup auditing.
+- Added retention indexes for rate-limit counters, audit events and orphaned
+  visitor-profile assessment.
+- Completed the first controlled cleanup: one expired verification token
+  and four inactive rate-limit counters were removed.
+- Confirmed that no completed visits, visitor profiles or historical audit
+  events were eligible for deletion during the first cleanup.
+- Flagged two stale open visits for staff review without automatically
+  modifying or deleting them.
+- Added automated validation for the retention migration, identity-safe
+  audit insertion, privilege controls and deployment-function limit.
+- No additional Vercel Function was introduced; the count remains 11.
+- Extended database-backed throttling to the anonymous host and meeting
+  directory endpoints.
+- Allowed 300 requests per private request key within ten minutes for each
+  public directory, using independent scopes to prevent cross-endpoint
+  exhaustion.
+- Preferred Vercel's platform forwarding header while retaining local
+  `X-Forwarded-For` support.
+- Validated and bounded IPv4 and IPv6 address inputs before deriving
+  irreversible HMAC request keys.
+- Added isolated validation for successful directory responses, neutral
+  rate-limit responses, proxy-header precedence and method rejection.
+- Preserved `Cache-Control: no-store` and the existing minimal host and
+  meeting response fields.
+- No additional Vercel Function was introduced; the count remains 11.
+- Added account-bound throttling for authenticated high-impact operations.
+- Limited host changes to 60 per administrator within ten minutes, staff
+  invitations to 20 per administrator within one hour and staff-account
+  changes to 30 per administrator within ten minutes.
+- Limited visitor checkout to 120 attempts per staff account within ten
+  minutes.
+- Changed record-specific returning-visitor verification to an account-
+  independent subject key, preventing client-address rotation from resetting
+  the five-attempt record limit.
+- Kept public throttling client-address-bound while deriving authenticated
+  limits solely from irreversible HMACs of trusted user or visitor IDs.
+- Added isolated validation for key-mode separation, cross-address account
+  enforcement, neutral `429` responses and method rejection.
+- No additional Vercel Function was introduced; the count remains 11.
+- Published privacy notice version `2.0`, effective 14 August 2026.
+- Documented the Ministry as the responsible organisation, the visitor data
+  collected, processing purposes, authorised access, retention periods,
+  returning-visitor reuse and available privacy rights.
+- Added Ministry and designated privacy-officer contact information and the
+  Data Protection Commission complaint route.
+- Required explicit acknowledgement of the current privacy notice for both
+  first-time and returning visitor check-ins.
+- Recorded privacy notice version `2.0` and a renewed acknowledgement timestamp
+  when a returning visitor completes check-in.
+- Added a compatibility overload for returning check-in so the deployed
+  nine-argument API remains operational during rollout.
+- Added isolated validation proving that an unchecked acknowledgement is
+  rejected and that the server supplies privacy notice version `2.0`.
+- No additional Vercel Function was introduced; the count remains 11.
 
 ## README update policy
 

@@ -5,8 +5,19 @@ import {
   methodNotAllowed,
   readJsonBody,
 } from "../_lib/http.js";
+import {
+  RateLimitExceededError,
+  enforceRateLimit,
+} from "../_lib/rateLimit.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { staffVisitCheckoutSchema } from "../../src/validation/staffVisits.js";
+
+export const STAFF_CHECKOUT_RATE_LIMIT =
+  Object.freeze({
+    limit: 120,
+    scope: "staff-visitor-checkout",
+    windowSeconds: 10 * 60,
+  });
 
 function getCheckoutDatabaseError(error) {
   if (error?.code === "P0002") {
@@ -46,84 +57,129 @@ function getCheckoutDatabaseError(error) {
   );
 }
 
-export default {
-  async fetch(request) {
-    if (request.method !== "POST") {
-      return methodNotAllowed(["POST"]);
-    }
-
-    try {
-      const { profile } =
-        await requireActiveStaff(request);
-
-      const body = await readJsonBody(request);
-
-      const parsed =
-        staffVisitCheckoutSchema.safeParse(body);
-
-      if (!parsed.success) {
-        throw new HttpError(
-          "The check-out request is invalid.",
-          400,
-        );
+export function createCheckoutHandler({
+  enforceRateLimitForRequest = enforceRateLimit,
+  getAdminClientForRequest = getAdminClient,
+  requireActiveStaffForRequest =
+    requireActiveStaff,
+} = {}) {
+  return {
+    async fetch(request) {
+      if (request.method !== "POST") {
+        return methodNotAllowed(["POST"]);
       }
 
-      const { data, error } =
-        await getAdminClient().rpc(
-          "checkout_visit",
+      try {
+        const { profile } =
+          await requireActiveStaffForRequest(
+            request,
+          );
+
+        await enforceRateLimitForRequest(
+          request,
           {
-            p_actor_id: profile.userId,
-            p_visit_id: parsed.data.visitId,
+            ...STAFF_CHECKOUT_RATE_LIMIT,
+            keyMode: "subject",
+            subject: profile.userId,
           },
         );
 
-      if (error) {
-        throw getCheckoutDatabaseError(error);
-      }
+        const body =
+          await readJsonBody(request);
 
-      if (
-        !data?.visitId ||
-        !data?.reference ||
-        data?.status !== "checked_out" ||
-        !data?.checkedOutAt
-      ) {
-        throw new HttpError(
-          "Check-out could not be completed. Please try again.",
+        const parsed =
+          staffVisitCheckoutSchema.safeParse(
+            body,
+          );
+
+        if (!parsed.success) {
+          throw new HttpError(
+            "The check-out request is invalid.",
+            400,
+          );
+        }
+
+        const { data, error } =
+          await getAdminClientForRequest().rpc(
+            "checkout_visit",
+            {
+              p_actor_id: profile.userId,
+              p_visit_id:
+                parsed.data.visitId,
+            },
+          );
+
+        if (error) {
+          throw getCheckoutDatabaseError(
+            error,
+          );
+        }
+
+        if (
+          !data?.visitId ||
+          !data?.reference ||
+          data?.status !== "checked_out" ||
+          !data?.checkedOutAt
+        ) {
+          throw new HttpError(
+            "Check-out could not be completed. Please try again.",
+            500,
+          );
+        }
+
+        return json(
+          {
+            checkout: {
+              alreadyCheckedOut: Boolean(
+                data.alreadyCheckedOut,
+              ),
+              checkedOutAt:
+                data.checkedOutAt,
+              reference: data.reference,
+              status: data.status,
+              visitId: data.visitId,
+            },
+          },
+          200,
+        );
+      } catch (error) {
+        if (
+          error instanceof
+          RateLimitExceededError
+        ) {
+          return json(
+            {
+              error:
+                "Too many check-out attempts. Please wait before trying again.",
+            },
+            429,
+            {
+              "Retry-After": String(
+                error.retryAfterSeconds,
+              ),
+            },
+          );
+        }
+
+        if (error instanceof HttpError) {
+          return json(
+            {
+              error: error.message,
+            },
+            error.status,
+          );
+        }
+
+        return json(
+          {
+            error:
+              "Check-out could not be completed. Please try again.",
+          },
           500,
         );
       }
+    },
+  };
+}
 
-      return json(
-        {
-          checkout: {
-            alreadyCheckedOut: Boolean(
-              data.alreadyCheckedOut,
-            ),
-            checkedOutAt: data.checkedOutAt,
-            reference: data.reference,
-            status: data.status,
-            visitId: data.visitId,
-          },
-        },
-        200,
-      );
-    } catch (error) {
-      if (error instanceof HttpError) {
-        return json(
-          {
-            error: error.message,
-          },
-          error.status,
-        );
-      }
-
-      return json(
-        {
-          error:
-            "Check-out could not be completed. Please try again.",
-        },
-        500,
-      );
-    }
-  },
-};
+export default createCheckoutHandler();

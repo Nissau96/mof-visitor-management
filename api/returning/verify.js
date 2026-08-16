@@ -23,11 +23,14 @@ const GLOBAL_VERIFICATION_RATE_LIMIT = {
   windowSeconds: 10 * 60,
 };
 
-const VISITOR_VERIFICATION_RATE_LIMIT = {
-  limit: 5,
-  scope: "returning-visitor-verification-record",
-  windowSeconds: 10 * 60,
-};
+export const VISITOR_VERIFICATION_RATE_LIMIT =
+  Object.freeze({
+    keyMode: "subject",
+    limit: 5,
+    scope:
+      "returning-visitor-verification-record",
+    windowSeconds: 10 * 60,
+  });
 
 function verificationFailed() {
   return json(
