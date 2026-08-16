@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 11 host and staff administration completed
+> Project status: Stage 12 security, privacy and abuse controls completed
 >
-> Current implementation stage: Stage 12 — Security, privacy and abuse controls
+> Current implementation stage: Stage 13 — Automated testing and accessibility
 >
-> Documentation version: 2.6
+> Documentation version: 2.7
 
 ## Table of contents
 
@@ -578,16 +578,14 @@ Supabase's built-in email sender is suitable only for limited development testin
 ### 8. Run the quality checks
 
 ```bash
-npm run check:admin
-npm run check:staff-visits
-npm run check:dashboard
-npm run check:staff-auth
-npm run check:returning-check-in
-npm run check:returning
-npm run check:registration
-npm run check:supabase
+npm run check:validation
+npm run test
+npm run test:coverage
+npm run test:e2e
 npm run lint
 npm run build
+npm audit --omit=dev
+npm audit
 git diff --check
 ```
 
@@ -610,8 +608,15 @@ All commands must succeed before a development stage is committed.
 | `npm run check:dashboard`           | Run reception-dashboard validation and API contract checks                 |
 | `npm run check:staff-visits`          | Run staff checkout, visit-history validation and API contract checks       |
 | `npm run check:admin`                 | Run host and staff administration validation and API contract checks       |
+| `npm run check:validation` | Run all isolated validation and API contract checks |
+| `npm run test` | Run the Vitest unit and component test suite once |
+| `npm run test:watch` | Run Vitest interactively while developing |
+| `npm run test:coverage` | Run Vitest and generate V8 coverage reports |
+| `npm run test:e2e` | Build the application and run Playwright browser tests |
+| `npm run test:e2e:headed` | Run Playwright with the browser visible |
+| `npm run test:e2e:ui` | Open the Playwright interactive test interface |
 
-Additional test coverage will be introduced during the dedicated automated testing stage.
+Automated coverage is being expanded during Stage 13. Database-connected integration and RLS checks remain pending until a dedicated non-production test environment is configured.
 
 ## Environment variables
 
@@ -981,16 +986,14 @@ The interface should:
 ### Current required checks
 
 ```bash
-npm run check:admin
-npm run check:staff-visits
-npm run check:dashboard
-npm run check:staff-auth
-npm run check:returning-check-in
-npm run check:returning
-npm run check:registration
-npm run check:supabase
+npm run check:validation
+npm run test
+npm run test:coverage
+npm run test:e2e
 npm run lint
 npm run build
+npm audit --omit=dev
+npm audit
 git diff --check
 ```
 
@@ -1043,15 +1046,29 @@ git diff --check
 - Administration API method restrictions
 - Missing administrator bearer-token rejection
 - Invalid invitation-redirect configuration rejection
+- First-time visitor normalization and privacy-acknowledgement unit tests
+- Active staff authorization and approved response-field tests
+- Missing, malformed and oversized bearer-token rejection
+- Invalid and expired Supabase staff-session rejection
+- Missing, inactive and unsupported staff-profile rejection
+- Administrator-only server authorization enforcement
+- Protected-route loading and unauthenticated redirect tests
+- Protected destination preservation during staff-login redirects
+- Receptionist and administrator route-role enforcement
+- Staff-login validation, email normalization and error-state tests
+- Unsafe post-login destination rejection
+- Mocked first-time and returning-visitor browser workflows
+- Desktop, compact-mobile and large-mobile browser coverage
+- Automated WCAG 2.2 AA axe checks for covered visitor workflows
+- Keyboard skip-link and horizontal-overflow browser checks
 
 ### Planned test coverage
 
-- Expanded database-connected API integration tests for registration, lookup, verification and check-in
+- Database-connected API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
-- End-to-end tests for first-time and returning visitors
+- Authenticated reception dashboard, checkout and visit-history browser workflows
+- Administrator host and staff-management browser workflows
 - Expanded database-connected checkout and visit-history integration tests
-- Mobile viewport tests
-- Automated accessibility checks
 - Manual keyboard and screen-reader testing
 - Security and penetration testing before production launch
 
@@ -1863,6 +1880,13 @@ Validation required for this checkpoint:
 - Added browser validation proving that returning check-in cannot submit without acknowledgement of the current privacy notice.
 - Added expired-verification coverage proving that protected profile details and the visit form are cleared before another search.
 - Kept all browser fixtures synthetic and intercepted all write requests, so the suite creates no visitor or visit records.
+- Added 13 Vitest checks for active staff authorization, invalid sessions, inactive profiles, unsupported roles, database errors, token boundaries and administrator-only operations.
+- Added six component tests for protected-route loading, login redirection, destination preservation and receptionist/administrator role enforcement.
+- Added eight component tests for staff-login loading, validation, password visibility, email normalization, authentication errors and safe post-login navigation.
+- Confirmed 35 unit and component tests pass across four test files.
+- Achieved complete statement, branch, function and line coverage for `api/_lib/staffAuth.js` and `src/components/ProtectedRoute.jsx`.
+- Achieved complete statement, function and line coverage for `src/pages/StaffLoginPage.jsx`, with 97.14% branch coverage.
+- Increased overall measured coverage to 7.4% without introducing a premature global coverage threshold.
 
 ## README update policy
 
