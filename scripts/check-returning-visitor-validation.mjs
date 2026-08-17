@@ -62,12 +62,18 @@ const verificationPayload = readVisitorToken(
 
 assert.equal(verificationPayload.visitorId, visitorId);
 
-const replacementCharacter = lookupToken.endsWith("x")
-  ? "y"
-  : "x";
+const [
+  encodedLookupPayload,
+  encodedLookupSignature,
+] = lookupToken.split(".");
+
+const replacementCharacter =
+  encodedLookupSignature.startsWith("A")
+    ? "B"
+    : "A";
 
 const tamperedToken =
-  `${lookupToken.slice(0, -1)}${replacementCharacter}`;
+  `${encodedLookupPayload}.${replacementCharacter}${encodedLookupSignature.slice(1)}`;
 
 assert.throws(() =>
   readVisitorToken(
