@@ -103,7 +103,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 
 - [x] Development Supabase project created
 - [x] Supabase region and test-data limitations documented
-- [x] `supabase/schema.sql` added to the repository
+- [x] `supabase/migrations/202607210001_initial_schema.sql` added as the initial database migration
 - [x] `supabase/seed.sql` added with invented development records
 - [x] Host, visitor, visit, staff and audit tables created
 - [x] Foreign keys, checks and unique constraints verified
@@ -764,7 +764,6 @@ mof-visitor-management/
 │   └── main.jsx
 ├── supabase/
 │   ├── migrations/
-│   ├── schema.sql
 │   ├── seed.sql
 │   └── verify.sql
 ├── .env.example
