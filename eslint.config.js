@@ -12,6 +12,8 @@ export default [
       "coverage/**",
       "node_modules/**",
       ".vercel/**",
+      "playwright-report/**",
+      "test-results/**",
     ],
   },
 
@@ -56,7 +58,7 @@ export default [
     },
   },
 
-  // Vercel server functions and Node.js scripts
+  // Vercel functions and Node.js validation scripts
   {
     files: [
       "api/**/*.js",
@@ -71,6 +73,49 @@ export default [
 
     rules: {
       ...js.configs.recommended.rules,
+    },
+  },
+
+  // Vitest, Testing Library and Playwright tests
+  {
+    files: ["tests/**/*.{js,jsx}"],
+
+    plugins: {
+      react: fixupPluginRules(react),
+      "react-hooks": fixupPluginRules(reactHooks),
+    },
+
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+
+    rules: {
+      ...js.configs.recommended.rules,
+      ...react.configs.recommended.rules,
+      ...react.configs["jsx-runtime"].rules,
+      ...reactHooks.configs["recommended-latest"].rules,
+
+      "react/prop-types": "off",
     },
   },
 
