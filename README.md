@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 12 security, privacy and abuse controls completed
+> Project status: Stage 13 automated testing and accessibility completed
 >
-> Current implementation stage: Stage 13 — Automated testing and accessibility
+> Current implementation stage: Stage 14 — Vercel deployment and environments
 >
-> Documentation version: 2.8
+> Documentation version: 2.9
 
 ## Table of contents
 
@@ -83,7 +83,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 adds administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 added administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination. Stage 12 added database privilege hardening, request-boundary protection, security headers, data retention controls, rate limiting and privacy notice version 2.0. Stage 13 added automated unit, component, browser, accessibility, responsive-layout and CI quality checks.
 
 ### Stage 1 completion checklist — completed
 
@@ -414,6 +414,48 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run build` completed successfully
 - [x] `git diff --check` completed successfully
 
+### Stage 13 completion checklist — completed
+
+- [x] Vitest unit and component testing configured
+- [x] Testing Library and jest-dom matchers configured
+- [x] V8 coverage reporting configured
+- [x] Playwright browser testing configured
+- [x] Desktop Chromium viewport configured
+- [x] Compact-mobile Chromium viewport configured at 390 × 844 CSS pixels
+- [x] Large-mobile Chromium viewport configured at 412 × 915 CSS pixels
+- [x] Automated axe WCAG checks configured
+- [x] Horizontal-overflow checks added for covered responsive pages
+- [x] Public visitor landing workflow covered
+- [x] First-time visitor registration workflows covered
+- [x] Returning-visitor search, verification and check-in workflows covered
+- [x] Staff authentication validation covered
+- [x] Protected-route role enforcement covered
+- [x] Staff-login component behavior covered
+- [x] Reception dashboard workflows covered
+- [x] Visitor checkout workflow covered
+- [x] Visit-history workflows covered
+- [x] Administrator host-management workflows covered
+- [x] Host pagination verified using more than 10 synthetic records
+- [x] Administrator staff-management workflows covered
+- [x] Staff pagination verified using more than 10 synthetic records
+- [x] Invited-staff password setup workflows covered
+- [x] Invalid and expired invitation states covered
+- [x] Mobile staff description-list semantics corrected
+- [x] Responsive staff sign-out button given an accessible name
+- [x] Responsive staff-setup cancellation button given an accessible name
+- [x] Synthetic browser fixtures create no production visitor, visit, host or staff records
+- [x] GitHub Actions quality workflow configured
+- [x] All 12 isolated validation harnesses passed
+- [x] All 35 unit and component tests passed
+- [x] All 87 Playwright browser tests passed
+- [x] Covered browser states passed automated axe checks
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] Production dependency audit reported zero vulnerabilities
+- [x] Complete dependency audit reported zero vulnerabilities
+- [x] Deployable Vercel Function count remained 11
+- [x] `git diff --check` completed successfully
+
 ## Technology stack
 
 | Layer          | Technology               | Purpose                                                    |
@@ -428,6 +470,8 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 | Authentication | Supabase Auth            | Receptionist and administrator authentication              |
 | Backend        | Vercel Functions         | Protected registration, lookup, check-in, dashboard, checkout, history, invitation and administration operations |
 | Hosting        | Vercel                   | Frontend and serverless Function deployment                |
+| Unit testing   | Vitest and Testing Library | Unit and React component behavior checks                    |
+| Browser testing | Playwright and axe-core    | Responsive workflow and automated accessibility checks      |
 | Icons          | Lucide React             | Consistent accessible interface icons                      |
 
 Package versions are controlled by `package.json` and `package-lock.json`. Always commit the lock file and test dependency upgrades before merging them.
@@ -616,7 +660,7 @@ All commands must succeed before a development stage is committed.
 | `npm run test:e2e:headed` | Run Playwright with the browser visible |
 | `npm run test:e2e:ui` | Open the Playwright interactive test interface |
 
-Automated coverage is being expanded during Stage 13. Database-connected integration and RLS checks remain pending until a dedicated non-production test environment is configured.
+Stage 13 established automated unit, component, browser, responsive-layout and accessibility coverage. Database-connected integration and RLS checks remain pending until a dedicated non-production test environment is configured.
 
 ## Environment variables
 
@@ -1069,12 +1113,26 @@ git diff --check
 - Reversed history date-range rejection without an API request
 - Staff dashboard and visit-history accessibility checks across three viewports
 - Staff-page horizontal-overflow checks across desktop and mobile viewports
+- Administrator host loading, filtering and pagination across three viewports
+- Host creation validation and successful host creation
+- Host editing and deactivation
+- Administrator staff loading, filtering and pagination across three viewports
+- Staff invitation validation and successful invitation responses
+- Staff role changes and account deactivation
+- Unauthenticated staff-setup invitation rejection
+- Invited-staff password validation and visibility controls
+- Successful invited-staff password creation
+- Expired invitation password-update handling
+- Administrator and staff-setup accessibility checks across three viewports
+- Administrator and staff-setup horizontal-overflow checks
+- Complete browser suite of 87 passing tests
+- Complete unit and component suite of 35 passing tests
+- Complete set of 12 passing isolated validation harnesses
 
 ### Planned test coverage
 
 - Database-connected API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
-- Administrator host and staff-management browser workflows
 - Expanded database-connected checkout and visit-history integration tests
 - Manual keyboard and screen-reader testing
 - Security and penetration testing before production launch
@@ -1181,8 +1239,8 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 10 — Visitor checkout and visit history
 - [x] Stage 11 — Host and staff administration
 - [x] Stage 12 — Security, privacy and abuse controls
-- [ ] Stage 13 — Automated testing and accessibility
-- [ ] Stage 14 — Vercel deployment and environments
+- Stage 13 — Automated testing and accessibility — completed
+- Stage 14 — Vercel deployment and environments — next
 - [ ] Stage 15 — Production readiness and visitor QR code
 
 The roadmap checkboxes must be updated only after the relevant validation and commit have been completed.
@@ -1857,50 +1915,52 @@ Future stages will add a new entry under this section describing:
 
 ### Stage 13 — Automated testing and accessibility
 
-Status: In progress
+Status: Completed
 
-Implemented in the automated-testing checkpoints:
+Implemented:
 
-- Added Vitest and Testing Library for repeatable unit and component testing.
-- Added V8 coverage reporting without introducing premature coverage thresholds.
+- Added Vitest and Testing Library for repeatable unit and React component testing.
+- Added V8 statement, branch, function and line coverage reporting.
 - Added Playwright browser testing using desktop, compact-mobile and large-mobile Chromium viewports.
-- Added automated axe checks for detectable WCAG 2.2 AA violations.
-- Added keyboard skip-link and horizontal-overflow checks for the public visitor landing page.
-- Added a GitHub Actions quality workflow for linting, validation harnesses, unit coverage, browser testing, accessibility testing, dependency auditing and Vercel Function-count enforcement.
-- Kept database-connected checks outside CI until a dedicated non-production test environment is configured.
-- Added no Vercel Function; the deployed Function count remains 11.
+- Added automated axe checks for detectable WCAG 2.2 AA violations in covered states.
+- Added responsive horizontal-overflow checks.
+- Added keyboard skip-link coverage for the visitor landing page.
+- Added mocked first-time and returning-visitor browser workflows.
+- Added visitor privacy-acknowledgement enforcement coverage.
+- Added expired returning-verification cleanup coverage.
+- Added staff authorization, protected-route and staff-login unit and component coverage.
+- Added a synthetic Supabase authentication fixture that uses invented credentials and makes no database writes.
+- Added authenticated reception-dashboard, filtering, pagination and checkout coverage.
+- Added authenticated visit-history, filtering, pagination and date-validation coverage.
+- Added administrator host loading, filtering, pagination, creation, editing and deactivation coverage.
+- Added administrator staff loading, filtering, pagination, invitation, role-change and deactivation coverage.
+- Added invited-staff password validation, successful setup, unavailable invitation and expired-update coverage.
+- Corrected mobile description-list semantics in the reception dashboard and visit history.
+- Added accessible names to responsive staff sign-out and staff-setup cancellation controls.
+- Added a GitHub Actions quality workflow for validation, unit coverage, browser checks, accessibility checks, linting, building, dependency auditing and Function-count enforcement.
+- Kept database-connected integration and RLS checks outside CI until a dedicated non-production test environment is configured.
+- Added no Vercel Function; the deployable Function count remains 11.
 
-Validation required for this checkpoint:
+Final verification:
 
-- `npm run check:validation`
-- `npm run test`
-- `npm run test:coverage`
-- `npm run test:e2e`
-- `npm run lint`
-- `npm run build`
-- `npm audit --omit=dev`
-- `npm audit`
-- `git diff --check`
-- Added mocked first-time visitor browser coverage for non-meeting visits, Ministry meetings, payload normalization and successful reference display.
-- Added browser validation proving that first-time registration cannot submit without privacy acknowledgement.
-- Added mocked returning-visitor coverage for masked search, mobile-number verification, visit check-in and successful reference display.
-- Added browser validation proving that returning check-in cannot submit without acknowledgement of the current privacy notice.
-- Added expired-verification coverage proving that protected profile details and the visit form are cleared before another search.
-- Kept all browser fixtures synthetic and intercepted all write requests, so the suite creates no visitor or visit records.
-- Added 13 Vitest checks for active staff authorization, invalid sessions, inactive profiles, unsupported roles, database errors, token boundaries and administrator-only operations.
-- Added six component tests for protected-route loading, login redirection, destination preservation and receptionist/administrator role enforcement.
-- Added eight component tests for staff-login loading, validation, password visibility, email normalization, authentication errors and safe post-login navigation.
-- Confirmed 35 unit and component tests pass across four test files.
-- Achieved complete statement, branch, function and line coverage for `api/_lib/staffAuth.js` and `src/components/ProtectedRoute.jsx`.
-- Achieved complete statement, function and line coverage for `src/pages/StaffLoginPage.jsx`, with 97.14% branch coverage.
-- Increased overall measured coverage to 7.4% without introducing a premature global coverage threshold.
-- Added a synthetic Supabase authentication fixture that exercises the real staff-login and session-validation flow without using real accounts or database records.
-- Added four authenticated reception-dashboard scenarios covering active visitors, statistics, request-body filtering, server-side pagination, check-out confirmation and expired-session handling.
-- Added three authenticated visit-history scenarios covering records, request-body filtering, server-side pagination and client-side reversed-date rejection.
-- Ran the seven staff scenarios across desktop, compact-mobile and large-mobile Chromium viewports, producing 21 passing browser tests.
-- Corrected invalid mobile description-list markup so each visitor-detail `<dt>` and `<dd>` is a direct child of its `<dl>`.
-- Added an explicit accessible name to the responsive staff sign-out button.
-- Confirmed the covered staff dashboard, check-out dialog and visit-history states have no automatically detectable WCAG 2.2 AA violations.
+- All 12 isolated validation harnesses passed.
+- All 35 unit and component tests passed across four files.
+- All 87 Playwright tests passed across desktop and mobile Chromium projects.
+- Overall measured coverage reached 7.4% statements, 8.44% branches, 8.77% functions and 7.48% lines.
+- `api/_lib/staffAuth.js` and `src/components/ProtectedRoute.jsx` achieved complete statement, branch, function and line coverage.
+- `src/pages/StaffLoginPage.jsx` achieved complete statement, function and line coverage and 97.14% branch coverage.
+- Covered browser states passed automated axe accessibility checks.
+- Responsive overflow checks passed across the configured viewports.
+- `npm run check:validation` completed successfully.
+- `npm run test` completed successfully.
+- `npm run test:coverage` completed successfully.
+- `npm run test:e2e` completed successfully.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `npm audit --omit=dev` reported zero vulnerabilities.
+- `npm audit` reported zero vulnerabilities.
+- The deployable Vercel Function count remained 11.
+- `git diff --check` completed successfully.
 
 ## README update policy
 
