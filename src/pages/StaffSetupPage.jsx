@@ -220,13 +220,18 @@ export default function StaffSetupPage() {
           </Link>
 
           <button
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={
-              signingOut || isSubmitting
-            }
-            onClick={handleSignOut}
-            type="button"
-          >
+  aria-label={
+    signingOut
+      ? "Signing out…"
+      : "Cancel setup"
+  }
+  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+  disabled={
+    signingOut || isSubmitting
+  }
+  onClick={handleSignOut}
+  type="button"
+>
             {signingOut ? (
               <LoaderCircle
                 aria-hidden="true"
