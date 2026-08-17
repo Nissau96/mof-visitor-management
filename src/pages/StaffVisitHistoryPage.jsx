@@ -887,7 +887,7 @@ function HistoryCard({ visit }) {
         <StatusBadge status={visit.status} />
       </div>
 
-      <dl className="mt-5 grid gap-4 text-sm">
+      <dl className="mt-5 grid text-sm">
         <HistoryDetail
           icon={Phone}
           label="Phone"
@@ -941,21 +941,19 @@ function HistoryDetail({
   value,
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <Icon
-        aria-hidden="true"
-        className="mt-0.5 size-5 shrink-0 text-brand-800"
-      />
+    <>
+      <dt className="mt-4 flex items-start gap-3 font-semibold text-slate-600 first:mt-0">
+        <Icon
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0 text-brand-800"
+        />
+        <span>{label}</span>
+      </dt>
 
-      <div className="min-w-0">
-        <dt className="font-semibold text-slate-600">
-          {label}
-        </dt>
-        <dd className="mt-1 wrap-break-word font-bold text-slate-950">
-          {value}
-        </dd>
-      </div>
-    </div>
+      <dd className="ml-8 mt-1 wrap-break-word font-bold text-slate-950">
+        {value}
+      </dd>
+    </>
   );
 }
 
