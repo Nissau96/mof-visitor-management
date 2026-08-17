@@ -8,7 +8,7 @@ The implemented stages allow first-time visitors to register and check in. Retur
 >
 > Current implementation stage: Stage 13 — Automated testing and accessibility
 >
-> Documentation version: 2.7
+> Documentation version: 2.8
 
 ## Table of contents
 
@@ -1061,12 +1061,19 @@ git diff --check
 - Desktop, compact-mobile and large-mobile browser coverage
 - Automated WCAG 2.2 AA axe checks for covered visitor workflows
 - Keyboard skip-link and horizontal-overflow browser checks
+- Synthetic Supabase staff-authentication browser fixture with no database writes
+- Authenticated reception-dashboard loading, statistics, filtering and pagination
+- Visitor check-out confirmation, request validation and success-state coverage
+- Expired dashboard-session sign-out and login redirection
+- Authenticated visit-history loading, filtering and pagination
+- Reversed history date-range rejection without an API request
+- Staff dashboard and visit-history accessibility checks across three viewports
+- Staff-page horizontal-overflow checks across desktop and mobile viewports
 
 ### Planned test coverage
 
 - Database-connected API integration tests for registration, lookup, verification and check-in
 - RLS tests for anonymous, receptionist and administrator access
-- Authenticated reception dashboard, checkout and visit-history browser workflows
 - Administrator host and staff-management browser workflows
 - Expanded database-connected checkout and visit-history integration tests
 - Manual keyboard and screen-reader testing
@@ -1887,6 +1894,13 @@ Validation required for this checkpoint:
 - Achieved complete statement, branch, function and line coverage for `api/_lib/staffAuth.js` and `src/components/ProtectedRoute.jsx`.
 - Achieved complete statement, function and line coverage for `src/pages/StaffLoginPage.jsx`, with 97.14% branch coverage.
 - Increased overall measured coverage to 7.4% without introducing a premature global coverage threshold.
+- Added a synthetic Supabase authentication fixture that exercises the real staff-login and session-validation flow without using real accounts or database records.
+- Added four authenticated reception-dashboard scenarios covering active visitors, statistics, request-body filtering, server-side pagination, check-out confirmation and expired-session handling.
+- Added three authenticated visit-history scenarios covering records, request-body filtering, server-side pagination and client-side reversed-date rejection.
+- Ran the seven staff scenarios across desktop, compact-mobile and large-mobile Chromium viewports, producing 21 passing browser tests.
+- Corrected invalid mobile description-list markup so each visitor-detail `<dt>` and `<dd>` is a direct child of its `<dl>`.
+- Added an explicit accessible name to the responsive staff sign-out button.
+- Confirmed the covered staff dashboard, check-out dialog and visit-history states have no automatically detectable WCAG 2.2 AA violations.
 
 ## README update policy
 
