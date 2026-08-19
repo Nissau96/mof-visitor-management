@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 13 automated testing and accessibility completed
+> Project status: Stage 14 Vercel deployment and environment separation completed
 >
-> Current implementation stage: Stage 14 — Vercel deployment and environments
+> Current implementation stage: Stage 15 — Production readiness and visitor QR code
 >
-> Documentation version: 2.9
+> Documentation version: 3.0
 
 ## Table of contents
 
@@ -103,7 +103,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 
 - [x] Development Supabase project created
 - [x] Supabase region and test-data limitations documented
-- [x] `supabase/schema.sql` added to the repository
+- [x] `supabase/migrations/202607210001_initial_schema.sql` added as the initial database migration
 - [x] `supabase/seed.sql` added with invented development records
 - [x] Host, visitor, visit, staff and audit tables created
 - [x] Foreign keys, checks and unique constraints verified
@@ -456,6 +456,35 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Deployable Vercel Function count remained 11
 - [x] `git diff --check` completed successfully
 
+### Stage 14 completion checklist — completed
+
+- [x] Initial database schema established as the first timestamped Supabase migration
+- [x] Supabase CLI project configuration added
+- [x] Dedicated Production Supabase project created
+- [x] All repository migrations applied to Production in order
+- [x] Production migration history aligned with the repository
+- [x] Production public schema passed Supabase error-level linting
+- [x] Production database confirmed free of development visitor, visit, host and staff records
+- [x] Preview connected only to the development/test Supabase project
+- [x] Production connected only to the dedicated Production Supabase project
+- [x] Preview and Production Vercel variables separated by environment
+- [x] Stable Vercel Preview and Production aliases configured
+- [x] Preview Deployment Protection retained
+- [x] Playwright support added for approved Vercel protection bypass
+- [x] Complete 87-test Playwright suite passed locally
+- [x] Complete 87-test Playwright suite passed against the protected Preview deployment
+- [x] All 35 unit and component tests passed
+- [x] Preview frontend and serverless Functions passed runtime checks
+- [x] Production frontend and serverless Functions passed runtime checks
+- [x] Production unauthenticated staff-session rejection verified
+- [x] Production Supabase Auth URLs configured for the stable Production application
+- [x] First Production administrator manually bootstrapped and verified
+- [x] Production administrator dashboard, host administration and staff administration access verified
+- [x] Missing custom SMTP recorded as a Production invitation limitation
+- [x] `npm run lint` completed successfully
+- [x] `npm run build` completed successfully
+- [x] `git diff --check` completed successfully
+
 ## Technology stack
 
 | Layer          | Technology               | Purpose                                                    |
@@ -660,11 +689,11 @@ All commands must succeed before a development stage is committed.
 | `npm run test:e2e:headed` | Run Playwright with the browser visible |
 | `npm run test:e2e:ui` | Open the Playwright interactive test interface |
 
-Stage 13 established automated unit, component, browser, responsive-layout and accessibility coverage. Database-connected integration and RLS checks remain pending until a dedicated non-production test environment is configured.
+Stage 13 established automated unit, component, browser, responsive-layout and accessibility coverage. Database-connected integration and RLS checks remain planned. Existing browser tests use controlled network fixtures and do not write to Preview or Production databases.
 
 ## Environment variables
 
-The application will use separate browser-safe and server-only variables.
+The application uses separate browser-safe and server-only variables.
 
 ### Browser-safe variables
 
@@ -684,9 +713,27 @@ VISITOR_LOOKUP_SECRET
 STAFF_INVITE_REDIRECT_URL
 ```
 
-`STAFF_INVITE_REDIRECT_URL` controls where invited staff complete password setup. It must exactly match an approved Supabase Auth redirect URL. Local development uses `/staff/setup` on the Vercel development server; deployed environments must use their approved HTTPS application URL.
+`STAFF_INVITE_REDIRECT_URL` controls where invited staff complete password setup. It must exactly match an approved Supabase Auth redirect URL.
+
+The deployed environments use independently scoped values:
+
+| Environment | Supabase project | Invitation redirect |
+| --- | --- | --- |
+| Preview | Development project containing invented test-only data | Stable protected Preview alias at `/staff/setup` |
+| Production | Dedicated Production project | `https://mof-visitor-management.vercel.app/staff/setup` |
+
+All six application variables are configured as separate Preview and Production entries in Vercel. Preview values must never reference the Production Supabase project.
 
 Server-only values must be configured in the local server environment and Vercel Project Settings. They must never be placed in `src/`, prefixed with `VITE_` or committed to Git.
+
+External protected-Preview browser tests may also use:
+
+```text
+PLAYWRIGHT_BASE_URL
+VERCEL_AUTOMATION_BYPASS_SECRET
+```
+
+`PLAYWRIGHT_BASE_URL` selects the deployed Preview base URL. `VERCEL_AUTOMATION_BYPASS_SECRET` supplies the Vercel deployment-protection bypass header through Playwright. The bypass secret is test-only sensitive configuration and must never be committed or printed.
 
 ## Project structure
 
@@ -764,7 +811,6 @@ mof-visitor-management/
 │   └── main.jsx
 ├── supabase/
 │   ├── migrations/
-│   ├── schema.sql
 │   ├── seed.sql
 │   └── verify.sql
 ├── .env.example
@@ -994,7 +1040,7 @@ Administrator operations must also:
 - record host and staff administration actions in the audit trail;
 - validate staff invitation redirect URLs on the server;
 - keep staff invitation credentials and SMTP credentials outside browser code; and
-- use an approved custom SMTP provider before production deployment.
+- use an approved custom SMTP provider before Production staff invitations or other email-dependent account operations.
 
 Never commit:
 
@@ -1209,21 +1255,39 @@ git diff --check
 
 ## Deployment
 
-The application will be deployed through Vercel.
+The application is deployed through Vercel.
 
 The repository pins the server and build runtime to Node.js 22.x. Local development and validation must also use Node.js 22.x.
 
-The planned deployment environments are:
+The configured environments are:
 
-| Environment | Purpose                       | Database                             |
-| ----------- | ----------------------------- | ------------------------------------ |
-| Development | Local implementation          | Development Supabase project         |
-| Preview     | Pull-request review and UAT   | Staging/development Supabase project |
-| Production  | Approved live visitor service | Production Supabase project          |
+| Environment | Purpose | Application address | Database |
+| --- | --- | --- | --- |
+| Development | Local implementation | `http://localhost:3000` | Development Supabase project |
+| Preview | Pull-request review, browser testing and UAT | `https://mof-visitor-management-git-deploy-14-d1bdb7-nissau96s-projects.vercel.app` | Development Supabase project containing invented test-only data |
+| Production | Controlled Production deployment | `https://mof-visitor-management.vercel.app` | Dedicated Production Supabase project |
 
-Preview deployments must never connect to the production visitor database.
+Preview and Production use independently scoped Vercel environment variables. Preview deployments must never connect to the Production visitor database.
 
-The final visitor QR code must contain only the stable production HTTPS visitor URL. Do not print a QR code that points to a temporary Vercel preview address.
+The Preview deployment is protected by Vercel Deployment Protection. Approved automated browser checks provide the protection-bypass header through the optional `VERCEL_AUTOMATION_BYPASS_SECRET` environment variable. The secret must remain outside the repository.
+
+Production database changes are applied in timestamp order from `supabase/migrations/`. Before applying or approving a deployment, verify migration alignment with:
+
+```bash
+npx supabase@latest migration list
+npx supabase@latest db push --dry-run
+npx supabase@latest db lint \
+  --linked \
+  --schema public \
+  --level error \
+  --fail-on error
+```
+
+The Production deployment has been verified to render the visitor interface, execute the public host and meeting Functions, reject unauthenticated staff sessions and use an empty Production dataset. The first Production administrator was created manually and linked to an active confirmed `admin` profile.
+
+Approved custom SMTP is not yet configured. Production staff invitations and other email-dependent staff-account operations must not be used until an approved SMTP sender has been configured and delivery tested.
+
+The final visitor QR code must contain only the stable Production visitor URL. QR-code publication remains part of Stage 15 and must not use a temporary Vercel Preview address.
 
 ## Development roadmap
 
@@ -1239,8 +1303,8 @@ The final visitor QR code must contain only the stable production HTTPS visitor 
 - [x] Stage 10 — Visitor checkout and visit history
 - [x] Stage 11 — Host and staff administration
 - [x] Stage 12 — Security, privacy and abuse controls
-- Stage 13 — Automated testing and accessibility — completed
-- Stage 14 — Vercel deployment and environments — next
+- [x] Stage 13 — Automated testing and accessibility
+- [x] Stage 14 — Vercel deployment and environments
 - [ ] Stage 15 — Production readiness and visitor QR code
 
 The roadmap checkboxes must be updated only after the relevant validation and commit have been completed.
@@ -1938,7 +2002,7 @@ Implemented:
 - Corrected mobile description-list semantics in the reception dashboard and visit history.
 - Added accessible names to responsive staff sign-out and staff-setup cancellation controls.
 - Added a GitHub Actions quality workflow for validation, unit coverage, browser checks, accessibility checks, linting, building, dependency auditing and Function-count enforcement.
-- Kept database-connected integration and RLS checks outside CI until a dedicated non-production test environment is configured.
+- Kept database-connected integration and RLS checks outside CI; these checks remain planned and require a separately controlled database-test strategy.
 - Added no Vercel Function; the deployable Function count remains 11.
 
 Final verification:
@@ -1961,6 +2025,64 @@ Final verification:
 - `npm audit` reported zero vulnerabilities.
 - The deployable Vercel Function count remained 11.
 - `git diff --check` completed successfully.
+
+### Stage 14 — Vercel deployment and environments
+
+Status: Completed
+
+Implemented:
+
+- Converted the original database schema into the first timestamped Supabase migration.
+- Added repository Supabase CLI configuration while excluding linked-project metadata.
+- Created and migrated a dedicated Production Supabase project.
+- Kept Preview connected to the development project containing invented test-only data.
+- Split all browser-safe and server-only Vercel values into independent Preview and Production scopes.
+- Configured stable `*.vercel.app` aliases for Preview and Production.
+- Retained Vercel Deployment Protection on Preview.
+- Added optional Playwright support for the approved Vercel automation-bypass header.
+- Configured Production Supabase Auth Site and invitation redirect URLs.
+- Redeployed Production after configuring its isolated environment.
+- Manually bootstrapped and verified the first active Production administrator.
+- Left the Production visitor, visit, host and meeting datasets empty.
+- Deferred Production staff invitations until approved custom SMTP is configured.
+
+Database validation:
+
+- All 14 timestamped migrations were applied successfully.
+- Local and Production migration histories matched.
+- The Production migration dry run reported no pending migrations.
+- The Production public schema passed error-level Supabase linting.
+- Production returned empty host and meeting lists.
+- Production rejected an unauthenticated staff-session request.
+
+Deployment validation:
+
+- Preview returned HTTP 200 through its approved protection bypass.
+- Preview rendered the visitor interface without browser page errors.
+- Preview public Functions returned their expected response structures.
+- The complete 87-test Playwright suite passed against Preview.
+- Production returned HTTP 200 at its stable visitor URL.
+- Production rendered the visitor interface without browser page errors.
+- Production public Functions returned their expected empty datasets.
+- The first Production administrator signed in successfully.
+- Production administrator navigation, host management and staff management loaded successfully.
+- All 35 unit and component tests passed.
+- The complete 87-test Playwright suite passed locally.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `git diff --check` completed successfully.
+
+Associated commits:
+
+- `4550e89` — establish the initial Supabase migration.
+- `6a858ba` — initialize Supabase CLI configuration.
+- `f6a2bb9` — support protected Vercel Preview tests.
+
+Operational limitation:
+
+- Approved custom SMTP is not configured.
+- Production staff invitations and email-dependent account operations must remain unused until SMTP is configured and delivery is verified.
+- SMTP credentials must never be committed or shared in documentation.
 
 ## README update policy
 

@@ -13,6 +13,20 @@ const baseURL =
 const useExternalServer =
   Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
+const vercelAutomationBypassSecret =
+  process.env
+    .VERCEL_AUTOMATION_BYPASS_SECRET
+    ?.trim();
+
+const externalRequestHeaders =
+  useExternalServer &&
+  vercelAutomationBypassSecret
+    ? {
+        "x-vercel-protection-bypass":
+          vercelAutomationBypassSecret,
+      }
+    : {};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: "test-results",
@@ -41,6 +55,7 @@ export default defineConfig({
 
   use: {
     baseURL,
+    extraHTTPHeaders: externalRequestHeaders,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure",
