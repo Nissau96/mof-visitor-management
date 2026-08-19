@@ -8,7 +8,7 @@ The implemented stages allow first-time visitors to register and check in. Retur
 >
 > Current implementation stage: Stage 15 — Production readiness and visitor QR code
 >
-> Documentation version: 3.0
+> Documentation version: 3.1
 
 ## Table of contents
 
@@ -484,6 +484,38 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run lint` completed successfully
 - [x] `npm run build` completed successfully
 - [x] `git diff --check` completed successfully
+
+### Stage 15 interim readiness status — controlled technical pilot
+
+Decision: Continue as a controlled technical pilot on the Supabase Free Plan.
+
+Completed:
+
+- [x] Production password minimum increased to 12 characters
+- [x] Lowercase, uppercase, number and symbol requirements enabled
+- [x] Secure password change enabled
+- [x] Existing Production administrator sign-in verified after the Auth changes
+- [x] Production Security Advisor findings reviewed
+- [x] Intentional deny-by-default RLS tables documented
+- [x] Intentional authenticated RLS helper functions reviewed
+- [x] Production post-merge smoke test passed
+- [x] Production visitor, visit, host and meeting datasets confirmed empty
+
+Pilot restrictions:
+
+- Do not enter or retain real visitor information in Production.
+- Do not publish, print or distribute the Production visitor QR code.
+- Do not use Production staff invitations or other email-dependent account operations.
+- Run invented-data workflow and UAT checks only against Preview.
+- Keep Stage 15 incomplete until the launch blockers are resolved.
+
+Full-launch blockers:
+
+- [ ] Obtain approved managed backup and recovery capability
+- [ ] Enable leaked-password protection through an eligible Supabase plan
+- [ ] Configure and verify an approved custom SMTP sender
+- [ ] Complete Production reference-data preparation and final launch UAT
+- [ ] Generate and physically test the final Production visitor QR code
 
 ## Technology stack
 
@@ -1287,6 +1319,26 @@ The Production deployment has been verified to render the visitor interface, exe
 
 Approved custom SMTP is not yet configured. Production staff invitations and other email-dependent staff-account operations must not be used until an approved SMTP sender has been configured and delivery tested.
 
+### Controlled technical pilot
+
+The Stage 15 readiness decision is to operate only as a controlled technical pilot while the dedicated Production Supabase project remains on the Free Plan.
+
+During the controlled pilot:
+
+- the stable Production deployment may be used for non-destructive runtime and administrator-access checks;
+- Production must not contain real visitor records;
+- invented-data visitor workflow testing must remain in Preview;
+- Production staff invitations and email-dependent account operations must remain unused; and
+- the Production visitor QR code must not be published, printed or distributed.
+
+A full Production launch remains blocked until:
+
+- approved backup and recovery capability is available and tested;
+- leaked-password protection can be enabled;
+- approved custom SMTP is configured and delivery tested;
+- Production launch data and final UAT are approved; and
+- the final QR code is generated from the stable Production visitor URL and passes physical-device scan testing.
+
 The final visitor QR code must contain only the stable Production visitor URL. QR-code publication remains part of Stage 15 and must not use a temporary Vercel Preview address.
 
 ## Development roadmap
@@ -2083,6 +2135,40 @@ Operational limitation:
 - Approved custom SMTP is not configured.
 - Production staff invitations and email-dependent account operations must remain unused until SMTP is configured and delivery is verified.
 - SMTP credentials must never be committed or shared in documentation.
+
+### Stage 15 — Production readiness and visitor QR code
+
+Status: In progress — controlled technical pilot only
+
+Decision:
+
+- Continue technical verification using the existing Supabase Free Plan.
+- Keep the public launch, real visitor data and QR-code publication blocked.
+- Use Preview with invented data for visitor workflow and UAT checks.
+
+Readiness work completed:
+
+- Strengthened the Production Auth password policy to a 12-character minimum requiring lowercase letters, uppercase letters, numbers and symbols.
+- Enabled secure password changes while retaining invitation-setup compatibility.
+- Verified that the existing Production administrator can still sign in.
+- Reviewed five informational RLS findings and retained the intentional deny-by-default design.
+- Reviewed the `pg_trgm` extension warning as an accepted platform-extension exception.
+- Reviewed `is_active_staff()` and `is_admin()` as intentional authenticated RLS authorization helpers.
+- Confirmed that leaked-password protection remains unavailable on the current plan.
+- Confirmed that approved custom SMTP remains unavailable.
+- Passed the post-merge Production visitor-page and public-Function smoke tests.
+- Confirmed that Production visitor, visit, host and meeting datasets remain empty.
+
+Outstanding blockers:
+
+- Approved backup and recovery capability.
+- Leaked-password protection.
+- Approved custom SMTP and delivery testing.
+- Production reference-data preparation.
+- Final mobile-device and accessibility UAT.
+- QR generation, physical scan testing and publication approval.
+
+Stage 15 must remain unchecked until these blockers are resolved and the final validation is completed.
 
 ## README update policy
 
