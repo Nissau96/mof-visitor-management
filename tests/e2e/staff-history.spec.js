@@ -49,6 +49,7 @@ const HISTORY_VISITS = Array.from(
         "Synthetic History Officer",
       phone: `+2332400010${paddedNumber}`,
       purpose: "Official",
+      tower: "tower_1",
       reference:
         `VIS-HIST${String(number).padStart(
           4,
@@ -148,6 +149,14 @@ async function installMockHistoryApi(page) {
           );
       }
 
+      if (body.tower) {
+        matchingVisits =
+          matchingVisits.filter(
+            (visit) =>
+              visit.tower === body.tower,
+          );
+      }
+
       const totalCount =
         matchingVisits.length;
 
@@ -173,6 +182,7 @@ async function installMockHistoryApi(page) {
             totalCount,
             totalPages,
           },
+          towerScope: body.tower,
           visits: matchingVisits.slice(
             start,
             start + PAGE_SIZE,
@@ -348,6 +358,7 @@ test.describe(
           pageSize: 10,
           search: "History Visitor 02",
           status: "checked_out",
+          tower: "tower_1",
         });
 
       expect(page.url()).not.toContain(

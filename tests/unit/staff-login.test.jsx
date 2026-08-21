@@ -29,8 +29,11 @@ function createAuth(overrides = {}) {
     clearAuthMessage: vi.fn(),
     profile: null,
     session: null,
+    setTowerScope: vi.fn(),
     signIn: vi.fn(),
+    signOut: vi.fn(),
     status: "unauthenticated",
+    tower: "",
     ...overrides,
   };
 }
@@ -68,12 +71,22 @@ function renderLogin({
   };
 }
 
-async function completeLoginForm(user) {
+async function completeLoginForm(
+  user,
+  tower = "tower_1",
+) {
   await user.type(
     screen.getByRole("textbox", {
       name: /Email address/i,
     }),
     "  RECEPTIONIST.DEV@EXAMPLE.COM  ",
+  );
+
+  await user.selectOptions(
+    screen.getByRole("combobox", {
+      name: /Assigned Tower/i,
+    }),
+    tower,
   );
 
   await user.type(
@@ -113,6 +126,7 @@ describe("StaffLoginPage", () => {
             "synthetic-access-token",
         },
         status: "authenticated",
+        tower: "tower_1",
       }),
       initialEntry: {
         pathname: "/staff/login",
@@ -138,7 +152,7 @@ describe("StaffLoginPage", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Sign in securely",
+        name: "Sign in",
       }),
     );
 
@@ -149,10 +163,20 @@ describe("StaffLoginPage", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText("Enter your password."),
+      screen.getByText(
+        "Enter your password.",
+      ),
     ).toBeInTheDocument();
 
-    expect(auth.signIn).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Select the tower where you will be working.",
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      auth.signIn,
+    ).not.toHaveBeenCalled();
   });
 
   it("allows the password visibility to be toggled", async () => {
@@ -186,11 +210,13 @@ describe("StaffLoginPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("normalizes the email and returns to the requested protected route", async () => {
+  it("normalizes the email, submits the tower and returns to the requested protected route", async () => {
     const user = userEvent.setup();
 
     const auth = createAuth({
-      signIn: vi.fn().mockResolvedValue(true),
+      signIn: vi
+        .fn()
+        .mockResolvedValue(true),
     });
 
     renderLogin({
@@ -204,20 +230,26 @@ describe("StaffLoginPage", () => {
       },
     });
 
-    await completeLoginForm(user);
+    await completeLoginForm(
+      user,
+      "tower_1",
+    );
 
     await user.click(
       screen.getByRole("button", {
-        name: "Sign in securely",
+        name: "Sign in",
       }),
     );
 
     await waitFor(() => {
-      expect(auth.signIn).toHaveBeenCalledWith({
+      expect(
+        auth.signIn,
+      ).toHaveBeenCalledWith({
         email:
           "receptionist.dev@example.com",
         password:
           "Invented development password",
+        tower: "tower_1",
       });
     });
 
@@ -245,11 +277,14 @@ describe("StaffLoginPage", () => {
 
     renderLogin({ auth });
 
-    await completeLoginForm(user);
+    await completeLoginForm(
+      user,
+      "tower_2",
+    );
 
     await user.click(
       screen.getByRole("button", {
-        name: "Sign in securely",
+        name: "Sign in",
       }),
     );
 
@@ -264,6 +299,16 @@ describe("StaffLoginPage", () => {
         "Sign-in unsuccessful",
       ),
     ).toBeInTheDocument();
+
+    expect(
+      auth.signIn,
+    ).toHaveBeenCalledWith({
+      email:
+        "receptionist.dev@example.com",
+      password:
+        "Invented development password",
+      tower: "tower_2",
+    });
   });
 
   it("displays a session verification message from the authentication provider", () => {
@@ -285,7 +330,9 @@ describe("StaffLoginPage", () => {
     const user = userEvent.setup();
 
     const auth = createAuth({
-      signIn: vi.fn().mockResolvedValue(true),
+      signIn: vi
+        .fn()
+        .mockResolvedValue(true),
     });
 
     renderLogin({
@@ -298,13 +345,28 @@ describe("StaffLoginPage", () => {
       },
     });
 
-    await completeLoginForm(user);
+    await completeLoginForm(
+      user,
+      "tower_1",
+    );
 
     await user.click(
       screen.getByRole("button", {
-        name: "Sign in securely",
+        name: "Sign in",
       }),
     );
+
+    await waitFor(() => {
+      expect(
+        auth.signIn,
+      ).toHaveBeenCalledWith({
+        email:
+          "receptionist.dev@example.com",
+        password:
+          "Invented development password",
+        tower: "tower_1",
+      });
+    });
 
     expect(
       await screen.findByRole("heading", {

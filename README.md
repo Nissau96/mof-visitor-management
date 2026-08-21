@@ -4,11 +4,11 @@ A simple, secure and mobile-first visitor registration and check-in application 
 
 The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
 
-> Project status: Stage 14 Vercel deployment and environment separation completed
+> Project status: Stage 14 completed; Stage 15 controlled technical pilot implementation in progress
 >
 > Current implementation stage: Stage 15 — Production readiness and visitor QR code
 >
-> Documentation version: 3.0
+> Documentation version: 3.2
 
 ## Table of contents
 
@@ -34,7 +34,7 @@ The implemented stages allow first-time visitors to register and check in. Retur
 
 ## Project overview
 
-The Visitor Management Application replaces a manual visitor register with a responsive web application that visitors can open by scanning a shared QR code.
+The Visitor Management Application replaces a manual visitor register with a responsive web application that visitors can open by scanning the current weekly reception QR code.
 
 The initial version focuses on:
 
@@ -47,13 +47,13 @@ The initial version focuses on:
 - privacy-aware handling of visitor information; and
 - mobile usability on recent iPhone and Android devices.
 
-The shared QR code opens the visitor landing route. Because a shared QR code cannot identify the person who scanned it, the visitor chooses either **This is my first visit** or **I have visited before**.
+The weekly QR code opens the visitor landing route and exchanges its short-lived fragment token for an HttpOnly visitor-access cookie. Because the QR code cannot identify the person who scanned it, the visitor chooses either **This is my first visit** or **I have visited before**.
 
 ## Core visitor workflow
 
 ### First-time visitor
 
-1. Scan the organisation's shared visitor QR code.
+1. Scan the current weekly visitor QR code displayed at reception.
 2. Select **This is my first visit**.
 3. Enter the required personal and visit information.
 4. Review and acknowledge the privacy notice.
@@ -62,7 +62,7 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Returning visitor
 
-1. Scan the shared visitor QR code.
+1. Scan the current weekly visitor QR code displayed at reception.
 2. Select **I have visited before**.
 3. Search using at least three characters from the registered name.
 4. Select the appropriate masked result.
@@ -73,11 +73,12 @@ The shared QR code opens the visitor landing route. Because a shared QR code can
 
 ### Reception staff
 
-1. Sign in through the protected staff login.
-2. Review currently checked-in visitors.
-3. Search and filter visit records.
-4. Check visitors out when they leave.
-5. Review authorised visit history.
+1. Sign in through the protected staff login and select the **Assigned Tower**.
+2. Display, print or download the current weekly reception QR code.
+3. Review currently checked-in visitors assigned to the selected tower.
+4. Search and filter authorised visit records.
+5. Check visitors out when they leave.
+6. Review authorised visit history.
 
 ## Current implementation status
 
@@ -473,7 +474,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Playwright support added for approved Vercel protection bypass
 - [x] Complete 87-test Playwright suite passed locally
 - [x] Complete 87-test Playwright suite passed against the protected Preview deployment
-- [x] All 35 unit and component tests passed
+- [x] All 63 unit and component tests passed
 - [x] Preview frontend and serverless Functions passed runtime checks
 - [x] Production frontend and serverless Functions passed runtime checks
 - [x] Production unauthenticated staff-session rejection verified
@@ -484,6 +485,45 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] `npm run lint` completed successfully
 - [x] `npm run build` completed successfully
 - [x] `git diff --check` completed successfully
+
+### Stage 15 interim readiness status — controlled technical pilot
+
+Decision: Continue as a controlled technical pilot on the Supabase Free Plan.
+
+Completed:
+
+- [x] Production password minimum increased to 12 characters
+- [x] Lowercase, uppercase, number and symbol requirements enabled
+- [x] Secure password change enabled
+- [x] Existing Production administrator sign-in verified after the Auth changes
+- [x] Production Security Advisor findings reviewed
+- [x] Intentional deny-by-default RLS tables documented
+- [x] Intentional authenticated RLS helper functions reviewed
+- [x] Production post-merge smoke test passed
+- [x] Production visitor, visit, host and meeting datasets confirmed empty
+- [x] Backend-generated visit-tower routing implemented
+- [x] Receptionist Assigned Tower authorization implemented
+- [x] Administrator all-tower access and tower filtering implemented
+- [x] Weekly Monday-to-Sunday visitor QR access implemented
+- [x] Weekly QR screen display, printing and PNG download verified
+- [x] Preview tower migrations and invented-data acceptance tests passed
+- [x] Vercel public Function count retained at 11
+
+Pilot restrictions:
+
+- Do not enter or retain real visitor information in Production.
+- Do not publish, print or distribute the Production visitor QR code.
+- Do not use Production staff invitations or other email-dependent account operations.
+- Run invented-data workflow and UAT checks only against Preview.
+- Keep Stage 15 incomplete until the launch blockers are resolved.
+
+Full-launch blockers:
+
+- [ ] Obtain approved managed backup and recovery capability
+- [ ] Enable leaked-password protection through an eligible Supabase plan
+- [ ] Configure and verify an approved custom SMTP sender
+- [ ] Complete Production reference-data preparation and final launch UAT
+- [ ] Generate and physically test the final Production visitor QR code
 
 ## Technology stack
 
@@ -502,6 +542,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 | Unit testing   | Vitest and Testing Library | Unit and React component behavior checks                    |
 | Browser testing | Playwright and axe-core    | Responsive workflow and automated accessibility checks      |
 | Icons          | Lucide React             | Consistent accessible interface icons                      |
+| QR generation  | qrcode                    | Weekly reception QR rendering and PNG export               |
 
 Package versions are controlled by `package.json` and `package-lock.json`. Always commit the lock file and test dependency upgrades before merging them.
 
@@ -711,9 +752,15 @@ SUPABASE_URL
 SUPABASE_SECRET_KEY
 VISITOR_LOOKUP_SECRET
 STAFF_INVITE_REDIRECT_URL
+WEEKLY_QR_SECRET
+VISITOR_APP_URL
 ```
 
 `STAFF_INVITE_REDIRECT_URL` controls where invited staff complete password setup. It must exactly match an approved Supabase Auth redirect URL.
+
+`WEEKLY_QR_SECRET` signs weekly visitor-access tokens and must contain at least 32 bytes of unpredictable secret material. It must be independently configured for each environment.
+
+`VISITOR_APP_URL` supplies the approved absolute visitor-application URL used in the generated weekly QR code. It must use HTTPS outside local development and must not contain credentials, a query or a fragment.
 
 The deployed environments use independently scoped values:
 
@@ -722,7 +769,7 @@ The deployed environments use independently scoped values:
 | Preview | Development project containing invented test-only data | Stable protected Preview alias at `/staff/setup` |
 | Production | Dedicated Production project | `https://mof-visitor-management.vercel.app/staff/setup` |
 
-All six application variables are configured as separate Preview and Production entries in Vercel. Preview values must never reference the Production Supabase project.
+All eight application variables are configured as separate Preview and Production entries in Vercel. Preview values must never reference the Production Supabase project.
 
 Server-only values must be configured in the local server environment and Vercel Project Settings. They must never be placed in `src/`, prefixed with `VITE_` or committed to Git.
 
@@ -773,7 +820,8 @@ mof-visitor-management/
 │   └── check-supabase.mjs
 ├── src/
 │   ├── components/
-│   │   └── ProtectedRoute.jsx
+│   │   ├── ProtectedRoute.jsx
+│   │   └── VisitorAccessGate.jsx
 │   ├── constants/
 │   ├── context/
 │   │   ├── AuthProvider.jsx
@@ -786,6 +834,8 @@ mof-visitor-management/
 │   ├── lib/
 │   │   ├── api.js
 │   │   └── supabase.js
+│   ├── server/
+│   │   └── weeklyQrAccess.js
 │   ├── pages/
 │   │   ├── AdminHostsPage.jsx
 │   │   ├── AdminStaffPage.jsx
@@ -796,6 +846,7 @@ mof-visitor-management/
 │   │   ├── StaffLoginPage.jsx
 │   │   ├── StaffSetupPage.jsx
 │   │   ├── StaffVisitHistoryPage.jsx
+│   │   ├── StaffWeeklyQrPage.jsx
 │   │   └── VisitorLandingPage.jsx
 │   ├── validation/
 │   │   ├── adminManagement.js
@@ -813,6 +864,12 @@ mof-visitor-management/
 │   ├── migrations/
 │   ├── seed.sql
 │   └── verify.sql
+├── tests/
+│   └── unit/
+│       ├── visitor-access-gate.test.jsx
+│       ├── visitor-api-access.test.js
+│       ├── weekly-qr-access.test.js
+│       └── weekly-qr-local-url.test.js
 ├── .env.example
 ├── .gitignore
 ├── eslint.config.js
@@ -983,6 +1040,23 @@ Stage 11 database migration:
 
 To remain within the Vercel Hobby deployment limit, the five logical administration endpoints are dispatched through a single consolidated `api/admin.js` Vercel Function, while `vercel.json` rewrites preserve the logical route paths (`/api/admin/hosts/list`, `/api/admin/hosts/save`, `/api/admin/staff/list`, `/api/admin/staff/invite`, `/api/admin/staff/update`).
 
+Stage 15 adds backend-controlled tower routing to `visits`. The stored generated `tower` column applies these rules without accepting a visitor-supplied tower:
+
+- Ministry of Finance and PFM Systems Division visits route to Tower 1.
+- Ministry of Finance visits to every other division route to Tower 2.
+- Visits to every other agency route to Tower 1.
+
+Receptionists must select one Assigned Tower and may access only records within that tower scope. Administrators may access all towers or apply a Tower 1 or Tower 2 filter. Trusted database functions enforce tower authorization for the dashboard, visit history and checkout operation.
+
+Stage 15 tower migrations:
+
+- `supabase/migrations/20260820125756_add_visit_tower_routing.sql`;
+- `supabase/migrations/20260820140238_add_staff_tower_authorization.sql`;
+- `supabase/migrations/20260820140516_add_tower_aware_reception_dashboard.sql`;
+- `supabase/migrations/20260820140621_add_tower_aware_visit_history.sql`.
+
+The weekly QR implementation uses the existing Vercel Function entry points. Visitor registration, directory lookup and returning-visitor operations require a valid weekly access cookie. The deployable Function count remains 11 for Vercel Hobby compatibility.
+
 Development staff accounts are created outside migrations so passwords, email addresses and Auth identifiers are not committed.
 
 Anonymous browser users must not receive direct access to visitor or visit tables. Public visitor operations will pass through protected Vercel Functions.
@@ -1146,7 +1220,15 @@ git diff --check
 - Protected destination preservation during staff-login redirects
 - Receptionist and administrator route-role enforcement
 - Staff-login validation, email normalization and error-state tests
+- Assigned Tower login validation and submission tests
 - Unsafe post-login destination rejection
+- Weekly Monday-to-Sunday token creation and validation
+- Weekly-token tampering and expiry rejection
+- Local visitor-URL fallback validation
+- Weekly QR fragment exchange and fragment removal
+- Existing visitor-access cookie validation
+- Visitor-access retry and rate-limit states
+- Missing weekly access rejection across all visitor API handlers
 - Mocked first-time and returning-visitor browser workflows
 - Desktop, compact-mobile and large-mobile browser coverage
 - Automated WCAG 2.2 AA axe checks for covered visitor workflows
@@ -1172,7 +1254,7 @@ git diff --check
 - Administrator and staff-setup accessibility checks across three viewports
 - Administrator and staff-setup horizontal-overflow checks
 - Complete browser suite of 87 passing tests
-- Complete unit and component suite of 35 passing tests
+- Complete unit and component suite of 63 passing tests
 - Complete set of 12 passing isolated validation harnesses
 
 ### Planned test coverage
@@ -1252,6 +1334,26 @@ git diff --check
 - Self-demotion and self-deactivation protection
 - Responsive host and staff administration layouts
 
+### Completed Stage 15 controlled-pilot checks
+
+- Preview migration history aligned with the existing schema
+- Four tower-aware migrations applied successfully to Preview
+- Backend-generated tower column and supporting indexes verified
+- Other-agency visits routed to Tower 1
+- Ministry of Finance PFM Systems Division visits routed to Tower 1
+- Other Ministry of Finance division visits routed to Tower 2
+- Visitor pages confirmed not to expose tower assignments
+- Receptionist Assigned Tower isolation verified
+- Administrator all-tower access and tower filtering verified
+- Tower-aware checkout and visit-history filtering verified
+- Weekly QR screen display, printing and PNG download verified
+- Weekly access fragment exchange and visitor-page refresh verified
+- Protected visitor endpoints returned successful authorised responses
+- Invented acceptance-test records removed from Preview
+- All 63 unit and component tests passed
+- Lint, production build and `git diff --check` passed
+- Vercel public Function count remained at 11
+
 
 ## Deployment
 
@@ -1286,6 +1388,26 @@ npx supabase@latest db lint \
 The Production deployment has been verified to render the visitor interface, execute the public host and meeting Functions, reject unauthenticated staff sessions and use an empty Production dataset. The first Production administrator was created manually and linked to an active confirmed `admin` profile.
 
 Approved custom SMTP is not yet configured. Production staff invitations and other email-dependent staff-account operations must not be used until an approved SMTP sender has been configured and delivery tested.
+
+### Controlled technical pilot
+
+The Stage 15 readiness decision is to operate only as a controlled technical pilot while the dedicated Production Supabase project remains on the Free Plan.
+
+During the controlled pilot:
+
+- the stable Production deployment may be used for non-destructive runtime and administrator-access checks;
+- Production must not contain real visitor records;
+- invented-data visitor workflow testing must remain in Preview;
+- Production staff invitations and email-dependent account operations must remain unused; and
+- the Production visitor QR code must not be published, printed or distributed.
+
+A full Production launch remains blocked until:
+
+- approved backup and recovery capability is available and tested;
+- leaked-password protection can be enabled;
+- approved custom SMTP is configured and delivery tested;
+- Production launch data and final UAT are approved; and
+- the final QR code is generated from the stable Production visitor URL and passes physical-device scan testing.
 
 The final visitor QR code must contain only the stable Production visitor URL. QR-code publication remains part of Stage 15 and must not use a temporary Vercel Preview address.
 
@@ -2083,6 +2205,61 @@ Operational limitation:
 - Approved custom SMTP is not configured.
 - Production staff invitations and email-dependent account operations must remain unused until SMTP is configured and delivery is verified.
 - SMTP credentials must never be committed or shared in documentation.
+
+### Stage 15 — Production readiness and visitor QR code
+
+Status: In progress — controlled technical pilot only
+
+Decision:
+
+- Continue technical verification using the existing Supabase Free Plan.
+- Keep the public launch, real visitor data and QR-code publication blocked.
+- Use Preview with invented data for visitor workflow and UAT checks.
+
+Readiness work completed:
+
+- Strengthened the Production Auth password policy to a 12-character minimum requiring lowercase letters, uppercase letters, numbers and symbols.
+- Enabled secure password changes while retaining invitation-setup compatibility.
+- Verified that the existing Production administrator can still sign in.
+- Reviewed five informational RLS findings and retained the intentional deny-by-default design.
+- Reviewed the `pg_trgm` extension warning as an accepted platform-extension exception.
+- Reviewed `is_active_staff()` and `is_admin()` as intentional authenticated RLS authorization helpers.
+- Confirmed that leaked-password protection remains unavailable on the current plan.
+- Confirmed that approved custom SMTP remains unavailable.
+- Passed the post-merge Production visitor-page and public-Function smoke tests.
+- Confirmed that Production visitor, visit, host and meeting datasets remain empty.
+
+Controlled-pilot functionality implemented:
+
+- Added a backend-generated tower assignment that visitors cannot view or override.
+- Routed PFM Systems Division and all non-Ministry agencies to Tower 1.
+- Routed all other Ministry of Finance divisions to Tower 2.
+- Added receptionist Assigned Tower selection and server-enforced tower authorization.
+- Added administrator all-tower access and Tower 1 or Tower 2 filtering.
+- Added a signed weekly reception QR code valid from Monday through Sunday.
+- Added staff screen display, printing and PNG download for the weekly QR code.
+- Exchanged QR fragment tokens for HttpOnly API-path visitor-access cookies.
+- Protected all visitor API handlers without increasing the 11-Function Vercel Hobby footprint.
+- Applied and verified the four tower-aware migrations against Preview.
+- Passed invented-data routing, dashboard, checkout and history acceptance tests.
+- Removed the invented acceptance-test visitor records after validation.
+- Passed lint, production build, all 63 tests and `git diff --check`.
+
+Stage 15 environment variables introduced:
+
+- `WEEKLY_QR_SECRET` — server-only weekly-token signing secret.
+- `VISITOR_APP_URL` — approved absolute visitor application URL embedded in the weekly QR code.
+
+Outstanding blockers:
+
+- Approved backup and recovery capability.
+- Leaked-password protection.
+- Approved custom SMTP and delivery testing.
+- Production reference-data preparation.
+- Final mobile-device and accessibility UAT.
+- Final Production QR generation, physical scan testing and publication approval.
+
+Stage 15 must remain unchecked until these blockers are resolved and the final validation is completed.
 
 ## README update policy
 

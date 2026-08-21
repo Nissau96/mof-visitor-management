@@ -5,6 +5,9 @@ import {
 import {
   expectNoWcagViolations,
 } from "./support/accessibility.js";
+import {
+  installMockVisitorAccess,
+} from "./support/visitor-access.js";
 
 const LOOKUP_TOKEN =
   "lookup-token-for-synthetic-e2e-visitor";
@@ -85,6 +88,8 @@ async function configureVerificationRoutes(
 async function reachVerifiedVisitor(page) {
   const requests =
     await configureVerificationRoutes(page);
+
+  await installMockVisitorAccess(page);
 
   await page.goto("/visit/returning");
 

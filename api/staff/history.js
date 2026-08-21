@@ -1,4 +1,7 @@
-import { requireActiveStaff } from "../_lib/staffAuth.js";
+import {
+  requireActiveStaff,
+  requireStaffTowerScope,
+} from "../_lib/staffAuth.js";
 import {
   HttpError,
   json,
@@ -29,6 +32,30 @@ function normalizePagination(pagination) {
   };
 }
 
+function getHistoryDatabaseError(error) {
+  if (error?.code === "42501") {
+    return new HttpError(
+      "You are not authorised to view history for the selected tower.",
+      403,
+    );
+  }
+
+  if (
+    error?.code === "22023" ||
+    error?.code === "22P02"
+  ) {
+    return new HttpError(
+      "The visit-history filters are invalid.",
+      400,
+    );
+  }
+
+  return new HttpError(
+    "Visit history could not be loaded. Please try again.",
+    500,
+  );
+}
+
 export default {
   async fetch(request) {
     if (request.method !== "POST") {
@@ -36,9 +63,11 @@ export default {
     }
 
     try {
-      await requireActiveStaff(request);
+      const { profile } =
+        await requireActiveStaff(request);
 
-      const body = await readJsonBody(request);
+      const body =
+        await readJsonBody(request);
 
       const parsed =
         visitHistorySchema.safeParse(body);
@@ -52,10 +81,17 @@ export default {
 
       const filters = parsed.data;
 
+      const towerScope =
+        requireStaffTowerScope(
+          profile,
+          filters.tower,
+        );
+
       const { data, error } =
         await getAdminClient().rpc(
           "get_visit_history",
           {
+            p_actor_id: profile.userId,
             p_agency: filters.agency,
             p_date_from: filters.dateFrom,
             p_date_to: filters.dateTo,
@@ -64,21 +100,12 @@ export default {
             p_page_size: filters.pageSize,
             p_search: filters.search,
             p_status: filters.status,
+            p_tower: towerScope,
           },
         );
 
       if (error) {
-        if (error.code === "22023") {
-          throw new HttpError(
-            "The visit-history filters are invalid.",
-            400,
-          );
-        }
-
-        throw new HttpError(
-          "Visit history could not be loaded. Please try again.",
-          500,
-        );
+        throw getHistoryDatabaseError(error);
       }
 
       return json(
@@ -88,6 +115,12 @@ export default {
           pagination: normalizePagination(
             data?.pagination,
           ),
+          staffRole:
+            data?.staffRole || profile.role,
+          towerScope:
+            data?.towerScope ??
+            towerScope ??
+            null,
           visits: Array.isArray(data?.visits)
             ? data.visits
             : [],
@@ -101,6 +134,11 @@ export default {
             error: error.message,
           },
           error.status,
+          error.status === 401
+            ? {
+                "WWW-Authenticate": "Bearer",
+              }
+            : {},
         );
       }
 

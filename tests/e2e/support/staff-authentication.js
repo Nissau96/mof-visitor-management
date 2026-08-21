@@ -210,6 +210,7 @@ export async function signInAsStaff(
     destination = "/staff",
     email = SYNTHETIC_STAFF_EMAIL,
     password = SYNTHETIC_STAFF_PASSWORD,
+    tower = "tower_1",
   } = {},
 ) {
   await page.goto(destination);
@@ -231,8 +232,13 @@ export async function signInAsStaff(
     .fill(password);
 
   await page
+    .getByLabel("Assigned Tower")
+    .selectOption(tower);
+
+  await page
     .getByRole("button", {
-      name: "Sign in securely",
+      name: "Sign in",
+      exact: true,
     })
     .click();
 
