@@ -3,9 +3,14 @@ import {
   expect,
   test,
 } from "@playwright/test";
+import {
+  installMockVisitorAccess,
+} from "./support/visitor-access.js";
 
 test.describe("visitor landing page", () => {
   test.beforeEach(async ({ page }) => {
+    await installMockVisitorAccess(page);
+
     await page.goto("/visit");
 
     await expect(

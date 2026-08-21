@@ -38,6 +38,7 @@ const VISITORS = Array.from(
         "Synthetic Test Officer",
       phone: `+2332400000${paddedNumber}`,
       purpose: "Official",
+      tower: "tower_1",
       reference:
         `VIS-TEST${String(number).padStart(
           4,
@@ -132,6 +133,15 @@ async function installMockDashboardApi(page) {
           );
       }
 
+      if (body.tower) {
+        matchingVisitors =
+          matchingVisitors.filter(
+            (visitor) =>
+              visitor.tower ===
+              body.tower,
+          );
+      }
+
       const totalCount =
         matchingVisitors.length;
 
@@ -165,6 +175,7 @@ async function installMockDashboardApi(page) {
             checkedOutToday:
               3 + checkedOutVisitIds.size,
           },
+          towerScope: body.tower,
           visitors:
             matchingVisitors.slice(
               start,
@@ -210,6 +221,9 @@ async function installMockDashboardApi(page) {
               visitor?.reference ||
               "VIS-UNKNOWN",
             status: "checked_out",
+            tower:
+              visitor?.tower ||
+              "tower_1",
             visitId: body.visitId,
           },
         },
@@ -391,6 +405,7 @@ test.describe(
           division: "",
           page: 1,
           query: "Visitor 03",
+          tower: "tower_1",
         });
 
       expect(page.url()).not.toContain(
@@ -456,6 +471,7 @@ await expect(
         dashboard.checkoutRequests,
       ).toEqual([
         {
+          tower: "tower_1",
           visitId:
             VISITORS[0].visitId,
         },
