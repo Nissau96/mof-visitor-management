@@ -4,9 +4,11 @@ import {
 } from "./_lib/rateLimit.js";
 import { getAdminClient } from "./_lib/supabase.js";
 import {
+  HttpError,
   json,
   methodNotAllowed,
 } from "./_lib/http.js";
+import { readWeeklyQrAccess } from "../src/server/weeklyQrAccess.js";
 
 export const HOST_DIRECTORY_RATE_LIMIT =
   Object.freeze({
@@ -26,6 +28,8 @@ export function createHostsHandler({
       }
 
       try {
+        readWeeklyQrAccess(request);
+
         await enforceRateLimitForRequest(
           request,
           HOST_DIRECTORY_RATE_LIMIT,
@@ -79,6 +83,15 @@ export function createHostsHandler({
                 error.retryAfterSeconds,
               ),
             },
+          );
+        }
+
+        if (error instanceof HttpError) {
+          return json(
+            {
+              error: error.message,
+            },
+            error.status,
           );
         }
 

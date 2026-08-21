@@ -12,6 +12,12 @@ const ProtectedRoute = lazy(() =>
   import("./components/ProtectedRoute.jsx"),
 );
 
+const VisitorAccessGate = lazy(() =>
+  import(
+    "./components/VisitorAccessGate.jsx"
+  ),
+);
+
 const StaffLayout = lazy(() =>
   import("./layouts/StaffLayout.jsx"),
 );
@@ -58,22 +64,22 @@ const StaffVisitHistoryPage = lazy(() =>
   ),
 );
 
+const StaffWeeklyQrPage = lazy(() =>
+  import(
+    "./pages/StaffWeeklyQrPage.jsx"
+  ),
+);
+
 const VisitorLandingPage = lazy(() =>
   import("./pages/VisitorLandingPage.jsx"),
 );
 
 function RouteLoadingState() {
   return (
-    <div
-      aria-live="polite"
-      className="flex min-h-dvh items-center justify-center bg-slate-50 px-4"
-      role="status"
-    >
+    <div aria-live="polite" className="flex min-h-dvh items-center justify-center bg-slate-50 px-4" role="status">
       <div className="flex min-h-32 w-full max-w-md items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 text-slate-700 shadow-sm">
-        <span
-          aria-hidden="true"
-          className="size-5 animate-spin rounded-full border-2 border-slate-300 border-t-brand-800"
-        />
+        <span aria-hidden="true" className="size-5 animate-spin rounded-full border-2 border-slate-300 border-t-brand-800" />
+
         <span className="font-semibold">
           Loading application…
         </span>
@@ -114,6 +120,11 @@ export default function App() {
             />
 
             <Route
+              element={<StaffWeeklyQrPage />}
+              path="weekly-qr"
+            />
+
+            <Route
               element={
                 <ProtectedRoute
                   allowedRoles={["admin"]}
@@ -148,20 +159,22 @@ export default function App() {
             }
           />
 
-          <Route
-            path="visit"
-            element={<VisitorLandingPage />}
-          />
+          <Route element={<VisitorAccessGate />}>
+            <Route
+              path="visit"
+              element={<VisitorLandingPage />}
+            />
 
-          <Route
-            path="visit/new"
-            element={<NewVisitorPage />}
-          />
+            <Route
+              path="visit/new"
+              element={<NewVisitorPage />}
+            />
 
-          <Route
-            path="visit/returning"
-            element={<ReturningVisitorPage />}
-          />
+            <Route
+              path="visit/returning"
+              element={<ReturningVisitorPage />}
+            />
+          </Route>
 
           <Route
             path="*"

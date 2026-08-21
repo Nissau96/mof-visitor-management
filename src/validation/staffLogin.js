@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VISIT_TOWER_VALUES } from "../constants/visitorOptions.js";
 
 const emailAddressSchema = z.email();
 
@@ -21,4 +22,13 @@ export const staffLoginSchema = z.object({
     .string()
     .min(1, "Enter your password.")
     .max(256, "Password is too long."),
+
+  tower: z
+    .string()
+    .trim()
+    .refine(
+      (value) =>
+        VISIT_TOWER_VALUES.includes(value),
+      "Select the tower where you will be working.",
+    ),
 });

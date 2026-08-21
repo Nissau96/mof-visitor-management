@@ -1,11 +1,17 @@
+import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { HttpError } from "./http.js";
 import { getAdminClient } from "./supabase.js";
 
 const MAXIMUM_ACCESS_TOKEN_LENGTH = 8_192;
+
 const STAFF_ROLES = new Set([
   "receptionist",
   "admin",
 ]);
+
+const STAFF_TOWERS = new Set(
+  VISIT_TOWER_VALUES,
+);
 
 function readBearerToken(request) {
   const authorization =
@@ -46,6 +52,46 @@ function validateAllowedRoles(allowedRoles) {
   }
 }
 
+export function requireStaffTowerScope(
+  profile,
+  requestedTower,
+) {
+  if (
+    !profile ||
+    !STAFF_ROLES.has(profile.role)
+  ) {
+    throw new HttpError(
+      "This account is not authorised for staff access.",
+      403,
+    );
+  }
+
+  const tower = String(
+    requestedTower || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (tower && !STAFF_TOWERS.has(tower)) {
+    throw new HttpError(
+      "Select a valid working tower.",
+      400,
+    );
+  }
+
+  if (
+    profile.role === "receptionist" &&
+    !tower
+  ) {
+    throw new HttpError(
+      "Select the tower where you are currently working.",
+      400,
+    );
+  }
+
+  return tower;
+}
+
 export async function requireActiveStaff(
   request,
   allowedRoles = [],
@@ -61,7 +107,9 @@ export async function requireActiveStaff(
   const {
     data: { user },
     error: userError,
-  } = await adminClient.auth.getUser(accessToken);
+  } = await adminClient.auth.getUser(
+    accessToken,
+  );
 
   if (userError || !user) {
     throw new HttpError(
@@ -70,12 +118,16 @@ export async function requireActiveStaff(
     );
   }
 
-  const { data: profile, error: profileError } =
-    await adminClient
-      .from("staff_profiles")
-      .select("user_id, full_name, role, active")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const {
+    data: profile,
+    error: profileError,
+  } = await adminClient
+    .from("staff_profiles")
+    .select(
+      "user_id, full_name, role, active",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   if (profileError) {
     throw new HttpError(

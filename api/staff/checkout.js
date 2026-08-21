@@ -1,4 +1,7 @@
-import { requireActiveStaff } from "../_lib/staffAuth.js";
+import {
+  requireActiveStaff,
+  requireStaffTowerScope,
+} from "../_lib/staffAuth.js";
 import {
   HttpError,
   json,
@@ -29,7 +32,7 @@ function getCheckoutDatabaseError(error) {
 
   if (error?.code === "42501") {
     return new HttpError(
-      "This account is not authorised to check visitors out.",
+      "This visit does not belong to your selected tower.",
       403,
     );
   }
@@ -99,11 +102,18 @@ export function createCheckoutHandler({
           );
         }
 
+        const towerScope =
+          requireStaffTowerScope(
+            profile,
+            parsed.data.tower,
+          );
+
         const { data, error } =
           await getAdminClientForRequest().rpc(
             "checkout_visit",
             {
               p_actor_id: profile.userId,
+              p_tower: towerScope,
               p_visit_id:
                 parsed.data.visitId,
             },
@@ -118,6 +128,7 @@ export function createCheckoutHandler({
         if (
           !data?.visitId ||
           !data?.reference ||
+          !data?.tower ||
           data?.status !== "checked_out" ||
           !data?.checkedOutAt
         ) {
@@ -137,6 +148,7 @@ export function createCheckoutHandler({
                 data.checkedOutAt,
               reference: data.reference,
               status: data.status,
+              tower: data.tower,
               visitId: data.visitId,
             },
           },
@@ -167,6 +179,12 @@ export function createCheckoutHandler({
               error: error.message,
             },
             error.status,
+            error.status === 401
+              ? {
+                  "WWW-Authenticate":
+                    "Bearer",
+                }
+              : {},
           );
         }
 

@@ -15,6 +15,7 @@ import {
   maskVisitorName,
   maskVisitorOrganization,
 } from "../_lib/visitorLookup.js";
+import { readWeeklyQrAccess } from "../../src/server/weeklyQrAccess.js";
 import { returningVisitorSearchSchema } from "../../src/validation/returningVisitor.js";
 
 const DISPLAY_RESULT_LIMIT = 6;
@@ -33,6 +34,8 @@ export default {
     }
 
     try {
+      readWeeklyQrAccess(request);
+
       const requestBody = await readJsonBody(request);
 
       const parsed =

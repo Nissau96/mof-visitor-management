@@ -3,6 +3,7 @@ import {
   MINISTRY_OF_FINANCE_AGENCY,
   MOF_DIVISIONS,
   VISIT_AGENCIES,
+  VISIT_TOWER_VALUES,
 } from "../constants/visitorOptions.js";
 
 function isAllowedValue(values, value) {
@@ -57,6 +58,19 @@ export const receptionDashboardSchema = z
         (value) =>
           value === "" || value.length >= 2,
         "Enter at least two characters to search.",
+      )
+      .default(""),
+
+    tower: z
+      .string()
+      .trim()
+      .refine(
+        (value) =>
+          isAllowedValue(
+            VISIT_TOWER_VALUES,
+            value,
+          ),
+        "Select a valid tower.",
       )
       .default(""),
   })
