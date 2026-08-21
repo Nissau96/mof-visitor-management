@@ -8,6 +8,7 @@ import { staffLoginSchema } from "../src/validation/staffLogin.js";
 const validLogin = staffLoginSchema.safeParse({
   email: "  RECEPTIONIST.DEV@example.com  ",
   password: "Invented development password",
+  tower: "tower_1",
 });
 
 assert.equal(validLogin.success, true);
@@ -19,6 +20,7 @@ assert.equal(
 const invalidEmail = staffLoginSchema.safeParse({
   email: "not-an-email",
   password: "Invented development password",
+  tower: "tower_1",
 });
 
 assert.equal(invalidEmail.success, false);
@@ -26,20 +28,39 @@ assert.equal(invalidEmail.success, false);
 const missingPassword = staffLoginSchema.safeParse({
   email: "receptionist.dev@example.com",
   password: "",
+  tower: "tower_1",
 });
 
 assert.equal(missingPassword.success, false);
 
+const invalidTower = staffLoginSchema.safeParse({
+  email: "receptionist.dev@example.com",
+  password: "Invented development password",
+  tower: "tower_3",
+});
+
+assert.equal(invalidTower.success, false);
+
+const missingTower = staffLoginSchema.safeParse({
+  email: "receptionist.dev@example.com",
+  password: "Invented development password",
+});
+
+assert.equal(missingTower.success, false);
+
 const rejectedMethod = await staffSessionHandler.fetch(
-  new Request("http://localhost/api/staff/session", {
-    method: "POST",
-  }),
+  new Request(
+    "http://localhost/api/staff/session",
+    {
+      method: "PATCH",
+    },
+  ),
 );
 
 assert.equal(rejectedMethod.status, 405);
 assert.equal(
   rejectedMethod.headers.get("allow"),
-  "GET",
+  "GET, POST",
 );
 
 const missingTokenResponse =
