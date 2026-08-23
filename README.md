@@ -8,7 +8,7 @@ The implemented stages allow first-time visitors to register and check in. Retur
 >
 > Current implementation stage: Stage 15 — Production readiness and visitor QR code
 >
-> Documentation version: 3.2
+> Documentation version: 3.3
 
 ## Table of contents
 
@@ -507,6 +507,14 @@ Completed:
 - [x] Weekly Monday-to-Sunday visitor QR access implemented
 - [x] Weekly QR screen display, printing and PNG download verified
 - [x] Preview tower migrations and invented-data acceptance tests passed
+- [x] Preview Vercel environment verified against the dedicated Preview Supabase project
+- [x] Weekly QR generation and mobile-device access passed against Preview
+- [x] Preview new-visitor and returning-visitor workflows passed
+- [x] All three backend tower-routing rules passed
+- [x] Receptionist tower restriction and administrator all-tower filtering passed
+- [x] Weekly QR screen display, printing and PNG download passed
+- [x] All invented Preview UAT records removed after verification
+- [x] PR #15 automated checks passed
 - [x] Vercel public Function count retained at 11
 
 Pilot restrictions:
@@ -2242,8 +2250,24 @@ Controlled-pilot functionality implemented:
 - Protected all visitor API handlers without increasing the 11-Function Vercel Hobby footprint.
 - Applied and verified the four tower-aware migrations against Preview.
 - Passed invented-data routing, dashboard, checkout and history acceptance tests.
-- Removed the invented acceptance-test visitor records after validation.
-- Passed lint, production build, all 63 tests and `git diff --check`.
+- Corrected the Preview Vercel environment so all browser and server Supabase values use the dedicated Preview project.
+- Generated and displayed the weekly QR code successfully against the stable Preview branch alias.
+- Passed mobile QR scanning, access-token exchange and visitor-portal access.
+- Passed the Preview new-visitor and returning-visitor workflows.
+- Verified all three routing rules: PFM Systems Division to Tower 1, other Ministry divisions to Tower 2 and all other agencies to Tower 1.
+- Verified receptionist Assigned Tower restriction and administrator all-tower filtering.
+- Verified weekly QR screen display, printing and PNG download.
+- Removed all invented Preview UAT visitor and visit records after validation.
+- Passed all PR #15 automated checks.
+- Passed all 12 isolated validation harnesses, all 63 unit and component tests and all 87 Playwright browser tests.
+- Passed lint, production build and `git diff --check`.
+- Retained the deployable Vercel Function count at 11.
+
+Associated commits:
+
+- `ddccd38` — add tower routing and weekly visitor QR access.
+- `49c03b0` — align validation harnesses with tower and QR access.
+- `555e2d6` — align browser coverage with tower and QR access.
 
 Stage 15 environment variables introduced:
 
@@ -2256,7 +2280,7 @@ Outstanding blockers:
 - Leaked-password protection.
 - Approved custom SMTP and delivery testing.
 - Production reference-data preparation.
-- Final mobile-device and accessibility UAT.
+- Final Production mobile-device and accessibility UAT.
 - Final Production QR generation, physical scan testing and publication approval.
 
 Stage 15 must remain unchecked until these blockers are resolved and the final validation is completed.
