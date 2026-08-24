@@ -79,6 +79,18 @@ function getSessionErrorMessage(error) {
       return error.message;
     }
 
+    if (
+      (
+        error.status === 401 ||
+        error.status === 403
+      ) &&
+      /password|temporary/i.test(
+        error.message,
+      )
+    ) {
+      return error.message;
+    }
+
     if (error.status === 401) {
       return "Your staff session has expired. Sign in again.";
     }
@@ -117,6 +129,8 @@ async function requestStaffProfile(session) {
 
   if (
     !profile?.fullName ||
+    typeof profile.passwordChangeRequired !==
+      "boolean" ||
     !ALLOWED_STAFF_ROLES.has(profile.role)
   ) {
     throw new ApiError(
@@ -348,11 +362,16 @@ export default function AuthProvider({ children }) {
         );
       }
 
-      await validateSession(data.session, {
-        requestedTower: normalizedTower,
-      });
+      const profile =
+        await validateSession(
+          data.session,
+          {
+            requestedTower:
+              normalizedTower,
+          },
+        );
 
-      return true;
+      return profile;
     },
     [validateSession],
   );

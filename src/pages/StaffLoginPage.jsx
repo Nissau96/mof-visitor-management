@@ -85,10 +85,18 @@ export default function StaffLoginPage() {
     clearAuthMessage();
 
     try {
-      await signIn(values);
-      navigate(destination, {
-        replace: true,
-      });
+      const signedInProfile =
+        await signIn(values);
+
+      navigate(
+        signedInProfile
+          ?.passwordChangeRequired
+          ? "/staff/setup"
+          : destination,
+        {
+          replace: true,
+        },
+      );
     } catch (error) {
       setSubmissionError(
         error instanceof Error &&
@@ -117,7 +125,11 @@ export default function StaffLoginPage() {
     return (
       <Navigate
         replace
-        to={destination}
+        to={
+          profile.passwordChangeRequired
+            ? "/staff/setup"
+            : destination
+        }
       />
     );
   }

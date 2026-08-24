@@ -1,4 +1,3 @@
-import process from "node:process";
 import { requireActiveStaff } from "./_lib/staffAuth.js";
 import {
   RateLimitExceededError,
@@ -18,6 +17,11 @@ import {
   adminStaffListSchema,
   adminStaffUpdateSchema,
 } from "../src/validation/adminManagement.js";
+import {
+  createTemporaryPassword,
+  createTemporaryPasswordExpiry,
+  sendStaffInvitationEmail,
+} from "../src/server/staffInvitation.js";
 
 const OPERATION_BY_PATH = new Map([
   ["/api/admin/hosts/list", "host-list"],
@@ -203,51 +207,6 @@ function getProfileDatabaseError(error) {
   );
 }
 
-function getInviteRedirectUrl() {
-  const configuredUrl =
-    process.env.STAFF_INVITE_REDIRECT_URL;
-
-  if (!configuredUrl) {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
-    );
-  }
-
-  let redirectUrl;
-
-  try {
-    redirectUrl = new URL(configuredUrl);
-  } catch {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
-    );
-  }
-
-  const localDevelopment =
-    redirectUrl.protocol === "http:" &&
-    (redirectUrl.hostname === "localhost" ||
-      redirectUrl.hostname === "127.0.0.1");
-
-  if (
-    (redirectUrl.protocol !== "https:" &&
-      !localDevelopment) ||
-    redirectUrl.username ||
-    redirectUrl.password ||
-    redirectUrl.search ||
-    redirectUrl.hash ||
-    redirectUrl.pathname !== "/staff/setup"
-  ) {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
-    );
-  }
-
-  return redirectUrl.toString();
-}
-
 function isExistingUserError(error) {
   return (
     error?.code === "email_exists" ||
@@ -256,6 +215,23 @@ function isExistingUserError(error) {
       error?.message || "",
     )
   );
+}
+
+async function rollbackCreatedStaffAccount(
+  adminClient,
+  userId,
+  failureMessage,
+) {
+  const { error } =
+    await adminClient.auth.admin
+      .deleteUser(userId);
+
+  if (error) {
+    throw new HttpError(
+      failureMessage,
+      500,
+    );
+  }
 }
 
 async function handleHostList(request) {
@@ -439,16 +415,19 @@ async function handleStaffInvite(request) {
       ["admin"],
     );
 
-    await enforceAdminWriteRateLimit(
-  request,
-  "staff-invite",
-  profile.userId,
-);
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-invite",
+    profile.userId,
+  );
 
-  const body = await readJsonBody(request);
+  const body =
+    await readJsonBody(request);
 
   const parsed =
-    adminStaffInviteSchema.safeParse(body);
+    adminStaffInviteSchema.safeParse(
+      body,
+    );
 
   if (!parsed.success) {
     throw new HttpError(
@@ -457,31 +436,37 @@ async function handleStaffInvite(request) {
     );
   }
 
-  const redirectTo = getInviteRedirectUrl();
-  const adminClient = getAdminClient();
+  const adminClient =
+    getAdminClient();
+
+  const temporaryPassword =
+    createTemporaryPassword();
+
+  const temporaryPasswordExpiresAt =
+    createTemporaryPasswordExpiry();
 
   const {
-    data: invitationData,
-    error: invitationError,
+    data: accountData,
+    error: accountError,
   } =
     await adminClient.auth.admin
-      .inviteUserByEmail(
-        parsed.data.email,
-        {
-          data: {
-            full_name: parsed.data.fullName,
-          },
-          redirectTo,
+      .createUser({
+        email: parsed.data.email,
+        email_confirm: true,
+        password: temporaryPassword,
+        user_metadata: {
+          full_name:
+            parsed.data.fullName,
         },
-      );
+      });
 
   if (
-    invitationError ||
-    !invitationData?.user?.id
+    accountError ||
+    !accountData?.user?.id
   ) {
     if (
       isExistingUserError(
-        invitationError,
+        accountError,
       )
     ) {
       throw new HttpError(
@@ -491,13 +476,13 @@ async function handleStaffInvite(request) {
     }
 
     throw new HttpError(
-      "The invitation email could not be sent. Please try again.",
+      "The staff account could not be created. Please try again.",
       502,
     );
   }
 
-  const invitedUserId =
-    invitationData.user.id;
+  const createdUserId =
+    accountData.user.id;
 
   const {
     data: staffProfile,
@@ -506,23 +491,19 @@ async function handleStaffInvite(request) {
     "create_invited_staff_profile",
     {
       p_actor_id: profile.userId,
-      p_full_name: parsed.data.fullName,
+      p_full_name:
+        parsed.data.fullName,
       p_role: parsed.data.role,
-      p_user_id: invitedUserId,
+      p_user_id: createdUserId,
     },
   );
 
   if (profileError) {
-    const { error: rollbackError } =
-      await adminClient.auth.admin
-        .deleteUser(invitedUserId);
-
-    if (rollbackError) {
-      throw new HttpError(
-        "The invitation was sent, but staff authorisation could not be completed. Deactivate the invited account in Supabase before retrying.",
-        500,
-      );
-    }
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but staff authorisation could not be completed. Remove the account in Supabase before retrying.",
+    );
 
     throw getProfileDatabaseError(
       profileError,
@@ -530,14 +511,81 @@ async function handleStaffInvite(request) {
   }
 
   if (
-    !staffProfile?.userId ||
+    staffProfile?.userId !==
+      createdUserId ||
     !staffProfile?.email ||
     !staffProfile?.fullName ||
     !staffProfile?.role
   ) {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but the staff-profile response could not be verified. Remove the account in Supabase before retrying.",
+    );
+
     throw new HttpError(
-      "The staff invitation could not be completed. Please try again.",
+      "The staff account was created, but the response could not be verified.",
       500,
+    );
+  }
+
+  const {
+    data: configuredProfile,
+    error: configurationError,
+  } = await adminClient
+    .from("staff_profiles")
+    .update({
+      password_change_required: true,
+      password_setup_completed_at:
+        null,
+      temporary_password_expires_at:
+        temporaryPasswordExpiresAt
+          .toISOString(),
+    })
+    .eq(
+      "user_id",
+      createdUserId,
+    )
+    .select("user_id")
+    .maybeSingle();
+
+  if (
+    configurationError ||
+    configuredProfile?.user_id !==
+      createdUserId
+  ) {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but temporary-password protection could not be configured. Remove the account in Supabase before retrying.",
+    );
+
+    throw new HttpError(
+      "Temporary-password protection could not be configured. Please try again.",
+      500,
+    );
+  }
+
+  try {
+    await sendStaffInvitationEmail({
+      email: parsed.data.email,
+      expiresAt:
+        temporaryPasswordExpiresAt,
+      fullName:
+        parsed.data.fullName,
+      role: parsed.data.role,
+      temporaryPassword,
+    });
+  } catch {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but the onboarding email could not be sent. Remove the account in Supabase before retrying.",
+    );
+
+    throw new HttpError(
+      "The onboarding email could not be sent. Please verify the SMTP configuration and try again.",
+      502,
     );
   }
 
