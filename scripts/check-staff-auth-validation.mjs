@@ -60,7 +60,7 @@ const rejectedMethod = await staffSessionHandler.fetch(
 assert.equal(rejectedMethod.status, 405);
 assert.equal(
   rejectedMethod.headers.get("allow"),
-  "GET, POST",
+  "GET, POST, PUT",
 );
 
 const missingTokenResponse =
@@ -105,14 +105,20 @@ const accessToken =
 const databaseProfile = {
   active: true,
   full_name: "Test Receptionist",
+  password_change_required: false,
+  password_setup_completed_at: null,
   role: "receptionist",
+  temporary_password_expires_at: null,
   user_id: userId,
 };
 
 const expectedProfile = {
   active: true,
   fullName: "Test Receptionist",
+  passwordChangeRequired: false,
+  passwordSetupCompletedAt: null,
   role: "receptionist",
+  temporaryPasswordExpiresAt: null,
   userId,
 };
 
@@ -134,7 +140,7 @@ const profileQuery = {
   select(columns) {
     assert.equal(
       columns,
-      "user_id, full_name, role, active",
+      "user_id, full_name, role, active, password_change_required, temporary_password_expires_at, password_setup_completed_at",
     );
 
     return profileQuery;
