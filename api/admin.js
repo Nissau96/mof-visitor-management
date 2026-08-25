@@ -13,8 +13,10 @@ import { getAdminClient } from "./_lib/supabase.js";
 import {
   adminHostListSchema,
   adminHostSaveSchema,
+  adminStaffDeleteSchema,
   adminStaffInviteSchema,
   adminStaffListSchema,
+  adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
 } from "../src/validation/adminManagement.js";
 import {
@@ -26,8 +28,10 @@ import {
 const OPERATION_BY_PATH = new Map([
   ["/api/admin/hosts/list", "host-list"],
   ["/api/admin/hosts/save", "host-save"],
+  ["/api/admin/staff/delete", "staff-delete"],
   ["/api/admin/staff/invite", "staff-invite"],
   ["/api/admin/staff/list", "staff-list"],
+  ["/api/admin/staff/reissue-password", "staff-password-reissue"],
   ["/api/admin/staff/update", "staff-update"],
 ]);
 
@@ -36,10 +40,14 @@ const UNEXPECTED_ERROR_MESSAGES = {
     "Host records could not be loaded. Please try again.",
   "host-save":
     "The host record could not be saved. Please try again.",
+  "staff-delete":
+    "The staff account could not be deleted. Please try again.",
   "staff-invite":
     "The staff invitation could not be completed. Please try again.",
   "staff-list":
     "Staff records could not be loaded. Please try again.",
+  "staff-password-reissue":
+    "The temporary password could not be reissued. Please try again.",
   "staff-update":
     "The staff profile could not be updated. Please try again.",
 };
@@ -52,9 +60,21 @@ export const ADMIN_WRITE_RATE_LIMITS =
       windowSeconds: 10 * 60,
     }),
 
+    "staff-delete": Object.freeze({
+      limit: 10,
+      scope: "admin-staff-delete",
+      windowSeconds: 60 * 60,
+    }),
+
     "staff-invite": Object.freeze({
       limit: 20,
       scope: "admin-staff-invite",
+      windowSeconds: 60 * 60,
+    }),
+
+    "staff-password-reissue": Object.freeze({
+      limit: 10,
+      scope: "admin-staff-password-reissue",
       windowSeconds: 60 * 60,
     }),
 
@@ -232,6 +252,77 @@ async function rollbackCreatedStaffAccount(
       500,
     );
   }
+}
+
+async function getStaffAccountTarget(
+  adminClient,
+  userId,
+) {
+  const {
+    data: staffProfile,
+    error: profileError,
+  } = await adminClient
+    .from("staff_profiles")
+    .select(
+      "user_id, full_name, role, active, password_change_required",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new HttpError(
+      "The staff account could not be verified. Please try again.",
+      500,
+    );
+  }
+
+  if (
+    !staffProfile?.user_id ||
+    !staffProfile?.full_name ||
+    !staffProfile?.role
+  ) {
+    throw new HttpError(
+      "The staff profile could not be found.",
+      404,
+    );
+  }
+
+  const {
+    data: accountData,
+    error: accountError,
+  } = await adminClient.auth.admin
+    .getUserById(userId);
+
+  const email = String(
+    accountData?.user?.email || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    accountError ||
+    accountData?.user?.id !== userId ||
+    !email
+  ) {
+    throw new HttpError(
+      "The staff Auth account could not be verified. Please try again.",
+      500,
+    );
+  }
+
+  return {
+    active:
+      staffProfile.active === true,
+    email,
+    fullName:
+      staffProfile.full_name,
+    passwordChangeRequired:
+      staffProfile
+        .password_change_required ===
+      true,
+    role: staffProfile.role,
+    userId: staffProfile.user_id,
+  };
 }
 
 async function handleHostList(request) {
@@ -598,6 +689,309 @@ async function handleStaffInvite(request) {
   );
 }
 
+async function handleStaffPasswordReissue(
+  request,
+) {
+  const { profile: actorProfile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-password-reissue",
+    actorProfile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminStaffPasswordReissueSchema
+      .safeParse(body);
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The password-reissue request is invalid.",
+      400,
+    );
+  }
+
+  if (
+    parsed.data.userId ===
+      actorProfile.userId
+  ) {
+    throw new HttpError(
+      "You cannot reissue your own temporary password.",
+      409,
+    );
+  }
+
+  const adminClient =
+    getAdminClient();
+
+  const target =
+    await getStaffAccountTarget(
+      adminClient,
+      parsed.data.userId,
+    );
+
+  if (!target.active) {
+    throw new HttpError(
+      "Activate this staff account before reissuing its temporary password.",
+      409,
+    );
+  }
+
+  if (
+    !target.passwordChangeRequired
+  ) {
+    throw new HttpError(
+      "A temporary password can be reissued only while password setup is pending.",
+      409,
+    );
+  }
+
+  const temporaryPassword =
+    createTemporaryPassword();
+
+  const temporaryPasswordExpiresAt =
+    createTemporaryPasswordExpiry();
+
+  const {
+    data: passwordData,
+    error: passwordError,
+  } = await adminClient.auth.admin
+    .updateUserById(
+      target.userId,
+      {
+        password:
+          temporaryPassword,
+      },
+    );
+
+  if (
+    passwordError ||
+    passwordData?.user?.id !==
+      target.userId
+  ) {
+    throw new HttpError(
+      "The temporary password could not be replaced. Please try again.",
+      502,
+    );
+  }
+
+  const {
+    data: updatedStaff,
+    error: recoveryError,
+  } = await adminClient.rpc(
+    "prepare_admin_staff_password_reissue",
+    {
+      p_actor_id:
+        actorProfile.userId,
+      p_expires_at:
+        temporaryPasswordExpiresAt
+          .toISOString(),
+      p_user_id:
+        target.userId,
+    },
+  );
+
+  if (recoveryError) {
+    if (
+      recoveryError.code ===
+        "P0002" ||
+      recoveryError.code ===
+        "42501" ||
+      recoveryError.code ===
+        "55000" ||
+      recoveryError.code ===
+        "22023" ||
+      recoveryError.code ===
+        "23514"
+    ) {
+      throw getStaffDatabaseError(
+        recoveryError,
+      );
+    }
+
+    throw new HttpError(
+      "The temporary password was replaced, but account recovery could not be completed. Reissue the password again.",
+      500,
+    );
+  }
+
+  if (
+    updatedStaff?.userId !==
+      target.userId ||
+    updatedStaff?.email !==
+      target.email ||
+    !updatedStaff?.fullName ||
+    !updatedStaff?.role ||
+    updatedStaff
+      ?.passwordChangeRequired !==
+      true ||
+    !updatedStaff
+      ?.temporaryPasswordExpiresAt
+  ) {
+    throw new HttpError(
+      "The temporary password was replaced, but account recovery could not be verified. Reissue the password again.",
+      500,
+    );
+  }
+
+  try {
+    await sendStaffInvitationEmail({
+      email: updatedStaff.email,
+      expiresAt:
+        temporaryPasswordExpiresAt,
+      fullName:
+        updatedStaff.fullName,
+      messageType: "reissue",
+      role: updatedStaff.role,
+      temporaryPassword,
+    });
+  } catch {
+    throw new HttpError(
+      "A new temporary password was generated, but the recovery email could not be sent. Verify the SMTP configuration and reissue the password again.",
+      502,
+    );
+  }
+
+  return json(
+    {
+      staff: updatedStaff,
+      temporaryPasswordReissued:
+        true,
+    },
+    200,
+  );
+}
+
+async function handleStaffDelete(
+  request,
+) {
+  const { profile: actorProfile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-delete",
+    actorProfile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminStaffDeleteSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The staff-deletion request is invalid.",
+      400,
+    );
+  }
+
+  if (
+    parsed.data.userId ===
+      actorProfile.userId
+  ) {
+    throw new HttpError(
+      "You cannot delete your own staff account.",
+      409,
+    );
+  }
+
+  const adminClient =
+    getAdminClient();
+
+  const target =
+    await getStaffAccountTarget(
+      adminClient,
+      parsed.data.userId,
+    );
+
+  if (
+    parsed.data
+      .confirmationEmail !==
+    target.email
+  ) {
+    throw new HttpError(
+      "The confirmation email does not match the selected staff account.",
+      400,
+    );
+  }
+
+  const {
+    data: preparedStaff,
+    error: preparationError,
+  } = await adminClient.rpc(
+    "prepare_admin_staff_deletion",
+    {
+      p_actor_id:
+        actorProfile.userId,
+      p_user_id:
+        target.userId,
+    },
+  );
+
+  if (preparationError) {
+    throw getStaffDatabaseError(
+      preparationError,
+    );
+  }
+
+  if (
+    preparedStaff?.userId !==
+      target.userId ||
+    preparedStaff?.email !==
+      target.email ||
+    !preparedStaff?.fullName ||
+    !preparedStaff?.role ||
+    !preparedStaff?.auditEventId
+  ) {
+    throw new HttpError(
+      "The staff account could not be prepared for deletion. Please try again.",
+      500,
+    );
+  }
+
+  const { error: deletionError } =
+    await adminClient.auth.admin
+      .deleteUser(target.userId);
+
+  if (deletionError) {
+    throw new HttpError(
+      "The staff account was disabled, but permanent deletion could not be completed. Retry deletion.",
+      502,
+    );
+  }
+
+  return json(
+    {
+      accountDeleted: true,
+      staff: {
+        email:
+          preparedStaff.email,
+        fullName:
+          preparedStaff.fullName,
+        role:
+          preparedStaff.role,
+        userId:
+          preparedStaff.userId,
+      },
+    },
+    200,
+  );
+}
+
 async function handleStaffUpdate(request) {
   const { profile } =
     await requireActiveStaff(
@@ -662,8 +1056,13 @@ async function handleStaffUpdate(request) {
 const OPERATION_HANDLERS = new Map([
   ["host-list", handleHostList],
   ["host-save", handleHostSave],
+  ["staff-delete", handleStaffDelete],
   ["staff-invite", handleStaffInvite],
   ["staff-list", handleStaffList],
+  [
+    "staff-password-reissue",
+    handleStaffPasswordReissue,
+  ],
   ["staff-update", handleStaffUpdate],
 ]);
 

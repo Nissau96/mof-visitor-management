@@ -39,6 +39,11 @@ const STAFF_ROLES = new Set([
   "admin",
 ]);
 
+const STAFF_EMAIL_TYPES = new Set([
+  "invitation",
+  "reissue",
+]);
+
 function selectRandomCharacter(
   characters,
 ) {
@@ -317,9 +322,20 @@ function getRoleLabel(role) {
 function validateInvitationDetails({
   email,
   fullName,
+  messageType,
   role,
   temporaryPassword,
 }) {
+  if (
+    !STAFF_EMAIL_TYPES.has(
+      messageType,
+    )
+  ) {
+    throw new TypeError(
+      "A valid staff email type is required.",
+    );
+  }
+
   if (
     typeof fullName !== "string" ||
     fullName.trim().length < 2
@@ -363,12 +379,14 @@ export function createStaffInvitationMessage({
   expiresAt,
   fullName,
   loginUrl,
+  messageType = "invitation",
   role,
   temporaryPassword,
 }) {
   validateInvitationDetails({
     email,
     fullName,
+    messageType,
     role,
     temporaryPassword,
   });
@@ -414,12 +432,52 @@ export function createStaffInvitationMessage({
         </tr>`
       : "";
 
+  const passwordReissued =
+    messageType === "reissue";
+
   const subject =
-    "Your MoF Visitor Management staff account is ready";
+    passwordReissued
+      ? "Your MoF Visitor Management temporary password has been reissued"
+      : "Your MoF Visitor Management staff account is ready";
+
+  const heading =
+    passwordReissued
+      ? "Your temporary password has been reissued"
+      : "Your staff account is ready";
+
+  const introduction =
+    passwordReissued
+      ? "A Visitor Management administrator has reissued the temporary password for your Ministry of Finance Visitor Management staff account."
+      : "Your staff account for the Ministry of Finance Visitor Management system has been created.";
+
+  const previewText =
+    passwordReissued
+      ? "A new temporary password has been issued. Complete password setup within 24 hours."
+      : "Your staff account has been created. Replace your temporary password within 24 hours.";
+
+  const activationHeading =
+    passwordReissued
+      ? "How to complete password recovery"
+      : "How to activate your account";
+
+  const previousPasswordText =
+    passwordReissued
+      ? "\n\nAny earlier temporary password for this account is no longer valid."
+      : "";
+
+  const previousPasswordHtml =
+    passwordReissued
+      ? "<br><br><strong>Any earlier temporary password for this account is no longer valid.</strong>"
+      : "";
+
+  const unexpectedMessage =
+    passwordReissued
+      ? "If you were not expecting this password reissue, do not attempt to sign in. Please report this email to the Visitor Management administrator."
+      : "If you were not expecting this account, do not attempt to sign in. Please report this email to the Visitor Management administrator.";
 
   const text = `Hello ${normalizedName},
 
-Your staff account for the Ministry of Finance Visitor Management system has been created.
+${introduction}
 
 Your account details
 
@@ -435,7 +493,7 @@ Password expires: ${expiryLabel}
 Sign in and create your password:
 ${parsedLoginUrl.toString()}
 
-How to activate your account
+${activationHeading}
 
 1. Open the staff sign-in page using the link above.
 2. Select your Assigned Tower if you are signing in as a receptionist.
@@ -445,11 +503,11 @@ How to activate your account
 
 Security notice
 
-This temporary password is unique to your account and expires after 24 hours. Do not forward this email or share the password with anyone.
+This temporary password is unique to your account and expires after 24 hours. Do not forward this email or share the password with anyone.${previousPasswordText}
 
 If the password expires before you complete your account setup, contact the Visitor Management administrator for assistance.
 
-If you were not expecting this account, do not attempt to sign in. Please report this email to the Visitor Management administrator.
+${unexpectedMessage}
 
 Kind regards,
 
@@ -485,7 +543,7 @@ Ministry of Finance`;
   </head>
   <body style="margin: 0; padding: 0; background: #f1f5f9; color: #0f172a; font-family: Arial, Helvetica, sans-serif;">
     <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
-      Your staff account has been created. Replace your temporary password within 24 hours.
+      ${escapeHtml(previewText)}
     </div>
 
     <table role="presentation" style="width: 100%; border-collapse: collapse; background: #f1f5f9;">
@@ -503,7 +561,7 @@ Ministry of Finance`;
                 </p>
 
                 <h1 style="margin: 12px 0 0; color: #0f172a; font-size: 28px; line-height: 1.25;">
-                  Your staff account is ready
+                  ${escapeHtml(heading)}
                 </h1>
 
                 <p style="margin: 20px 0 0; color: #334155; font-size: 16px; line-height: 1.7;">
@@ -511,7 +569,7 @@ Ministry of Finance`;
                 </p>
 
                 <p style="margin: 12px 0 0; color: #475569; font-size: 16px; line-height: 1.7;">
-                  Your staff account for the Ministry of Finance Visitor Management system has been created.
+                  ${escapeHtml(introduction)}
                 </p>
               </td>
             </tr>
@@ -602,7 +660,7 @@ Ministry of Finance`;
             <tr>
               <td style="padding: 0 32px 24px;">
                 <h2 style="margin: 0; color: #0f172a; font-size: 17px;">
-                  How to activate your account
+                  ${escapeHtml(activationHeading)}
                 </h2>
 
                 <ol style="margin: 14px 0 0; padding-left: 22px; color: #475569; font-size: 14px; line-height: 1.8;">
@@ -623,7 +681,7 @@ Ministry of Finance`;
                   </h2>
 
                   <p style="margin: 8px 0 0; color: #7f1d1d; font-size: 13px; line-height: 1.7;">
-                    This temporary password is unique to your account and expires after 24 hours. Do not forward this email or share the password with anyone.
+                    This temporary password is unique to your account and expires after 24 hours. Do not forward this email or share the password with anyone.${previousPasswordHtml}
                   </p>
                 </div>
 
@@ -662,6 +720,7 @@ export async function sendStaffInvitationEmail({
   email,
   expiresAt,
   fullName,
+  messageType = "invitation",
   role,
   temporaryPassword,
 }) {
@@ -677,6 +736,7 @@ export async function sendStaffInvitationEmail({
       expiresAt,
       fullName,
       loginUrl,
+      messageType,
       role,
       temporaryPassword,
     });

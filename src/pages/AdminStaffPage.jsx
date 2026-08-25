@@ -1,16 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  AlertTriangle,
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
   Clock,
+  KeyRound,
   LoaderCircle,
   Mail,
   Pencil,
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   UserCog,
   Users,
   X,
@@ -29,8 +32,10 @@ import {
   apiRequest,
 } from "../lib/api.js";
 import {
+  adminStaffDeleteSchema,
   adminStaffInviteSchema,
   adminStaffListSchema,
+  adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
 } from "../validation/adminManagement.js";
 
@@ -118,6 +123,20 @@ function normalizeStaffList(result) {
         staffMember.lastSignInAt === null ||
         typeof staffMember.lastSignInAt ===
           "string"
+      ) &&
+      typeof staffMember.passwordChangeRequired ===
+        "boolean" &&
+      (
+        staffMember.temporaryPasswordExpiresAt ===
+          null ||
+        typeof staffMember.temporaryPasswordExpiresAt ===
+          "string"
+      ) &&
+      (
+        staffMember.passwordSetupCompletedAt ===
+          null ||
+        typeof staffMember.passwordSetupCompletedAt ===
+          "string"
       ),
   );
 
@@ -131,6 +150,21 @@ function normalizeStaffList(result) {
     pagination,
     staff: result.staff,
   };
+}
+
+function temporaryPasswordExpired(
+  expiry,
+) {
+  if (!expiry) {
+    return false;
+  }
+
+  const expiryTime = Date.parse(expiry);
+
+  return (
+    Number.isFinite(expiryTime) &&
+    expiryTime <= Date.now()
+  );
 }
 
 function getVisiblePages(currentPage, totalPages) {
@@ -210,6 +244,9 @@ export default function AdminStaffPage() {
 
   const accessToken =
     session?.access_token || "";
+
+  const currentUserId =
+    session?.user?.id || "";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -384,6 +421,26 @@ export default function AdminStaffPage() {
     });
   }
 
+  function openPasswordReissue(
+    staffMember,
+  ) {
+    setDialogError("");
+    setSuccessMessage("");
+    setDialog({
+      mode: "reissue",
+      staffMember,
+    });
+  }
+
+  function openDeletion(staffMember) {
+    setDialogError("");
+    setSuccessMessage("");
+    setDialog({
+      mode: "delete",
+      staffMember,
+    });
+  }
+
   function closeDialog() {
     if (submitting) {
       return;
@@ -502,6 +559,156 @@ export default function AdminStaffPage() {
     }
   }
 
+  async function reissuePassword(
+    values,
+  ) {
+    setDialogError("");
+
+    const parsed =
+      adminStaffPasswordReissueSchema
+        .safeParse(values);
+
+    if (!parsed.success) {
+      setDialogError(
+        parsed.error.issues[0]?.message ||
+          "The password-reissue request is invalid.",
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const result = await apiRequest(
+        "/api/admin/staff/reissue-password",
+        {
+          body: JSON.stringify(
+            parsed.data,
+          ),
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+          method: "POST",
+        },
+      );
+
+      if (
+        result
+          ?.temporaryPasswordReissued !==
+          true ||
+        !result?.staff?.userId ||
+        !result?.staff?.email
+      ) {
+        throw new Error(
+          "The password reissue returned an invalid response.",
+        );
+      }
+
+      refreshAfterMutation(
+        "A new temporary password was sent to " +
+          result.staff.email +
+          ". The previous temporary password is no longer valid.",
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (
+          error.status === 401 ||
+          error.status === 403
+        )
+      ) {
+        void signOut().catch(
+          () => undefined,
+        );
+        return;
+      }
+
+      setDialogError(
+        error instanceof Error &&
+          error.message
+          ? error.message
+          : "The temporary password could not be reissued. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteStaffAccount(
+    values,
+  ) {
+    setDialogError("");
+
+    const parsed =
+      adminStaffDeleteSchema.safeParse(
+        values,
+      );
+
+    if (!parsed.success) {
+      setDialogError(
+        parsed.error.issues[0]?.message ||
+          "The account-deletion request is invalid.",
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const result = await apiRequest(
+        "/api/admin/staff/delete",
+        {
+          body: JSON.stringify(
+            parsed.data,
+          ),
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+          method: "POST",
+        },
+      );
+
+      if (
+        result?.accountDeleted !== true ||
+        !result?.staff?.userId ||
+        !result?.staff?.email
+      ) {
+        throw new Error(
+          "The account deletion returned an invalid response.",
+        );
+      }
+
+      refreshAfterMutation(
+        result.staff.email +
+          " was permanently deleted. The person must be invited again to regain access.",
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (
+          error.status === 401 ||
+          error.status === 403
+        )
+      ) {
+        void signOut().catch(
+          () => undefined,
+        );
+        return;
+      }
+
+      setDialogError(
+        error instanceof Error &&
+          error.message
+          ? error.message
+          : "The staff account could not be deleted. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const loading =
     requestStatus === "loading";
 
@@ -528,10 +735,8 @@ export default function AdminStaffPage() {
             Staff accounts
           </h1>
 
-          <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-            Invite authorised staff and manage their
-            assigned role and access status. Accounts are
-            retained when deactivated.
+          <p className="mt-4 max-w-3xl leading-7 text-slate-600">
+            Invite authorised staff and manage their assigned role, access and password onboarding. Reissue a temporary password first when setup expires. If recovery remains impossible, permanently delete the expired account and invite the person again.
           </p>
         </div>
 
@@ -801,8 +1006,15 @@ export default function AdminStaffPage() {
                 {staffList.staff.map(
                   (staffMember) => (
                     <StaffCard
+                      currentUserId={
+                        currentUserId
+                      }
                       key={staffMember.userId}
+                      onDelete={openDeletion}
                       onEdit={openEditor}
+                      onReissue={
+                        openPasswordReissue
+                      }
                       staffMember={
                         staffMember
                       }
@@ -852,10 +1064,19 @@ export default function AdminStaffPage() {
                     {staffList.staff.map(
                       (staffMember) => (
                         <StaffRow
+                          currentUserId={
+                            currentUserId
+                          }
                           key={
                             staffMember.userId
                           }
+                          onDelete={
+                            openDeletion
+                          }
                           onEdit={openEditor}
+                          onReissue={
+                            openPasswordReissue
+                          }
                           staffMember={
                             staffMember
                           }
@@ -898,6 +1119,36 @@ export default function AdminStaffPage() {
           key={dialog.staffMember.userId}
           onCancel={closeDialog}
           onSubmit={updateStaff}
+          staffMember={dialog.staffMember}
+          submitting={submitting}
+        />
+      ) : null}
+
+      {dialog?.mode === "reissue" ? (
+        <AccountRecoveryDialog
+          error={dialogError}
+          key={
+            "reissue-" +
+            dialog.staffMember.userId
+          }
+          mode="reissue"
+          onCancel={closeDialog}
+          onSubmit={reissuePassword}
+          staffMember={dialog.staffMember}
+          submitting={submitting}
+        />
+      ) : null}
+
+      {dialog?.mode === "delete" ? (
+        <AccountRecoveryDialog
+          error={dialogError}
+          key={
+            "delete-" +
+            dialog.staffMember.userId
+          }
+          mode="delete"
+          onCancel={closeDialog}
+          onSubmit={deleteStaffAccount}
           staffMember={dialog.staffMember}
           submitting={submitting}
         />
@@ -980,6 +1231,63 @@ function ConfirmationBadge({
   );
 }
 
+function OnboardingBadge({
+  staffMember,
+}) {
+  const pending =
+    staffMember.passwordChangeRequired;
+
+  const expired =
+    pending &&
+    temporaryPasswordExpired(
+      staffMember
+        .temporaryPasswordExpiresAt,
+    );
+
+  let label = "Configured account";
+  let colour =
+    "bg-slate-100 text-slate-700";
+
+  if (pending && expired) {
+    label = "Setup expired";
+    colour =
+      "bg-red-100 text-red-800";
+  } else if (pending) {
+    label = "Password setup pending";
+    colour =
+      "bg-amber-100 text-amber-900";
+  } else if (
+    staffMember.passwordSetupCompletedAt
+  ) {
+    label = "Password secured";
+    colour =
+      "bg-emerald-100 text-emerald-800";
+  }
+
+  return (
+    <span
+      className={
+        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black " +
+        colour
+      }
+    >
+      {pending ? (
+        <Clock
+          aria-hidden="true"
+          className="size-3.5"
+        />
+      ) : (
+        <ShieldCheck
+          aria-hidden="true"
+          className="size-3.5"
+        />
+      )}
+
+      {label}
+    </span>
+  );
+}
+
 function EditButton({
   onEdit,
   staffMember,
@@ -999,8 +1307,68 @@ function EditButton({
   );
 }
 
-function StaffCard({
+function StaffActions({
+  currentUserId,
+  onDelete,
   onEdit,
+  onReissue,
+  staffMember,
+}) {
+  const ownAccount =
+    currentUserId === staffMember.userId;
+
+  const canReissue =
+    !ownAccount &&
+    staffMember.active &&
+    staffMember.passwordChangeRequired;
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
+      <EditButton
+        onEdit={onEdit}
+        staffMember={staffMember}
+      />
+
+      {canReissue ? (
+        <button
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-950 hover:bg-amber-100"
+          onClick={() =>
+            onReissue(staffMember)
+          }
+          type="button"
+        >
+          <KeyRound
+            aria-hidden="true"
+            className="size-4"
+          />
+          Reissue password
+        </button>
+      ) : null}
+
+      {!ownAccount ? (
+        <button
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50"
+          onClick={() =>
+            onDelete(staffMember)
+          }
+          type="button"
+        >
+          <Trash2
+            aria-hidden="true"
+            className="size-4"
+          />
+          Delete account
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function StaffCard({
+  currentUserId,
+  onDelete,
+  onEdit,
+  onReissue,
   staffMember,
 }) {
   return (
@@ -1029,6 +1397,10 @@ function StaffCard({
             staffMember.emailConfirmed
           }
         />
+
+        <OnboardingBadge
+          staffMember={staffMember}
+        />
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm">
@@ -1053,11 +1425,29 @@ function StaffCard({
             )}
           </dd>
         </div>
+
+        {staffMember
+          .passwordChangeRequired ? (
+          <div>
+            <dt className="font-semibold text-slate-600">
+              Temporary password expires
+            </dt>
+            <dd className="mt-1 font-bold text-slate-950">
+              {formatDateTime(
+                staffMember
+                  .temporaryPasswordExpiresAt,
+              )}
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className="mt-5 border-t border-slate-200 pt-5">
-        <EditButton
+        <StaffActions
+          currentUserId={currentUserId}
+          onDelete={onDelete}
           onEdit={onEdit}
+          onReissue={onReissue}
           staffMember={staffMember}
         />
       </div>
@@ -1066,7 +1456,10 @@ function StaffCard({
 }
 
 function StaffRow({
+  currentUserId,
+  onDelete,
   onEdit,
+  onReissue,
   staffMember,
 }) {
   return (
@@ -1080,11 +1473,15 @@ function StaffRow({
           {staffMember.email}
         </p>
 
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <ConfirmationBadge
             emailConfirmed={
               staffMember.emailConfirmed
             }
+          />
+
+          <OnboardingBadge
+            staffMember={staffMember}
           />
         </div>
       </td>
@@ -1113,15 +1510,275 @@ function StaffRow({
             staffMember.createdAt,
           )}
         </p>
+
+        {staffMember
+          .passwordChangeRequired ? (
+          <p className="mt-2 font-semibold text-amber-900">
+            Temporary password expires:{" "}
+            {formatDateTime(
+              staffMember
+                .temporaryPasswordExpiresAt,
+            )}
+          </p>
+        ) : null}
       </td>
 
       <td className="px-6 py-5 text-right">
-        <EditButton
+        <StaffActions
+          currentUserId={currentUserId}
+          onDelete={onDelete}
           onEdit={onEdit}
+          onReissue={onReissue}
           staffMember={staffMember}
         />
       </td>
     </tr>
+  );
+}
+
+function AccountRecoveryDialog({
+  error,
+  mode,
+  onCancel,
+  onSubmit,
+  staffMember,
+  submitting,
+}) {
+  const deleting = mode === "delete";
+
+  const [
+    confirmationEmail,
+    setConfirmationEmail,
+  ] = useState("");
+
+  const normalizedConfirmation =
+    confirmationEmail
+      .trim()
+      .toLowerCase();
+
+  const confirmationMatches =
+    !deleting ||
+    normalizedConfirmation ===
+      staffMember.email.toLowerCase();
+
+  function submitRecovery(event) {
+    event.preventDefault();
+
+    if (deleting) {
+      if (!confirmationMatches) {
+        return;
+      }
+
+      onSubmit({
+        confirmationEmail:
+          normalizedConfirmation,
+        userId: staffMember.userId,
+      });
+
+      return;
+    }
+
+    onSubmit({
+      userId: staffMember.userId,
+    });
+  }
+
+  const heading = deleting
+    ? "Delete staff account"
+    : "Reissue temporary password";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
+      role="presentation"
+    >
+      <section
+        aria-labelledby="staff-recovery-heading"
+        aria-modal="true"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.14em] text-brand-800">
+              Staff administration
+            </p>
+
+            <h2
+              className="mt-2 text-2xl font-black text-slate-950"
+              id="staff-recovery-heading"
+            >
+              {heading}
+            </h2>
+          </div>
+
+          <button
+            aria-label={
+              deleting
+                ? "Close account deletion"
+                : "Close password reissue"
+            }
+            className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+            disabled={submitting}
+            onClick={onCancel}
+            type="button"
+          >
+            <X
+              aria-hidden="true"
+              className="size-5"
+            />
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="font-black text-slate-950">
+            {staffMember.fullName}
+          </p>
+
+          <p className="mt-1 wrap-break-word text-sm text-slate-600">
+            {staffMember.email}
+          </p>
+        </div>
+
+        {deleting ? (
+          <>
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-950">
+              <AlertTriangle
+                aria-hidden="true"
+                className="mt-0.5 size-5 shrink-0 text-red-700"
+              />
+
+              <div>
+                <p className="font-black">
+                  This deletion is permanent
+                </p>
+
+                <p className="mt-2 text-sm leading-6">
+                  The authentication account and staff profile will be removed. Security audit history will be retained. To restore access later, an administrator must invite the person again.
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-5 text-sm leading-6 text-slate-700">
+              Reissue the temporary password first when onboarding expires. Delete and invite the account again only when recovery remains impossible.
+            </p>
+          </>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+            <p className="font-black">
+              Issue new sign-in details
+            </p>
+
+            <p className="mt-2 text-sm leading-6">
+              A new temporary password will be generated and emailed to this staff member. The previous temporary password will immediately stop working, and the replacement will expire after 24 hours.
+            </p>
+          </div>
+        )}
+
+        {error ? (
+          <div className="mt-5">
+            <ErrorMessage
+              message={error}
+              title={
+                deleting
+                  ? "Account deletion unsuccessful"
+                  : "Password reissue unsuccessful"
+              }
+            />
+          </div>
+        ) : null}
+
+        <form
+          className="mt-6"
+          noValidate
+          onSubmit={submitRecovery}
+        >
+          {deleting ? (
+            <Field
+              id="delete-confirmation-email"
+              label="Type the staff email address to confirm"
+              required
+            >
+              <input
+                aria-describedby="delete-confirmation-help"
+                autoCapitalize="none"
+                autoComplete="off"
+                autoFocus
+                className={inputClassName}
+                disabled={submitting}
+                id="delete-confirmation-email"
+                inputMode="email"
+                maxLength="254"
+                onChange={(event) =>
+                  setConfirmationEmail(
+                    event.target.value,
+                  )
+                }
+                spellCheck="false"
+                type="email"
+                value={confirmationEmail}
+              />
+
+              <p
+                className="mt-2 text-sm leading-6 text-slate-600"
+                id="delete-confirmation-help"
+              >
+                Enter {staffMember.email} exactly. Capitalisation is ignored.
+              </p>
+            </Field>
+          ) : null}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+              disabled={submitting}
+              onClick={onCancel}
+              type="button"
+            >
+              Cancel
+            </button>
+
+            <button
+              className={
+                deleting
+                  ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 font-black text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              }
+              disabled={
+                submitting ||
+                !confirmationMatches
+              }
+              type="submit"
+            >
+              {submitting ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="size-5 animate-spin"
+                />
+              ) : deleting ? (
+                <Trash2
+                  aria-hidden="true"
+                  className="size-5"
+                />
+              ) : (
+                <KeyRound
+                  aria-hidden="true"
+                  className="size-5"
+                />
+              )}
+
+              {submitting
+                ? deleting
+                  ? "Deleting account…"
+                  : "Reissuing password…"
+                : deleting
+                  ? "Permanently delete account"
+                  : "Reissue temporary password"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -1187,9 +1844,7 @@ function InvitationDialog({
         </div>
 
         <p className="mt-4 text-sm leading-6 text-slate-600">
-          Supabase will email a time-limited invitation.
-          The invited person must use it to create a secure
-          password.
+          The system will email a temporary password that expires after 24 hours. The invited person must replace it before accessing staff services.
         </p>
 
         {error ? (
