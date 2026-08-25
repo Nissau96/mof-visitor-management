@@ -255,6 +255,52 @@ describe("staff invitation onboarding", () => {
     );
   });
 
+  it("creates a password-reissue email that invalidates earlier temporary passwords", () => {
+    const message =
+      createStaffInvitationMessage({
+        email:
+          "RECOVERY@example.invalid",
+        expiresAt:
+          "2026-08-26T13:30:00.000Z",
+        fullName:
+          "Recovery Receptionist",
+        loginUrl:
+          "https://visitors.example.gov.gh/staff/login",
+        messageType: "reissue",
+        role: "receptionist",
+        temporaryPassword:
+          TEMPORARY_PASSWORD,
+      });
+
+    expect(message.subject).toBe(
+      "Your MoF Visitor Management temporary password has been reissued",
+    );
+
+    expect(message.text).toContain(
+      "A Visitor Management administrator has reissued the temporary password",
+    );
+
+    expect(message.text).toContain(
+      "Any earlier temporary password for this account is no longer valid.",
+    );
+
+    expect(message.text).toContain(
+      "How to complete password recovery",
+    );
+
+    expect(message.text).toContain(
+      "If you were not expecting this password reissue",
+    );
+
+    expect(message.html).toContain(
+      "Your temporary password has been reissued",
+    );
+
+    expect(message.html).toContain(
+      "Any earlier temporary password for this account is no longer valid.",
+    );
+  });
+
   it("does not add a tower value to administrator account details", () => {
     const message =
       createStaffInvitationMessage({

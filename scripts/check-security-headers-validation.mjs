@@ -41,6 +41,11 @@ const EXPECTED_REWRITES = [
     source: "/api/admin/hosts/save",
     destination: "/api/admin?operation=host-save",
   },
+    {
+      source: "/api/admin/staff/delete",
+      destination:
+        "/api/admin?operation=staff-delete",
+    },
   {
     source: "/api/admin/staff/invite",
     destination: "/api/admin?operation=staff-invite",
@@ -49,6 +54,11 @@ const EXPECTED_REWRITES = [
     source: "/api/admin/staff/list",
     destination: "/api/admin?operation=staff-list",
   },
+    {
+      source: "/api/admin/staff/reissue-password",
+      destination:
+        "/api/admin?operation=staff-password-reissue",
+    },
   {
     source: "/api/admin/staff/update",
     destination: "/api/admin?operation=staff-update",

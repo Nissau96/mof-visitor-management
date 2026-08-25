@@ -2,7 +2,7 @@ import {
   expect,
 } from "@playwright/test";
 
-const SYNTHETIC_STAFF_ID =
+export const SYNTHETIC_STAFF_ID =
   "00000000-0000-4000-8000-000000000020";
 
 export const SYNTHETIC_STAFF_EMAIL =
