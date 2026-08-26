@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { HttpError } from "./http.js";
 import { getAdminClient } from "./supabase.js";
@@ -34,6 +35,44 @@ function readBearerToken(request) {
   }
 
   return token;
+}
+
+function readTokenIssuedAt(
+  token,
+) {
+  const segments = token.split(".");
+
+  if (segments.length !== 3) {
+    throw new HttpError(
+      "Your staff session is invalid or has expired.",
+      401,
+    );
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(
+        segments[1],
+        "base64url",
+      ).toString("utf8"),
+    );
+
+    if (
+      !Number.isInteger(payload.iat) ||
+      payload.iat <= 0
+    ) {
+      throw new Error(
+        "Invalid token issue time.",
+      );
+    }
+
+    return payload.iat;
+  } catch {
+    throw new HttpError(
+      "Your staff session is invalid or has expired.",
+      401,
+    );
+  }
 }
 
 function validateAllowedRoles(allowedRoles) {
@@ -96,10 +135,20 @@ export async function requireActiveStaff(
   request,
   allowedRoles = [],
   {
+    allowPasswordChangeRequired = false,
     getAdminClientForRequest = getAdminClient,
   } = {},
 ) {
   validateAllowedRoles(allowedRoles);
+
+  if (
+    typeof allowPasswordChangeRequired !==
+      "boolean"
+  ) {
+    throw new TypeError(
+      "allowPasswordChangeRequired must be a boolean.",
+    );
+  }
 
   const accessToken = readBearerToken(request);
   const adminClient = getAdminClientForRequest();
@@ -124,7 +173,7 @@ export async function requireActiveStaff(
   } = await adminClient
     .from("staff_profiles")
     .select(
-      "user_id, full_name, role, active",
+      "user_id, full_name, role, active, password_change_required, temporary_password_expires_at, password_setup_completed_at",
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -147,6 +196,84 @@ export async function requireActiveStaff(
     );
   }
 
+  const passwordSetupCompletedAt =
+    profile.password_setup_completed_at ||
+    null;
+
+  const passwordChangeRequired =
+    profile.password_change_required ===
+      true;
+
+  const temporaryPasswordExpiresAt =
+    profile.temporary_password_expires_at ||
+    null;
+
+  if (passwordChangeRequired) {
+    const expiryTime = Date.parse(
+      temporaryPasswordExpiresAt || "",
+    );
+
+    if (!Number.isFinite(expiryTime)) {
+      throw new HttpError(
+        "Staff account setup could not be verified.",
+        500,
+      );
+    }
+
+    if (expiryTime <= Date.now()) {
+      throw new HttpError(
+        "Your temporary password has expired. Contact an administrator for a new temporary password.",
+        403,
+      );
+    }
+
+    if (
+      !allowPasswordChangeRequired
+    ) {
+      throw new HttpError(
+        "Create your personal password before accessing staff services.",
+        403,
+      );
+    }
+  }
+
+  if (
+    !passwordChangeRequired &&
+    passwordSetupCompletedAt
+  ) {
+    const completionTime = Date.parse(
+      passwordSetupCompletedAt,
+    );
+
+    if (
+      !Number.isFinite(
+        completionTime,
+      )
+    ) {
+      throw new HttpError(
+        "Staff account setup could not be verified.",
+        500,
+      );
+    }
+
+    const tokenIssuedAt =
+      readTokenIssuedAt(
+        accessToken,
+      );
+
+    if (
+      tokenIssuedAt <=
+      Math.floor(
+        completionTime / 1_000,
+      )
+    ) {
+      throw new HttpError(
+        "Sign in again using your new password.",
+        401,
+      );
+    }
+  }
+
   if (
     allowedRoles.length > 0 &&
     !allowedRoles.includes(profile.role)
@@ -161,7 +288,10 @@ export async function requireActiveStaff(
     profile: {
       active: profile.active,
       fullName: profile.full_name,
+      passwordChangeRequired,
+      passwordSetupCompletedAt,
       role: profile.role,
+      temporaryPasswordExpiresAt,
       userId: profile.user_id,
     },
   };

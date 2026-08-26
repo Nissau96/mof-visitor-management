@@ -8,7 +8,7 @@ The implemented stages allow first-time visitors to register and check in. Retur
 >
 > Current implementation stage: Stage 15 — Production readiness and visitor QR code
 >
-> Documentation version: 3.3
+> Documentation version: 3.4
 
 ## Table of contents
 
@@ -374,7 +374,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Administrator navigation displayed conditionally by role
 - [x] Protected `/staff/admin/hosts` route implemented
 - [x] Protected `/staff/admin/staff` route implemented
-- [x] Public invitation-completion route implemented at `/staff/setup`
+- [x] Mandatory temporary-password setup route implemented at `/staff/setup`
 - [x] Host-name and department search implemented
 - [x] Host active-status filtering implemented
 - [x] Host creation implemented
@@ -385,7 +385,7 @@ Stages 1 through 3 established the React, Supabase and secure environment founda
 - [x] Staff role and active-status filtering implemented
 - [x] Receptionist and administrator role management implemented
 - [x] Staff activation and deactivation implemented
-- [x] Email-based Supabase Auth staff invitations implemented
+- [x] Administrator-issued 24-hour temporary-password onboarding implemented
 - [x] Invitation redirect configuration validated on the server
 - [x] Invitation email delivery verified
 - [x] Invited staff password setup implemented
@@ -515,6 +515,12 @@ Completed:
 - [x] Weekly QR screen display, printing and PNG download passed
 - [x] All invented Preview UAT records removed after verification
 - [x] PR #15 automated checks passed
+- [x] Temporary-password onboarding migration applied and verified in Preview
+- [x] Temporary-password reissue recovery implemented and tested
+- [x] Permanent account deletion with exact-email confirmation implemented and tested
+- [x] Deleted-account audit-history preservation verified
+- [x] All 129 unit and component tests passed
+- [x] All 102 Playwright browser tests passed
 - [x] Vercel public Function count retained at 11
 
 Pilot restrictions:
@@ -670,32 +676,40 @@ Supported application roles are:
 
 Do not place staff passwords, real staff email addresses or Auth user identifiers in migrations, source files, tests or documentation.
 
-### 7. Configure staff invitations
+### 7. Configure staff onboarding email
 
-Add the local invitation-completion route to the Supabase allowed redirect URLs:
+Staff invitations use an administrator-generated temporary password instead of a Supabase invitation link. The password expires after 24 hours and must be replaced before protected staff services can be accessed.
 
-```text
-http://localhost:3000/staff/setup
-```
-
-Add the matching server-only value to `.env.local`:
+Configure these server-only values in `.env.local` and the matching Vercel environment:
 
 ```text
-STAFF_INVITE_REDIRECT_URL=http://localhost:3000/staff/setup
+STAFF_LOGIN_URL=http://localhost:3000/staff/login
+SMTP_HOST=your_organizational_smtp_host
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_organizational_smtp_username
+SMTP_PASSWORD=your_organizational_smtp_password
+SMTP_FROM_EMAIL=your_approved_sender@example.gov.gh
+SMTP_FROM_NAME=MoF Visitor Management
 ```
 
-Load the environment file before starting the complete local application:
+Use port `465` with `SMTP_SECURE=true`, or port `587` with `SMTP_SECURE=false`. Outside local development, `STAFF_LOGIN_URL` must use HTTPS and end exactly in `/staff/login`.
 
-```bash
-set -a
-source .env.local
-set +a
-npx vercel dev
-```
+Never expose SMTP credentials to browser code or commit them to Git. Production invitations and password reissues must remain disabled until an approved SMTP sender has been configured and tested.
 
-The invitation redirect must use the approved HTTPS application URL in preview and production environments.
+#### Expired staff onboarding recovery
 
-Supabase's built-in email sender is suitable only for limited development testing. Configure an approved custom SMTP provider before using staff invitations in production.
+Administrators must attempt **Reissue password** first. This generates a new 24-hour temporary password, emails it to the staff member and immediately invalidates every earlier temporary password.
+
+If reissue cannot recover the expired account:
+
+1. Open **Administration → Staff accounts**.
+2. Select **Delete account**.
+3. Type the staff email address exactly.
+4. Confirm permanent deletion.
+5. Invite the person again to create a replacement account.
+
+Permanent deletion removes the Auth user and staff profile. The deleted person cannot regain access until invited again. Audit history is retained. Administrators cannot delete their own signed-in account or remove the last active administrator.
 
 ### 8. Run the quality checks
 
@@ -759,12 +773,19 @@ Only variables intended to be visible in browser code may use the `VITE_` prefix
 SUPABASE_URL
 SUPABASE_SECRET_KEY
 VISITOR_LOOKUP_SECRET
-STAFF_INVITE_REDIRECT_URL
+STAFF_LOGIN_URL
+SMTP_HOST
+SMTP_PORT
+SMTP_SECURE
+SMTP_USER
+SMTP_PASSWORD
+SMTP_FROM_EMAIL
+SMTP_FROM_NAME
 WEEKLY_QR_SECRET
 VISITOR_APP_URL
 ```
 
-`STAFF_INVITE_REDIRECT_URL` controls where invited staff complete password setup. It must exactly match an approved Supabase Auth redirect URL.
+`STAFF_LOGIN_URL` is included in onboarding and password-reissue emails. It must use HTTPS outside local development and end exactly in `/staff/login`.
 
 `WEEKLY_QR_SECRET` signs weekly visitor-access tokens and must contain at least 32 bytes of unpredictable secret material. It must be independently configured for each environment.
 
@@ -772,12 +793,12 @@ VISITOR_APP_URL
 
 The deployed environments use independently scoped values:
 
-| Environment | Supabase project | Invitation redirect |
+| Environment | Supabase project | Staff login URL |
 | --- | --- | --- |
-| Preview | Development project containing invented test-only data | Stable protected Preview alias at `/staff/setup` |
-| Production | Dedicated Production project | `https://mof-visitor-management.vercel.app/staff/setup` |
+| Preview | Development project containing invented test-only data | Stable protected Preview branch alias ending in `/staff/login` |
+| Production | Dedicated Production project | `https://mof-visitor-management.vercel.app/staff/login` |
 
-All eight application variables are configured as separate Preview and Production entries in Vercel. Preview values must never reference the Production Supabase project.
+Application variables are configured as separate Preview and Production entries in Vercel. Preview values must never reference the Production Supabase project.
 
 Server-only values must be configured in the local server environment and Vercel Project Settings. They must never be placed in `src/`, prefixed with `VITE_` or committed to Git.
 
@@ -1072,6 +1093,28 @@ Anonymous browser users must not receive direct access to visitor or visit table
 
 
 
+### Temporary-password staff onboarding and recovery
+
+Pending temporary-password accounts are blocked from normal staff services and redirected to `/staff/setup`. Successful replacement records the setup-completion time and requires a fresh sign-in.
+
+Protected endpoints:
+
+- `POST /api/admin/staff/reissue-password`
+- `POST /api/admin/staff/delete`
+
+Service-role-only functions:
+
+- `complete_staff_password_setup(uuid)`
+- `prepare_admin_staff_password_reissue(uuid, uuid, timestamp with time zone)`
+- `prepare_admin_staff_deletion(uuid, uuid)`
+
+Relevant migrations:
+
+- `supabase/migrations/20260824130011_add_temporary_staff_password_onboarding.sql`
+- `supabase/migrations/20260825083000_add_staff_onboarding_recovery.sql`
+
+The account-deletion migration preserves audit history by changing the audit actor relationship to `ON DELETE SET NULL` and recording the deleted actor identifier in audit details.
+
 ## Security and privacy
 
 This application processes personal information. Development and deployment must follow the approved privacy notice, retention schedule, Data Protection Impact Assessment and organisational security requirements.
@@ -1261,8 +1304,8 @@ git diff --check
 - Expired invitation password-update handling
 - Administrator and staff-setup accessibility checks across three viewports
 - Administrator and staff-setup horizontal-overflow checks
-- Complete browser suite of 87 passing tests
-- Complete unit and component suite of 63 passing tests
+- Complete browser suite of 102 passing tests
+- Complete unit and component suite of 129 passing tests
 - Complete set of 12 passing isolated validation harnesses
 
 ### Planned test coverage
@@ -1358,7 +1401,8 @@ git diff --check
 - Weekly access fragment exchange and visitor-page refresh verified
 - Protected visitor endpoints returned successful authorised responses
 - Invented acceptance-test records removed from Preview
-- All 63 unit and component tests passed
+- All 129 unit and component tests passed
+- All 102 Playwright browser tests passed
 - Lint, production build and `git diff --check` passed
 - Vercel public Function count remained at 11
 
@@ -2259,7 +2303,7 @@ Controlled-pilot functionality implemented:
 - Verified weekly QR screen display, printing and PNG download.
 - Removed all invented Preview UAT visitor and visit records after validation.
 - Passed all PR #15 automated checks.
-- Passed all 12 isolated validation harnesses, all 63 unit and component tests and all 87 Playwright browser tests.
+- Passed all 12 isolated validation harnesses, all 129 unit and component tests and all 102 Playwright browser tests.
 - Passed lint, production build and `git diff --check`.
 - Retained the deployable Vercel Function count at 11.
 

@@ -32,6 +32,15 @@ export default function ProtectedRoute({
     );
   }
 
+  if (profile.passwordChangeRequired) {
+    return (
+      <Navigate
+        replace
+        to="/staff/setup"
+      />
+    );
+  }
+
   if (
     allowedRoles.length > 0 &&
     !allowedRoles.includes(profile.role)

@@ -3,8 +3,10 @@ import adminEndpoint from "../api/admin.js";
 import {
   adminHostListSchema,
   adminHostSaveSchema,
+  adminStaffDeleteSchema,
   adminStaffInviteSchema,
   adminStaffListSchema,
+  adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
   staffPasswordSetupSchema,
 } from "../src/validation/adminManagement.js";
@@ -277,6 +279,82 @@ function verifyStaffInviteValidation() {
   );
 }
 
+function verifyStaffPasswordReissueValidation() {
+  assert.equal(
+    adminStaffPasswordReissueSchema
+      .safeParse({
+        userId: TEST_USER_ID,
+      }).success,
+    true,
+  );
+
+  assert.equal(
+    adminStaffPasswordReissueSchema
+      .safeParse({
+        userId: "not-a-uuid",
+      }).success,
+    false,
+  );
+
+  assert.equal(
+    adminStaffPasswordReissueSchema
+      .safeParse({
+        temporaryPassword:
+          "MustNeverBeAccepted!2026",
+        userId: TEST_USER_ID,
+      }).success,
+    false,
+  );
+}
+
+function verifyStaffDeleteValidation() {
+  const validResult =
+    adminStaffDeleteSchema.safeParse({
+      confirmationEmail:
+        "INVITED.USER@EXAMPLE.COM",
+      userId: TEST_USER_ID,
+    });
+
+  assert.equal(
+    validResult.success,
+    true,
+  );
+
+  assert.equal(
+    validResult.data
+      .confirmationEmail,
+    "invited.user@example.com",
+  );
+
+  assert.equal(
+    adminStaffDeleteSchema.safeParse({
+      confirmationEmail:
+        "not-an-email",
+      userId: TEST_USER_ID,
+    }).success,
+    false,
+  );
+
+  assert.equal(
+    adminStaffDeleteSchema.safeParse({
+      confirmationEmail:
+        "invited.user@example.com",
+      userId: "not-a-uuid",
+    }).success,
+    false,
+  );
+
+  assert.equal(
+    adminStaffDeleteSchema.safeParse({
+      confirmationEmail:
+        "invited.user@example.com",
+      unexpected: true,
+      userId: TEST_USER_ID,
+    }).success,
+    false,
+  );
+}
+
 function verifyStaffUpdateValidation() {
   const validResult =
     adminStaffUpdateSchema.safeParse({
@@ -430,6 +508,23 @@ const endpointChecks = [
   },
   {
     body: {
+      confirmationEmail:
+        "invited.user@example.com",
+      userId: TEST_USER_ID,
+    },
+    endpoint: adminEndpoint,
+    path: "/api/admin/staff/delete",
+  },
+  {
+    body: {
+      userId: TEST_USER_ID,
+    },
+    endpoint: adminEndpoint,
+    path:
+      "/api/admin/staff/reissue-password",
+  },
+  {
+    body: {
       active: true,
       fullName: "Updated Staff User",
       role: "receptionist",
@@ -505,6 +600,8 @@ verifyHostListValidation();
 verifyHostSaveValidation();
 verifyStaffListValidation();
 verifyStaffInviteValidation();
+verifyStaffPasswordReissueValidation();
+verifyStaffDeleteValidation();
 verifyStaffUpdateValidation();
 verifyPasswordSetupValidation();
 

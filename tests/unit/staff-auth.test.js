@@ -1,4 +1,7 @@
 import {
+  Buffer,
+} from "node:buffer";
+import {
   describe,
   expect,
   it,
@@ -14,10 +17,32 @@ const USER_ID =
 const ACCESS_TOKEN =
   "isolated-staff-authentication-test-token";
 
+function createJwtWithIssuedAt(
+  issuedAt,
+) {
+  const header = Buffer.from(
+    JSON.stringify({
+      alg: "none",
+      typ: "JWT",
+    }),
+  ).toString("base64url");
+
+  const payload = Buffer.from(
+    JSON.stringify({
+      iat: issuedAt,
+    }),
+  ).toString("base64url");
+
+  return `${header}.${payload}.isolated-signature`;
+}
+
 const ACTIVE_RECEPTIONIST = {
   active: true,
   full_name: "Test Receptionist",
+  password_change_required: false,
+  password_setup_completed_at: null,
   role: "receptionist",
+  temporary_password_expires_at: null,
   user_id: USER_ID,
 };
 
@@ -111,7 +136,7 @@ describe("requireActiveStaff", () => {
     );
 
     expect(select).toHaveBeenCalledWith(
-      "user_id, full_name, role, active",
+      "user_id, full_name, role, active, password_change_required, temporary_password_expires_at, password_setup_completed_at",
     );
 
     expect(eq).toHaveBeenCalledWith(
@@ -123,7 +148,10 @@ describe("requireActiveStaff", () => {
       profile: {
         active: true,
         fullName: "Test Receptionist",
+        passwordChangeRequired: false,
+        passwordSetupCompletedAt: null,
         role: "receptionist",
+        temporaryPasswordExpiresAt: null,
         userId: USER_ID,
       },
     });
@@ -312,9 +340,245 @@ describe("requireActiveStaff", () => {
     expect(result.profile).toEqual({
       active: true,
       fullName: "Test Administrator",
+      passwordChangeRequired: false,
+      passwordSetupCompletedAt: null,
       role: "admin",
+      temporaryPasswordExpiresAt: null,
       userId: USER_ID,
     });
+  });
+
+  it("blocks a pending password-change account from normal staff services", async () => {
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_change_required: true,
+        temporary_password_expires_at:
+          "2099-08-25T14:30:00.000Z",
+      },
+    });
+
+    await expect(
+      requireActiveStaff(
+        createRequest(),
+        [],
+        {
+          getAdminClientForRequest: () =>
+            client,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Create your personal password before accessing staff services.",
+      status: 403,
+    });
+  });
+
+  it("allows a pending account only when password setup is explicitly permitted", async () => {
+    const expiry =
+      "2099-08-25T14:30:00.000Z";
+
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_change_required: true,
+        temporary_password_expires_at:
+          expiry,
+      },
+    });
+
+    const result = await requireActiveStaff(
+      createRequest(),
+      [],
+      {
+        allowPasswordChangeRequired:
+          true,
+        getAdminClientForRequest: () =>
+          client,
+      },
+    );
+
+    expect(result.profile).toEqual({
+      active: true,
+      fullName: "Test Receptionist",
+      passwordChangeRequired: true,
+      passwordSetupCompletedAt: null,
+      role: "receptionist",
+      temporaryPasswordExpiresAt:
+        expiry,
+      userId: USER_ID,
+    });
+  });
+
+  it("rejects an expired temporary password even on the setup boundary", async () => {
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_change_required: true,
+        temporary_password_expires_at:
+          "2020-01-01T00:00:00.000Z",
+      },
+    });
+
+    await expect(
+      requireActiveStaff(
+        createRequest(),
+        [],
+        {
+          allowPasswordChangeRequired:
+            true,
+          getAdminClientForRequest: () =>
+            client,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Your temporary password has expired. Contact an administrator for a new temporary password.",
+      status: 403,
+    });
+  });
+
+  it("rejects malformed pending-password state", async () => {
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_change_required: true,
+        temporary_password_expires_at:
+          null,
+      },
+    });
+
+    await expect(
+      requireActiveStaff(
+        createRequest(),
+        [],
+        {
+          allowPasswordChangeRequired:
+            true,
+          getAdminClientForRequest: () =>
+            client,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Staff account setup could not be verified.",
+      status: 500,
+    });
+  });
+
+  it("rejects a session issued before password setup completed", async () => {
+    const completionTime =
+      "2026-08-24T14:30:00.000Z";
+
+    const issuedAt =
+      Math.floor(
+        Date.parse(completionTime) /
+          1_000,
+      ) - 1;
+
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_setup_completed_at:
+          completionTime,
+      },
+    });
+
+    await expect(
+      requireActiveStaff(
+        createRequest(
+          `Bearer ${createJwtWithIssuedAt(
+            issuedAt,
+          )}`,
+        ),
+        [],
+        {
+          getAdminClientForRequest: () =>
+            client,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Sign in again using your new password.",
+      status: 401,
+    });
+  });
+
+  it("accepts a session issued after password setup completed", async () => {
+    const completionTime =
+      "2026-08-24T14:30:00.000Z";
+
+    const issuedAt =
+      Math.floor(
+        Date.parse(completionTime) /
+          1_000,
+      ) + 1;
+
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_setup_completed_at:
+          completionTime,
+      },
+    });
+
+    const result = await requireActiveStaff(
+      createRequest(
+        `Bearer ${createJwtWithIssuedAt(
+          issuedAt,
+        )}`,
+      ),
+      [],
+      {
+        getAdminClientForRequest: () =>
+          client,
+      },
+    );
+
+    expect(
+      result.profile
+        .passwordSetupCompletedAt,
+    ).toBe(completionTime);
+  });
+
+  it("rejects malformed password-completion state", async () => {
+    const { client } = createAdminClient({
+      profile: {
+        ...ACTIVE_RECEPTIONIST,
+        password_setup_completed_at:
+          "invalid-date",
+      },
+    });
+
+    await expect(
+      requireActiveStaff(
+        createRequest(),
+        [],
+        {
+          getAdminClientForRequest: () =>
+            client,
+        },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Staff account setup could not be verified.",
+      status: 500,
+    });
+  });
+
+  it("rejects a non-boolean password-setup option", async () => {
+    await expect(
+      requireActiveStaff(
+        createRequest(),
+        [],
+        {
+          allowPasswordChangeRequired:
+            "yes",
+        },
+      ),
+    ).rejects.toBeInstanceOf(
+      TypeError,
+    );
   });
 
   it("rejects a non-array allowedRoles argument", async () => {

@@ -8,8 +8,6 @@ import {
 import {
   installMockStaffAuthentication,
   signInAsStaff,
-  SYNTHETIC_ACCESS_TOKEN,
-  SYNTHETIC_STAFF_EMAIL,
 } from "./support/staff-authentication.js";
 
 const STAFF_SETUP_PATH =
@@ -17,34 +15,6 @@ const STAFF_SETUP_PATH =
 
 const VALID_PASSWORD =
   "SecurePassword!2026";
-
-function createUpdatedUser() {
-  const timestamp =
-    "2026-08-17T10:30:00.000Z";
-
-  return {
-    app_metadata: {
-      provider: "email",
-      providers: [
-        "email",
-      ],
-    },
-    aud: "authenticated",
-    confirmed_at: timestamp,
-    created_at: timestamp,
-    email: SYNTHETIC_STAFF_EMAIL,
-    email_confirmed_at: timestamp,
-    id:
-      "00000000-0000-4000-8000-000000000020",
-    identities: [],
-    is_anonymous: false,
-    last_sign_in_at: timestamp,
-    phone: "",
-    role: "authenticated",
-    updated_at: timestamp,
-    user_metadata: {},
-  };
-}
 
 async function expectNoHorizontalOverflow(
   page,
@@ -74,88 +44,30 @@ async function expectNoHorizontalOverflow(
   );
 }
 
-async function installMockPasswordUpdate(
-  page,
-  {
-    rejectUpdate = false,
-  } = {},
-) {
-  const state = {
-    updateRequests: [],
-  };
-
-  await page.route(
-    "**/auth/v1/user",
-    async (route) => {
-      const request = route.request();
-
-      if (request.method() !== "PUT") {
-        await route.fallback();
-        return;
-      }
-
-      expect(
-        request.headers().authorization,
-      ).toBe(
-        `Bearer ${SYNTHETIC_ACCESS_TOKEN}`,
-      );
-
-      const body = request.postDataJSON();
-
-      state.updateRequests.push(body);
-
-      if (rejectUpdate) {
-        await route.fulfill({
-          contentType: "application/json",
-          json: {
-            code:
-              "invite_token_expired",
-            message:
-              "The invitation has expired.",
-          },
-          status: 422,
-        });
-
-        return;
-      }
-
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          user: createUpdatedUser(),
-        },
-        status: 200,
-      });
-    },
-  );
-
-  return state;
-}
-
-async function openAuthenticatedSetup(
+async function openPendingSetup(
   page,
   options = {},
 ) {
-  await installMockStaffAuthentication(
-    page,
-    {
-      fullName:
-        "Synthetic Invited Staff",
-      role: "receptionist",
-    },
-  );
-
   const state =
-    await installMockPasswordUpdate(
+    await installMockStaffAuthentication(
       page,
-      options,
+      {
+        fullName:
+          "Synthetic Invited Staff",
+        passwordChangeRequired:
+          true,
+        role: "receptionist",
+        temporaryPasswordExpiresAt:
+          "2099-08-25T14:30:00.000Z",
+        ...options,
+      },
     );
 
   await signInAsStaff(page, {
     destination: "/staff",
+    expectedDestination:
+      STAFF_SETUP_PATH,
   });
-
-  await page.goto(STAFF_SETUP_PATH);
 
   await expect(
     page.getByRole("heading", {
@@ -180,10 +92,10 @@ function confirmationInput(page) {
 }
 
 test.describe(
-  "invited staff password setup",
+  "temporary staff password setup",
   () => {
     test(
-      "shows an unavailable invitation when no authenticated session exists",
+      "requires a temporary-password sign-in when no session exists",
       async ({ page }) => {
         await page.goto(
           STAFF_SETUP_PATH,
@@ -192,14 +104,13 @@ test.describe(
         await expect(
           page.getByRole("heading", {
             level: 1,
-            name:
-              "Invitation unavailable",
+            name: "Sign in required",
           }),
         ).toBeVisible();
 
         await expect(
           page.getByText(
-            /invalid, has expired or has already been used/i,
+            /temporary password provided in your staff account email/i,
           ),
         ).toBeVisible();
 
@@ -227,7 +138,7 @@ test.describe(
       "validates passwords and supports password visibility controls",
       async ({ page }) => {
         const state =
-          await openAuthenticatedSetup(
+          await openPendingSetup(
             page,
           );
 
@@ -236,6 +147,16 @@ test.describe(
             "Welcome, Synthetic Invited Staff.",
             {
               exact: false,
+            },
+          ),
+        ).toBeVisible();
+
+        await expect(
+          page.locator(
+            "p:visible",
+            {
+              hasText:
+                "Temporary password expires",
             },
           ),
         ).toBeVisible();
@@ -253,7 +174,7 @@ test.describe(
         ).toHaveCount(2);
 
         expect(
-          state.updateRequests,
+          state.passwordSetupRequests,
         ).toHaveLength(0);
 
         await newPasswordInput(
@@ -279,7 +200,7 @@ test.describe(
         ).toBeVisible();
 
         expect(
-          state.updateRequests,
+          state.passwordSetupRequests,
         ).toHaveLength(0);
 
         await page
@@ -319,10 +240,10 @@ test.describe(
     );
 
     test(
-      "creates a password and continues to the staff portal",
+      "creates a personal password, signs out and requires fresh sign-in",
       async ({ page }) => {
         const state =
-          await openAuthenticatedSetup(
+          await openPendingSetup(
             page,
           );
 
@@ -341,16 +262,22 @@ test.describe(
           .click();
 
         await expect
-  .poll(
-    () =>
-      state.updateRequests.at(-1)
-        ?.password,
-  )
-  .toBe(VALID_PASSWORD);
+          .poll(
+            () =>
+              state
+                .passwordSetupRequests
+                .length,
+          )
+          .toBe(1);
 
-expect(
-  state.updateRequests,
-).toHaveLength(1);
+        expect(
+          state.passwordSetupRequests[0],
+        ).toEqual({
+          confirmPassword:
+            VALID_PASSWORD,
+          password:
+            VALID_PASSWORD,
+        });
 
         await expect(
           page.getByRole("heading", {
@@ -361,37 +288,49 @@ expect(
 
         await expect(
           page.getByText(
-            /staff account has been secured successfully/i,
+            /temporary password has been replaced successfully/i,
           ),
         ).toBeVisible();
 
-        await page
-          .getByRole("button", {
-            name:
-              "Continue to staff portal",
-          })
-          .click();
-
         await expect
-          .poll(() => {
-            const url = new URL(
-              page.url(),
-            );
+          .poll(
+            () =>
+              state.logoutRequests,
+          )
+          .toBe(1);
 
-            return url.pathname;
-          })
-          .toBe("/staff");
+        await expect(
+          page.getByRole("link", {
+            name:
+              "Sign in with your new password",
+          }),
+        ).toHaveAttribute(
+          "href",
+          "/staff/login",
+        );
+
+        await expectNoWcagViolations(
+          page,
+        );
+
+        await expectNoHorizontalOverflow(
+          page,
+        );
       },
     );
 
     test(
-      "shows an error when the invitation can no longer update the password",
+      "shows the API error when the temporary password has expired",
       async ({ page }) => {
         const state =
-          await openAuthenticatedSetup(
+          await openPendingSetup(
             page,
             {
-              rejectUpdate: true,
+              passwordSetupError: {
+                message:
+                  "Your temporary password has expired. Contact an administrator for a new temporary password.",
+                status: 403,
+              },
             },
           );
 
@@ -412,20 +351,23 @@ expect(
         await expect
           .poll(
             () =>
-              state.updateRequests.length,
+              state
+                .passwordSetupRequests
+                .length,
           )
           .toBe(1);
 
         await expect(
           page.getByRole("alert"),
         ).toContainText(
-          "Your password could not be set. The invitation may have expired.",
+          "Your temporary password has expired. Contact an administrator for a new temporary password.",
         );
 
         await expect(
           page.getByRole("heading", {
             level: 1,
-            name: "Create your password",
+            name:
+              "Create your password",
           }),
         ).toBeVisible();
 
@@ -434,6 +376,73 @@ expect(
             name: "Create password",
           }),
         ).toBeEnabled();
+      },
+    );
+
+    test(
+      "cancels setup by signing out and returning to sign-in",
+      async ({ page }) => {
+        const state =
+          await openPendingSetup(
+            page,
+          );
+
+        await page
+          .getByRole("button", {
+            name: "Cancel setup",
+          })
+          .click();
+
+        await expect
+          .poll(
+            () =>
+              state.logoutRequests,
+          )
+          .toBe(1);
+
+        await expect
+          .poll(() => {
+            return new URL(
+              page.url(),
+            ).pathname;
+          })
+          .toBe("/staff/login");
+
+        await expect(
+          page.getByRole("heading", {
+            name: "Sign in",
+          }),
+        ).toBeVisible();
+      },
+    );
+
+    test(
+      "redirects a completed account away from password setup",
+      async ({ page }) => {
+        await installMockStaffAuthentication(
+          page,
+          {
+            fullName:
+              "Synthetic Receptionist",
+            passwordChangeRequired:
+              false,
+            role: "receptionist",
+          },
+        );
+
+        await signInAsStaff(page);
+
+        await page.goto(
+          STAFF_SETUP_PATH,
+        );
+
+        await expect
+          .poll(() => {
+            return new URL(
+              page.url(),
+            ).pathname;
+          })
+          .toBe("/staff");
       },
     );
   },
