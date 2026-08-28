@@ -73,6 +73,24 @@ const EXPECTED_REWRITES = [
     destination:
       "/api/admin?operation=staff-update",
   },
+    {
+    source:
+      "/api/admin/cards/inventory",
+    destination:
+      "/api/admin?operation=card-inventory",
+  },
+  {
+    source:
+      "/api/admin/cards/create",
+    destination:
+      "/api/admin?operation=card-create",
+  },
+  {
+    source:
+      "/api/admin/cards/assign-tower",
+    destination:
+      "/api/admin?operation=card-tower-assign",
+  },
   {
     source:
       "/api/staff/cards/pending",
