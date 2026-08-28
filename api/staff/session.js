@@ -252,7 +252,10 @@ export function createStaffSessionHandler({
         const { profile } =
           await requireActiveStaffForRequest(
             request,
-            [],
+            [
+              "receptionist",
+              "admin",
+            ],
             {
               getAdminClientForRequest,
             },

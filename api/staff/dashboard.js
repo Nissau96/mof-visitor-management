@@ -57,7 +57,13 @@ export default {
 
     try {
       const { profile } =
-        await requireActiveStaff(request);
+        await requireActiveStaff(
+          request,
+          [
+            "receptionist",
+            "admin",
+          ],
+        );
 
       const requestBody =
         await readJsonBody(request);

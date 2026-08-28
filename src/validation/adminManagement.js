@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const staffRoleSchema = z.enum([
   "receptionist",
+  "client_service_head",
   "admin",
 ]);
 
@@ -109,6 +110,7 @@ export const adminStaffListSchema = z
       .enum([
         "all",
         "receptionist",
+        "client_service_head",
         "admin",
       ])
       .default("all"),

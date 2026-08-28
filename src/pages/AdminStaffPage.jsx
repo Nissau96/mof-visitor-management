@@ -113,6 +113,8 @@ function normalizeStaffList(result) {
       typeof staffMember.email === "string" &&
       (
         staffMember.role === "admin" ||
+        staffMember.role ===
+          "client_service_head" ||
         staffMember.role === "receptionist"
       ) &&
       typeof staffMember.active === "boolean" &&
@@ -866,6 +868,9 @@ export default function AdminStaffPage() {
               <option value="receptionist">
                 Receptionist
               </option>
+              <option value="client_service_head">
+                Client Service Head
+              </option>
               <option value="admin">
                 Administrator
               </option>
@@ -1159,30 +1164,30 @@ export default function AdminStaffPage() {
 
 function RoleBadge({ role }) {
   const administrator = role === "admin";
+  const clientServiceHead =
+    role === "client_service_head";
+
+  const label = administrator
+    ? "Administrator"
+    : clientServiceHead
+      ? "Client Service Head"
+      : "Receptionist";
+
+  const colour = administrator
+    ? "bg-brand-100 text-brand-900"
+    : clientServiceHead
+      ? "bg-amber-100 text-amber-900"
+      : "bg-sky-100 text-sky-800";
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${
-        administrator
-          ? "bg-brand-100 text-brand-900"
-          : "bg-sky-100 text-sky-800"
-      }`}
-    >
+    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${colour}`}>
       {administrator ? (
-        <ShieldCheck
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <ShieldCheck aria-hidden="true" className="size-3.5" />
       ) : (
-        <UserCog
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <UserCog aria-hidden="true" className="size-3.5" />
       )}
 
-      {administrator
-        ? "Administrator"
-        : "Receptionist"}
+      {label}
     </span>
   );
 }
@@ -1942,6 +1947,9 @@ function InvitationDialog({
               <option value="receptionist">
                 Receptionist
               </option>
+              <option value="client_service_head">
+                Client Service Head
+              </option>
               <option value="admin">
                 Administrator
               </option>
@@ -2112,6 +2120,9 @@ function StaffEditorDialog({
             >
               <option value="receptionist">
                 Receptionist
+              </option>
+              <option value="client_service_head">
+                Client Service Head
               </option>
               <option value="admin">
                 Administrator

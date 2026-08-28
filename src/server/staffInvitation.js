@@ -36,6 +36,7 @@ const EMAIL_PATTERN =
 
 const STAFF_ROLES = new Set([
   "receptionist",
+  "client_service_head",
   "admin",
 ]);
 
@@ -310,13 +311,11 @@ function getRoleLabel(role) {
     return "Administrator";
   }
 
-  if (role === "receptionist") {
-    return "Receptionist";
+  if (role === "client_service_head") {
+    return "Client Service Head";
   }
 
-  throw new TypeError(
-    "A valid staff role is required.",
-  );
+  return "Receptionist";
 }
 
 function validateInvitationDetails({

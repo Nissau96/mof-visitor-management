@@ -76,6 +76,10 @@ export function createCheckoutHandler({
         const { profile } =
           await requireActiveStaffForRequest(
             request,
+            [
+              "receptionist",
+              "admin",
+            ],
           );
 
         await enforceRateLimitForRequest(
