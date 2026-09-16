@@ -539,6 +539,44 @@ Full-launch blockers:
 - [ ] Complete Production reference-data preparation and final launch UAT
 - [ ] Generate and physically test the final Production visitor QR code
 
+### Stage 16 interim status — visitor-card controls
+
+Stage 16 currently provides the database, API and staff-workspace foundations for controlled physical visitor-card operations.
+
+Completed capabilities include:
+
+- separate regular and VIP visitor-card inventories;
+- regular card identifiers from `MOF-V001` through `MOF-V299`;
+- VIP card identifiers from `MOF-VIP001` through `MOF-VIP050`;
+- Tower 2 as the initial issuing tower for VIP cards;
+- administrator-controlled creation of additional card numbers up to `999`;
+- administrator-controlled tower assignment for available cards;
+- mandatory physical-card assignment before visitor admission;
+- card lookup using the final three digits;
+- checked-in visitor and card-return processing;
+- automatic overdue-card processing after the 24-hour return deadline;
+- explicit reporting of cards that were not returned;
+- Client Service Head investigation and resolution workflows;
+- late-return, lost, damaged and unusable incident outcomes;
+- permanent deactivation of lost, damaged and unusable cards;
+- replacement-card lineage using suffixes such as `-R1` and `-R2`;
+- authenticated and rate-limited staff and administration API operations;
+- receptionist, Client Service Head and Super Administrator role boundaries;
+- a responsive staff visitor-card workspace with pending-admission, checked-in visitor and card-incident tabs;
+- assignment, checkout, not-returned reporting, investigation, resolution and replacement-registration modals;
+- focused unit tests for the visitor-card API client and consolidated staff API.
+
+The visitor-card database migrations have been applied and verified only on the approved Preview Supabase project. Production has not been modified.
+
+Remaining Stage 16 work:
+
+- implement the administrator visitor-card inventory interface;
+- expose card creation and tower reassignment through that interface;
+- complete role-based manual smoke testing in Preview;
+- complete accessibility and responsive-layout verification;
+- deploy the finished Stage 16 application to Preview;
+- promote to Production only after explicit approval.
+
 ## Technology stack
 
 | Layer          | Technology               | Purpose                                                    |
@@ -2328,6 +2366,43 @@ Outstanding blockers:
 - Final Production QR generation, physical scan testing and publication approval.
 
 Stage 15 must remain unchecked until these blockers are resolved and the final validation is completed.
+
+### Stage 16 — Visitor-card control and incident management
+
+Stage 16 introduces an auditable physical visitor-card lifecycle covering inventory, admission, return handling, incidents and replacement cards.
+
+The database implementation includes:
+
+- authoritative visitor-card inventory and replacement lineage;
+- regular and VIP card types;
+- configurable tower ownership;
+- immutable assignment history;
+- overdue and explicitly unreturned card incidents;
+- controlled investigation and resolution operations;
+- replacement-card registration following permanent deactivation;
+- role-aware workspace queries and administration operations.
+
+The application implementation includes:
+
+- consolidated staff visitor-card operations within the existing staff API function;
+- consolidated inventory operations within the existing administration API function;
+- strict request validation and database-error translation;
+- a typed frontend API client;
+- a `/staff/cards` workspace;
+- role-aware navigation and routing;
+- receptionist admission and checkout actions;
+- Client Service Head incident management;
+- Super Administrator access across operational and administrative workflows.
+
+The initial Preview inventory contains:
+
+| Card type | Identifier range | Initial tower |
+| --- | --- | --- |
+| Regular | `MOF-V001`–`MOF-V199` | Tower 2 |
+| Regular | `MOF-V200`–`MOF-V299` | Tower 1 |
+| VIP | `MOF-VIP001`–`MOF-VIP050` | Tower 2 |
+
+Administrators can create additional regular or VIP card numbers up to `999`, in batches of no more than 100, and choose the issuing tower. Tower reassignment is restricted to available cards without active assignments or incidents.
 
 ## README update policy
 

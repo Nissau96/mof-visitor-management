@@ -12,6 +12,7 @@ import AuthContext from "./authContext.js";
 
 const ALLOWED_STAFF_ROLES = new Set([
   "receptionist",
+  "client_service_head",
   "admin",
 ]);
 
@@ -150,6 +151,15 @@ function resolveSessionTower(
   const tower = normalizeTower(
     requestedTower,
   );
+
+  // Client Service Heads work across towers for visitor-card
+  // incident investigation and resolution.
+  if (
+    profile.role ===
+      "client_service_head"
+  ) {
+    return "";
+  }
 
   // Administrators begin with all-tower access after a new
   // login. They can subsequently select a tower filter.
