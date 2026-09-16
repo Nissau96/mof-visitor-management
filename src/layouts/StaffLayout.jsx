@@ -1,5 +1,7 @@
 import {
+  Archive,
   Building2,
+  CreditCard,
   ExternalLink,
   History,
   LayoutDashboard,
@@ -24,6 +26,17 @@ function getNavigationClass({ isActive }) {
   }`;
 }
 
+function getRoleLabel(role) {
+  const labels = {
+    admin: "Super Administrator",
+    client_service_head:
+      "Client Service Head",
+    receptionist: "Receptionist",
+  };
+
+  return labels[role] || "Staff";
+}
+
 export default function StaffLayout() {
   const [signOutError, setSignOutError] =
     useState("");
@@ -32,6 +45,16 @@ export default function StaffLayout() {
     useState(false);
 
   const { profile, signOut } = useAuth();
+
+  const receptionAccess =
+    profile?.role === "receptionist" ||
+    profile?.role === "admin";
+
+  const homePath =
+    profile?.role ===
+      "client_service_head"
+      ? "/staff/cards"
+      : "/staff";
 
   async function handleSignOut() {
     setSignOutError("");
@@ -60,7 +83,7 @@ export default function StaffLayout() {
 
       <header className="border-b border-slate-200 bg-white print:hidden">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link className="inline-flex min-h-12 items-center gap-3 rounded-xl" to="/staff">
+          <Link className="inline-flex min-h-12 items-center gap-3 rounded-xl" to={homePath}>
             <span className="grid size-11 place-items-center rounded-xl bg-brand-800 text-white">
               <Building2 aria-hidden="true" className="size-6" />
             </span>
@@ -100,23 +123,37 @@ export default function StaffLayout() {
 
       <div className="border-b border-slate-200 bg-white print:hidden">
         <nav aria-label="Staff navigation" className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto px-4 py-2 sm:px-6 lg:px-8">
-          <NavLink className={getNavigationClass} end to="/staff">
-            <LayoutDashboard aria-hidden="true" className="size-4" />
-            Dashboard
-          </NavLink>
+          {receptionAccess ? (
+            <>
+              <NavLink className={getNavigationClass} end to="/staff">
+                <LayoutDashboard aria-hidden="true" className="size-4" />
+                Dashboard
+              </NavLink>
 
-          <NavLink className={getNavigationClass} to="/staff/history">
-            <History aria-hidden="true" className="size-4" />
-            Visit history
-          </NavLink>
+              <NavLink className={getNavigationClass} to="/staff/history">
+                <History aria-hidden="true" className="size-4" />
+                Visit history
+              </NavLink>
 
-          <NavLink className={getNavigationClass} to="/staff/weekly-qr">
-            <QrCode aria-hidden="true" className="size-4" />
-            Weekly QR
+              <NavLink className={getNavigationClass} to="/staff/weekly-qr">
+                <QrCode aria-hidden="true" className="size-4" />
+                Weekly QR
+              </NavLink>
+            </>
+          ) : null}
+
+          <NavLink className={getNavigationClass} to="/staff/cards">
+            <CreditCard aria-hidden="true" className="size-4" />
+            Visitor cards
           </NavLink>
 
           {profile?.role === "admin" ? (
             <>
+              <NavLink className={getNavigationClass} to="/staff/admin/cards">
+                <Archive aria-hidden="true" className="size-4" />
+                Card inventory
+              </NavLink>
+
               <NavLink className={getNavigationClass} to="/staff/admin/hosts">
                 <Building2 aria-hidden="true" className="size-4" />
                 Hosts
@@ -154,8 +191,8 @@ export default function StaffLayout() {
             Signed in as {profile?.fullName}.
           </p>
 
-          <p className="capitalize">
-            Role: {profile?.role}
+          <p>
+            Role: {getRoleLabel(profile?.role)}
           </p>
         </div>
       </footer>

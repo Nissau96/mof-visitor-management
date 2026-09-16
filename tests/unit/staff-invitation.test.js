@@ -301,6 +301,35 @@ describe("staff invitation onboarding", () => {
     );
   });
 
+  it("creates Client Service Head account details without an Assigned Tower", () => {
+    const message =
+      createStaffInvitationMessage({
+        email:
+          "client.service@example.invalid",
+        expiresAt:
+          "2026-08-25T13:30:00.000Z",
+        fullName:
+          "Test Client Service Head",
+        loginUrl:
+          "https://visitors.example.gov.gh/staff/login",
+        role: "client_service_head",
+        temporaryPassword:
+          TEMPORARY_PASSWORD,
+      });
+
+    expect(message.text).toContain(
+      "Role: Client Service Head",
+    );
+
+    expect(message.text).not.toContain(
+      "Assigned Tower: Select your working tower when signing in.",
+    );
+
+    expect(message.html).not.toContain(
+      "Select at sign-in",
+    );
+  });
+
   it("does not add a tower value to administrator account details", () => {
     const message =
       createStaffInvitationMessage({

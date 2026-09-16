@@ -7,6 +7,7 @@ const MAXIMUM_ACCESS_TOKEN_LENGTH = 8_192;
 
 const STAFF_ROLES = new Set([
   "receptionist",
+  "client_service_head",
   "admin",
 ]);
 

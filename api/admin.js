@@ -20,22 +20,60 @@ import {
   adminStaffUpdateSchema,
 } from "../src/validation/adminManagement.js";
 import {
+  adminVisitorCardCreationSchema,
+  adminVisitorCardInventorySchema,
+  adminVisitorCardTowerSchema,
+} from "../src/validation/visitorCards.js";
+import {
   createTemporaryPassword,
   createTemporaryPasswordExpiry,
   sendStaffInvitationEmail,
 } from "../src/server/staffInvitation.js";
 
 const OPERATION_BY_PATH = new Map([
+  [
+    "/api/admin/cards/assign-tower",
+    "card-tower-assign",
+  ],
+  [
+    "/api/admin/cards/create",
+    "card-create",
+  ],
+  [
+    "/api/admin/cards/inventory",
+    "card-inventory",
+  ],
   ["/api/admin/hosts/list", "host-list"],
   ["/api/admin/hosts/save", "host-save"],
-  ["/api/admin/staff/delete", "staff-delete"],
-  ["/api/admin/staff/invite", "staff-invite"],
-  ["/api/admin/staff/list", "staff-list"],
-  ["/api/admin/staff/reissue-password", "staff-password-reissue"],
-  ["/api/admin/staff/update", "staff-update"],
+  [
+    "/api/admin/staff/delete",
+    "staff-delete",
+  ],
+  [
+    "/api/admin/staff/invite",
+    "staff-invite",
+  ],
+  [
+    "/api/admin/staff/list",
+    "staff-list",
+  ],
+  [
+    "/api/admin/staff/reissue-password",
+    "staff-password-reissue",
+  ],
+  [
+    "/api/admin/staff/update",
+    "staff-update",
+  ],
 ]);
 
 const UNEXPECTED_ERROR_MESSAGES = {
+  "card-create":
+    "Visitor cards could not be added to the inventory. Please try again.",
+  "card-inventory":
+    "Visitor-card inventory could not be loaded. Please try again.",
+  "card-tower-assign":
+    "The visitor-card tower could not be updated. Please try again.",
   "host-list":
     "Host records could not be loaded. Please try again.",
   "host-save":
@@ -54,6 +92,20 @@ const UNEXPECTED_ERROR_MESSAGES = {
 
 export const ADMIN_WRITE_RATE_LIMITS =
   Object.freeze({
+        "card-create": Object.freeze({
+      limit: 20,
+      scope:
+        "admin-visitor-card-create",
+      windowSeconds: 60 * 60,
+    }),
+
+    "card-tower-assign": Object.freeze({
+      limit: 60,
+      scope:
+        "admin-visitor-card-tower-assign",
+      windowSeconds: 10 * 60,
+    }),
+
     "host-save": Object.freeze({
       limit: 60,
       scope: "admin-host-save",
@@ -223,6 +275,63 @@ function getProfileDatabaseError(error) {
 
   return new HttpError(
     "The staff invitation could not be completed. Please try again.",
+    500,
+  );
+}
+
+function getAdminVisitorCardDatabaseError(
+  operation,
+  error,
+) {
+  if (error?.code === "P0002") {
+    return new HttpError(
+      "The visitor card could not be found.",
+      404,
+    );
+  }
+
+  if (error?.code === "42501") {
+    return new HttpError(
+      "Super Administrator access is required.",
+      403,
+    );
+  }
+
+  if (error?.code === "55000") {
+    return new HttpError(
+      operation ===
+        "card-tower-assign"
+        ? "Only an available visitor card can be assigned to another tower."
+        : "The visitor-card operation conflicts with the current inventory state.",
+      409,
+    );
+  }
+
+  if (error?.code === "23505") {
+    return new HttpError(
+      "One or more of these visitor-card numbers already exist.",
+      409,
+    );
+  }
+
+  if (
+    error?.code === "22023" ||
+    error?.code === "22P02" ||
+    error?.code === "23514"
+  ) {
+    return new HttpError(
+      operation === "card-inventory"
+        ? "The visitor-card inventory filters are invalid."
+        : "The visitor-card information is invalid.",
+      400,
+    );
+  }
+
+  return new HttpError(
+    UNEXPECTED_ERROR_MESSAGES[
+      operation
+    ] ||
+      "The visitor-card administration request could not be completed. Please try again.",
     500,
   );
 }
@@ -1053,17 +1162,288 @@ async function handleStaffUpdate(request) {
   );
 }
 
+async function handleVisitorCardInventory(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardInventorySchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card inventory filters are invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "get_admin_visitor_card_inventory",
+      {
+        p_actor_id: profile.userId,
+        p_card_type:
+          parsed.data.cardType,
+        p_page: parsed.data.page,
+        p_page_size:
+          parsed.data.pageSize,
+        p_search: parsed.data.search,
+        p_status: parsed.data.status,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-inventory",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    !Array.isArray(data.cards) ||
+    !data.pagination ||
+    typeof data.pagination !==
+      "object" ||
+    !data.summary ||
+    typeof data.summary !==
+      "object" ||
+    !data.filters ||
+    typeof data.filters !==
+      "object"
+  ) {
+    throw new HttpError(
+      "Visitor-card inventory could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      cards: data.cards,
+      filters: data.filters,
+      pagination: data.pagination,
+      summary: data.summary,
+    },
+    200,
+  );
+}
+
+async function handleVisitorCardCreate(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "card-create",
+    profile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardCreationSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card information is invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "create_admin_visitor_cards",
+      {
+        p_actor_id: profile.userId,
+        p_card_type:
+          parsed.data.cardType,
+        p_end_number:
+          parsed.data.endNumber,
+        p_start_number:
+          parsed.data.startNumber,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-create",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    data.cardsCreated !== true ||
+    !Number.isInteger(
+      data.cardCount,
+    ) ||
+    data.cardCount < 1 ||
+    !Array.isArray(data.cards) ||
+    typeof data.cardType !==
+      "string" ||
+    typeof data.tower !== "string"
+  ) {
+    throw new HttpError(
+      "Visitor cards could not be added to the inventory. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      cardCount: data.cardCount,
+      cards: data.cards,
+      cardsCreated:
+        data.cardsCreated,
+      cardType: data.cardType,
+      tower: data.tower,
+    },
+    201,
+  );
+}
+
+async function handleVisitorCardTowerAssign(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "card-tower-assign",
+    profile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardTowerSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card tower assignment is invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "assign_admin_visitor_card_tower",
+      {
+        p_actor_id: profile.userId,
+        p_card_id:
+          parsed.data.cardId,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-tower-assign",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    data.towerAssigned !== true ||
+    typeof data.alreadyAssigned !==
+      "boolean" ||
+    typeof data.cardId !== "string" ||
+    typeof data.cardType !==
+      "string" ||
+    typeof data.cardNumber !==
+      "string" ||
+    typeof data.tower !== "string"
+  ) {
+    throw new HttpError(
+      "The visitor-card tower could not be updated. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      alreadyAssigned:
+        data.alreadyAssigned,
+      cardId: data.cardId,
+      cardNumber: data.cardNumber,
+      cardType: data.cardType,
+      previousTower:
+        data.previousTower || null,
+      tower: data.tower,
+      towerAssigned:
+        data.towerAssigned,
+    },
+    200,
+  );
+}
+
+
 const OPERATION_HANDLERS = new Map([
+  [
+    "card-create",
+    handleVisitorCardCreate,
+  ],
+  [
+    "card-inventory",
+    handleVisitorCardInventory,
+  ],
+  [
+    "card-tower-assign",
+    handleVisitorCardTowerAssign,
+  ],
   ["host-list", handleHostList],
   ["host-save", handleHostSave],
-  ["staff-delete", handleStaffDelete],
-  ["staff-invite", handleStaffInvite],
+  [
+    "staff-delete",
+    handleStaffDelete,
+  ],
+  [
+    "staff-invite",
+    handleStaffInvite,
+  ],
   ["staff-list", handleStaffList],
   [
     "staff-password-reissue",
     handleStaffPasswordReissue,
   ],
-  ["staff-update", handleStaffUpdate],
+  [
+    "staff-update",
+    handleStaffUpdate,
+  ],
 ]);
 
 export function createAdminHandler({

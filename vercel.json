@@ -68,6 +68,58 @@
       "source": "/api/admin/staff/update",
       "destination": "/api/admin?operation=staff-update"
     },
+        {
+      "source": "/api/admin/cards/inventory",
+      "destination": "/api/admin?operation=card-inventory"
+    },
+    {
+      "source": "/api/admin/cards/create",
+      "destination": "/api/admin?operation=card-create"
+    },
+    {
+      "source": "/api/admin/cards/assign-tower",
+      "destination": "/api/admin?operation=card-tower-assign"
+    },
+    {
+      "source": "/api/staff/cards/pending",
+      "destination": "/api/staff/checkout?operation=pending-list"
+    },
+    {
+      "source": "/api/staff/cards/search",
+      "destination": "/api/staff/checkout?operation=card-search"
+    },
+    {
+      "source": "/api/staff/cards/admit",
+      "destination": "/api/staff/checkout?operation=admission"
+    },
+    {
+      "source": "/api/staff/cards/cancel",
+      "destination": "/api/staff/checkout?operation=admission-cancel"
+    },
+    {
+      "source": "/api/staff/cards/checked-in",
+      "destination": "/api/staff/checkout?operation=checked-in-list"
+    },
+    {
+      "source": "/api/staff/cards/report-not-returned",
+      "destination": "/api/staff/checkout?operation=report-not-returned"
+    },
+    {
+      "source": "/api/staff/cards/incidents",
+      "destination": "/api/staff/checkout?operation=incident-list"
+    },
+    {
+      "source": "/api/staff/cards/incidents/start",
+      "destination": "/api/staff/checkout?operation=incident-start"
+    },
+    {
+      "source": "/api/staff/cards/incidents/resolve",
+      "destination": "/api/staff/checkout?operation=incident-resolve"
+    },
+    {
+      "source": "/api/staff/cards/reprint",
+      "destination": "/api/staff/checkout?operation=card-reprint"
+    },
     {
       "source": "/visit",
       "destination": "/index.html"

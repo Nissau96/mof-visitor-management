@@ -7,6 +7,7 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import useAuth from "./hooks/useAuth.js";
 
 const ProtectedRoute = lazy(() =>
   import("./components/ProtectedRoute.jsx"),
@@ -30,6 +31,12 @@ const AdminHostsPage = lazy(() =>
   import("./pages/AdminHostsPage.jsx"),
 );
 
+const AdminVisitorCardsPage = lazy(() =>
+  import(
+    "./pages/AdminVisitorCardsPage.jsx"
+  ),
+);
+
 const AdminStaffPage = lazy(() =>
   import("./pages/AdminStaffPage.jsx"),
 );
@@ -48,6 +55,12 @@ const ReturningVisitorPage = lazy(() =>
 
 const StaffHomePage = lazy(() =>
   import("./pages/StaffHomePage.jsx"),
+);
+
+const StaffVisitorCardsPage = lazy(() =>
+  import(
+    "./pages/StaffVisitorCardsPage.jsx"
+  ),
 );
 
 const StaffLoginPage = lazy(() =>
@@ -73,6 +86,24 @@ const StaffWeeklyQrPage = lazy(() =>
 const VisitorLandingPage = lazy(() =>
   import("./pages/VisitorLandingPage.jsx"),
 );
+
+function StaffIndexPage() {
+  const { profile } = useAuth();
+
+  if (
+    profile?.role ===
+      "client_service_head"
+  ) {
+    return (
+      <Navigate
+        replace
+        to="/staff/cards"
+      />
+    );
+  }
+
+  return <StaffHomePage />;
+}
 
 function RouteLoadingState() {
   return (
@@ -109,20 +140,40 @@ export default function App() {
           >
             <Route
               index
-              element={<StaffHomePage />}
+              element={<StaffIndexPage />}
             />
 
             <Route
               element={
-                <StaffVisitHistoryPage />
+                <StaffVisitorCardsPage />
               }
-              path="history"
+              path="cards"
             />
 
             <Route
-              element={<StaffWeeklyQrPage />}
-              path="weekly-qr"
-            />
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "receptionist",
+                    "admin",
+                  ]}
+                />
+              }
+            >
+              <Route
+                element={
+                  <StaffVisitHistoryPage />
+                }
+                path="history"
+              />
+
+              <Route
+                element={
+                  <StaffWeeklyQrPage />
+                }
+                path="weekly-qr"
+              />
+            </Route>
 
             <Route
               element={
@@ -134,6 +185,13 @@ export default function App() {
               <Route
                 element={<AdminHostsPage />}
                 path="admin/hosts"
+              />
+
+              <Route
+                element={
+                  <AdminVisitorCardsPage />
+                }
+                path="admin/cards"
               />
 
               <Route
