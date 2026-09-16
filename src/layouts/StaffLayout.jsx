@@ -1,4 +1,5 @@
 import {
+  Archive,
   Building2,
   CreditCard,
   ExternalLink,
@@ -148,6 +149,11 @@ export default function StaffLayout() {
 
           {profile?.role === "admin" ? (
             <>
+              <NavLink className={getNavigationClass} to="/staff/admin/cards">
+                <Archive aria-hidden="true" className="size-4" />
+                Card inventory
+              </NavLink>
+
               <NavLink className={getNavigationClass} to="/staff/admin/hosts">
                 <Building2 aria-hidden="true" className="size-4" />
                 Hosts

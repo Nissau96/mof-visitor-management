@@ -564,14 +564,18 @@ Completed capabilities include:
 - receptionist, Client Service Head and Super Administrator role boundaries;
 - a responsive staff visitor-card workspace with pending-admission, checked-in visitor and card-incident tabs;
 - assignment, checkout, not-returned reporting, investigation, resolution and replacement-registration modals;
-- focused unit tests for the visitor-card API client and consolidated staff API.
+- a responsive Super Administrator inventory workspace;
+- inventory summary counts for regular, VIP, tower and card-status totals;
+- inventory filtering by card number, visitor, reference, card type, tower and status;
+- controlled creation of additional regular or VIP card-number ranges;
+- issuing-tower reassignment restricted to available cards;
+- active assignment, incident and replacement-lineage visibility;
+- focused tests for the visitor-card API client, staff API and administration API.
 
 The visitor-card database migrations have been applied and verified only on the approved Preview Supabase project. Production has not been modified.
 
 Remaining Stage 16 work:
 
-- implement the administrator visitor-card inventory interface;
-- expose card creation and tower reassignment through that interface;
 - complete role-based manual smoke testing in Preview;
 - complete accessibility and responsive-layout verification;
 - deploy the finished Stage 16 application to Preview;
@@ -2390,6 +2394,7 @@ The application implementation includes:
 - a typed frontend API client;
 - a `/staff/cards` workspace;
 - role-aware navigation and routing;
+- a Super Administrator inventory interface for creating card ranges, reviewing inventory state and changing the issuing tower of available cards;
 - receptionist admission and checkout actions;
 - Client Service Head incident management;
 - Super Administrator access across operational and administrative workflows.
