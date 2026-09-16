@@ -84,7 +84,7 @@ The weekly QR code opens the visitor landing route and exchanges its short-lived
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 added administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination. Stage 12 added database privilege hardening, request-boundary protection, security headers, data retention controls, rate limiting and privacy notice version 2.0. Stage 13 added automated unit, component, browser, accessibility, responsive-layout and CI quality checks.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 added administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination. Stage 12 added database privilege hardening, request-boundary protection, security headers, data retention controls, rate limiting and privacy notice version 2.0. Stage 13 added automated unit, component, browser, accessibility, responsive-layout and CI quality checks. Stage 14 added controlled Vercel Preview and Production deployment environments. Stage 15 added Production-readiness controls, tower-aware visitor routing, weekly visitor QR access and temporary-password staff onboarding. Stage 16 added auditable regular and VIP visitor-card inventory, physical-card admission, return monitoring, incident investigation, replacement-card lineage and administrator inventory controls.
 
 ### Stage 1 completion checklist — completed
 
@@ -539,47 +539,45 @@ Full-launch blockers:
 - [ ] Complete Production reference-data preparation and final launch UAT
 - [ ] Generate and physically test the final Production visitor QR code
 
-### Stage 16 interim status — visitor-card controls
+### Stage 16 completion checklist — completed
 
-Stage 16 currently provides the database, API and staff-workspace foundations for controlled physical visitor-card operations.
+- [x] Authoritative regular and VIP visitor-card inventory added
+- [x] Regular identifiers `MOF-V001` through `MOF-V299` created
+- [x] VIP identifiers `MOF-VIP001` through `MOF-VIP050` created
+- [x] Initial regular-card tower allocation verified
+- [x] VIP cards initially assigned to Tower 2
+- [x] Administrator-controlled card-number expansion up to `999` added
+- [x] Card creation limited to 100 cards per request
+- [x] Administrator-controlled issuing-tower assignment added
+- [x] Tower changes restricted to available cards
+- [x] Physical-card assignment required before admission
+- [x] Available-card lookup by final three digits added
+- [x] Checked-in visitor and card-return processing added
+- [x] Automatic 24-hour overdue-card processing added
+- [x] Explicit not-returned reporting added
+- [x] Client Service Head role and permissions added
+- [x] Incident investigation and resolution workflows added
+- [x] Late-return, lost, damaged and unusable outcomes added
+- [x] Lost, damaged and unusable cards permanently deactivated
+- [x] Replacement-card lineage with `-R1`, `-R2` and later suffixes added
+- [x] Authenticated and rate-limited staff operations added
+- [x] Authenticated and rate-limited administration operations added
+- [x] Receptionist, Client Service Head and Super Administrator boundaries verified
+- [x] Responsive staff visitor-card workspace added
+- [x] Pending-admission, checked-in visitor and card-incident tabs added
+- [x] Assignment, checkout and not-returned reporting dialogs added
+- [x] Investigation, resolution and replacement-registration dialogs added
+- [x] Responsive Super Administrator inventory workspace added
+- [x] Inventory summary, search, filters and pagination added
+- [x] Active assignment, incident and replacement-lineage visibility added
+- [x] Focused API, validation and frontend-client tests passed
+- [x] ESLint and production build passed
+- [x] Preview database migrations and inventory verified
+- [x] Preview role-based smoke testing completed
+- [x] Preview responsive and accessibility inspection completed
+- [x] Feature branch pushed and synchronized with GitHub
 
-Completed capabilities include:
-
-- separate regular and VIP visitor-card inventories;
-- regular card identifiers from `MOF-V001` through `MOF-V299`;
-- VIP card identifiers from `MOF-VIP001` through `MOF-VIP050`;
-- Tower 2 as the initial issuing tower for VIP cards;
-- administrator-controlled creation of additional card numbers up to `999`;
-- administrator-controlled tower assignment for available cards;
-- mandatory physical-card assignment before visitor admission;
-- card lookup using the final three digits;
-- checked-in visitor and card-return processing;
-- automatic overdue-card processing after the 24-hour return deadline;
-- explicit reporting of cards that were not returned;
-- Client Service Head investigation and resolution workflows;
-- late-return, lost, damaged and unusable incident outcomes;
-- permanent deactivation of lost, damaged and unusable cards;
-- replacement-card lineage using suffixes such as `-R1` and `-R2`;
-- authenticated and rate-limited staff and administration API operations;
-- receptionist, Client Service Head and Super Administrator role boundaries;
-- a responsive staff visitor-card workspace with pending-admission, checked-in visitor and card-incident tabs;
-- assignment, checkout, not-returned reporting, investigation, resolution and replacement-registration modals;
-- a responsive Super Administrator inventory workspace;
-- inventory summary counts for regular, VIP, tower and card-status totals;
-- inventory filtering by card number, visitor, reference, card type, tower and status;
-- controlled creation of additional regular or VIP card-number ranges;
-- issuing-tower reassignment restricted to available cards;
-- active assignment, incident and replacement-lineage visibility;
-- focused tests for the visitor-card API client, staff API and administration API.
-
-The visitor-card database migrations have been applied and verified only on the approved Preview Supabase project. Production has not been modified.
-
-Remaining Stage 16 work:
-
-- complete role-based manual smoke testing in Preview;
-- complete accessibility and responsive-layout verification;
-- deploy the finished Stage 16 application to Preview;
-- promote to Production only after explicit approval.
+Stage 16 application development and Preview verification are complete. All visitor-card database migrations were applied only to the approved Preview Supabase project. Production has not been modified and requires a separate explicitly approved release process.
 
 ## Technology stack
 
@@ -1447,6 +1445,26 @@ git diff --check
 - All 102 Playwright browser tests passed
 - Lint, production build and `git diff --check` passed
 - Vercel public Function count remained at 11
+
+### Completed Stage 16 Preview checks
+
+- Preview migration history aligned with all seven visitor-card database migrations
+- Regular inventory verified from `MOF-V001` through `MOF-V299`
+- VIP inventory verified from `MOF-VIP001` through `MOF-VIP050`
+- VIP cards verified as initially assigned to Tower 2
+- Visitor-card identity columns and non-null constraints verified
+- Receptionist visitor-card admission and return workflows verified
+- Client Service Head incident workflow and all-tower access verified
+- Super Administrator operational and inventory access verified
+- Administrator inventory search, filters, summaries and pagination verified
+- Reversible issuing-tower reassignment verified
+- Unauthorised administration navigation and route access denied
+- Responsive staff and administration workspaces verified
+- Visitor-card API client, staff API and administration API checks passed
+- All 38 focused visitor-card tests passed
+- Authenticated rate-limit validation passed
+- ESLint, production build and `git diff --check` passed
+- Production database and Production deployment remained unchanged
 
 
 ## Deployment
@@ -2408,6 +2426,8 @@ The initial Preview inventory contains:
 | VIP | `MOF-VIP001`–`MOF-VIP050` | Tower 2 |
 
 Administrators can create additional regular or VIP card numbers up to `999`, in batches of no more than 100, and choose the issuing tower. Tower reassignment is restricted to available cards without active assignments or incidents.
+
+Stage 16 was validated in the approved Preview environment through automated checks and role-based manual smoke testing. Production was deliberately left unchanged pending pull-request review and explicit release approval.
 
 ## README update policy
 
