@@ -2,7 +2,7 @@ import {
   expect,
 } from "@playwright/test";
 
-const SYNTHETIC_STAFF_ID =
+export const SYNTHETIC_STAFF_ID =
   "00000000-0000-4000-8000-000000000020";
 
 export const SYNTHETIC_STAFF_EMAIL =
@@ -80,12 +80,19 @@ export async function installMockStaffAuthentication(
   page,
   {
     fullName = "Synthetic Receptionist",
+    passwordChangeRequired = false,
+    passwordSetupError = null,
     role = "receptionist",
+    temporaryPasswordExpiresAt = null,
   } = {},
 ) {
+  let currentPasswordChangeRequired =
+    passwordChangeRequired;
+
   const state = {
     credentialRequests: [],
     logoutRequests: 0,
+    passwordSetupRequests: [],
     sessionRequests: 0,
   };
 
@@ -178,25 +185,81 @@ export async function installMockStaffAuthentication(
     async (route) => {
       const request = route.request();
 
-      state.sessionRequests += 1;
-
-      expect(request.method()).toBe("GET");
-
       expect(
         request.headers().authorization,
       ).toBe(
         `Bearer ${SYNTHETIC_ACCESS_TOKEN}`,
       );
 
+      if (request.method() === "GET") {
+        state.sessionRequests += 1;
+
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            profile: {
+              fullName,
+              passwordChangeRequired:
+                currentPasswordChangeRequired,
+              role,
+              temporaryPasswordExpiresAt:
+                currentPasswordChangeRequired
+                  ? temporaryPasswordExpiresAt
+                  : null,
+            },
+          },
+          status: 200,
+        });
+
+        return;
+      }
+
+      if (request.method() === "PUT") {
+        const body =
+          request.postDataJSON();
+
+        state.passwordSetupRequests.push(
+          body,
+        );
+
+        if (passwordSetupError) {
+          await route.fulfill({
+            contentType:
+              "application/json",
+            json: {
+              error:
+                passwordSetupError.message,
+            },
+            status:
+              passwordSetupError.status,
+          });
+
+          return;
+        }
+
+        currentPasswordChangeRequired =
+          false;
+
+        await route.fulfill({
+          contentType:
+            "application/json",
+          json: {
+            passwordChanged: true,
+            requiresSignIn: true,
+          },
+          status: 200,
+        });
+
+        return;
+      }
+
       await route.fulfill({
         contentType: "application/json",
         json: {
-          profile: {
-            fullName,
-            role,
-          },
+          error:
+            "Unexpected staff-session method.",
         },
-        status: 200,
+        status: 405,
       });
     },
   );
@@ -209,7 +272,10 @@ export async function signInAsStaff(
   {
     destination = "/staff",
     email = SYNTHETIC_STAFF_EMAIL,
+    expectedDestination =
+      destination,
     password = SYNTHETIC_STAFF_PASSWORD,
+    tower = "tower_1",
   } = {},
 ) {
   await page.goto(destination);
@@ -231,8 +297,13 @@ export async function signInAsStaff(
     .fill(password);
 
   await page
+    .getByLabel("Assigned Tower")
+    .selectOption(tower);
+
+  await page
     .getByRole("button", {
-      name: "Sign in securely",
+      name: "Sign in",
+      exact: true,
     })
     .click();
 
@@ -242,5 +313,5 @@ export async function signInAsStaff(
 
       return `${url.pathname}${url.search}`;
     })
-    .toBe(destination);
+    .toBe(expectedDestination);
 }

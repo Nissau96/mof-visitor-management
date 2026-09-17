@@ -13,12 +13,33 @@ import {
   MOF_DIVISIONS,
 } from "../src/constants/visitorOptions.js";
 import {
+  createWeeklyQrCookie,
+  createWeeklyQrToken,
+} from "../src/server/weeklyQrAccess.js";
+import {
   normalizePhone,
   visitorRegistrationSchema,
 } from "../src/validation/visitorRegistration.js";
 
 const TEST_MEETING_ID =
   "00000000-0000-4000-8000-000000000001";
+
+const TEST_WEEKLY_QR_SECRET =
+  "invented-weekly-qr-secret-for-validation-only-2026";
+
+process.env.WEEKLY_QR_SECRET =
+  TEST_WEEKLY_QR_SECRET;
+
+const weeklyAccessToken =
+  createWeeklyQrToken().token;
+
+const weeklyAccessCookie =
+  createWeeklyQrCookie(
+    new Request(
+      "http://localhost/api/register",
+    ),
+    weeklyAccessToken,
+  ).split(";")[0];
 
 assert.equal(
   normalizePhone("024 000 0000"),
@@ -264,16 +285,46 @@ assert.deepEqual(REGISTRATION_RATE_LIMIT, {
 
 const rejectedRegistrationMethod =
   await registerHandler.fetch(
-    new Request("http://localhost/api/register", {
-      method: "GET",
-    }),
+    new Request(
+      "http://localhost/api/register",
+      {
+        method: "PATCH",
+      },
+    ),
   );
 
-assert.equal(rejectedRegistrationMethod.status, 405);
+assert.equal(
+  rejectedRegistrationMethod.status,
+  405,
+);
 
 assert.equal(
-  rejectedRegistrationMethod.headers.get("allow"),
-  "POST",
+  rejectedRegistrationMethod.headers.get(
+    "allow",
+  ),
+  "GET, POST, PUT, DELETE",
+);
+
+const missingWeeklyAccess =
+  await registerHandler.fetch(
+    new Request(
+      "http://localhost/api/register",
+      {
+        method: "GET",
+      },
+    ),
+  );
+
+assert.equal(
+  missingWeeklyAccess.status,
+  401,
+);
+
+assert.equal(
+  missingWeeklyAccess.headers.get(
+    "cache-control",
+  ),
+  "no-store",
 );
 
 const rejectedMeetingsMethod =
@@ -310,13 +361,18 @@ const validationRegisterHandler = createRegisterHandler({
 
 const invalidBodyResponse =
   await validationRegisterHandler.fetch(
-    new Request("http://localhost/api/register", {
-      body: JSON.stringify({}),
-      headers: {
-        "Content-Type": "application/json",
+    new Request(
+      "http://localhost/api/register",
+      {
+        body: JSON.stringify({}),
+        headers: {
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
+        },
+        method: "POST",
       },
-      method: "POST",
-    }),
+    ),
   );
 
 assert.equal(invalidBodyResponse.status, 400);
@@ -345,13 +401,18 @@ const rateLimitedRegisterHandler = createRegisterHandler({
 
 const rateLimitedResponse =
   await rateLimitedRegisterHandler.fetch(
-    new Request("http://localhost/api/register", {
-      body: JSON.stringify({}),
-      headers: {
-        "Content-Type": "application/json",
+    new Request(
+      "http://localhost/api/register",
+      {
+        body: JSON.stringify({}),
+        headers: {
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
+        },
+        method: "POST",
       },
-      method: "POST",
-    }),
+    ),
   );
 
 assert.deepEqual(

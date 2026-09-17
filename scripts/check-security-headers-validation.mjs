@@ -35,23 +35,121 @@ const EXPECTED_PERMISSIONS_POLICY =
 const EXPECTED_REWRITES = [
   {
     source: "/api/admin/hosts/list",
-    destination: "/api/admin?operation=host-list",
+    destination:
+      "/api/admin?operation=host-list",
   },
   {
     source: "/api/admin/hosts/save",
-    destination: "/api/admin?operation=host-save",
+    destination:
+      "/api/admin?operation=host-save",
   },
   {
-    source: "/api/admin/staff/invite",
-    destination: "/api/admin?operation=staff-invite",
+    source:
+      "/api/admin/staff/delete",
+    destination:
+      "/api/admin?operation=staff-delete",
   },
   {
-    source: "/api/admin/staff/list",
-    destination: "/api/admin?operation=staff-list",
+    source:
+      "/api/admin/staff/invite",
+    destination:
+      "/api/admin?operation=staff-invite",
   },
   {
-    source: "/api/admin/staff/update",
-    destination: "/api/admin?operation=staff-update",
+    source:
+      "/api/admin/staff/list",
+    destination:
+      "/api/admin?operation=staff-list",
+  },
+  {
+    source:
+      "/api/admin/staff/reissue-password",
+    destination:
+      "/api/admin?operation=staff-password-reissue",
+  },
+  {
+    source:
+      "/api/admin/staff/update",
+    destination:
+      "/api/admin?operation=staff-update",
+  },
+    {
+    source:
+      "/api/admin/cards/inventory",
+    destination:
+      "/api/admin?operation=card-inventory",
+  },
+  {
+    source:
+      "/api/admin/cards/create",
+    destination:
+      "/api/admin?operation=card-create",
+  },
+  {
+    source:
+      "/api/admin/cards/assign-tower",
+    destination:
+      "/api/admin?operation=card-tower-assign",
+  },
+  {
+    source:
+      "/api/staff/cards/pending",
+    destination:
+      "/api/staff/checkout?operation=pending-list",
+  },
+  {
+    source:
+      "/api/staff/cards/search",
+    destination:
+      "/api/staff/checkout?operation=card-search",
+  },
+  {
+    source:
+      "/api/staff/cards/admit",
+    destination:
+      "/api/staff/checkout?operation=admission",
+  },
+  {
+    source:
+      "/api/staff/cards/cancel",
+    destination:
+      "/api/staff/checkout?operation=admission-cancel",
+  },
+  {
+    source:
+      "/api/staff/cards/checked-in",
+    destination:
+      "/api/staff/checkout?operation=checked-in-list",
+  },
+  {
+    source:
+      "/api/staff/cards/report-not-returned",
+    destination:
+      "/api/staff/checkout?operation=report-not-returned",
+  },
+  {
+    source:
+      "/api/staff/cards/incidents",
+    destination:
+      "/api/staff/checkout?operation=incident-list",
+  },
+  {
+    source:
+      "/api/staff/cards/incidents/start",
+    destination:
+      "/api/staff/checkout?operation=incident-start",
+  },
+  {
+    source:
+      "/api/staff/cards/incidents/resolve",
+    destination:
+      "/api/staff/checkout?operation=incident-resolve",
+  },
+  {
+    source:
+      "/api/staff/cards/reprint",
+    destination:
+      "/api/staff/checkout?operation=card-reprint",
   },
   {
     source: "/visit",
@@ -79,10 +177,15 @@ const EXPECTED_REWRITES = [
   },
 ];
 
-function getSingleHeaderRule(configuration, source) {
-  const matches = configuration.headers.filter(
-    (rule) => rule.source === source,
-  );
+function getSingleHeaderRule(
+  configuration,
+  source,
+) {
+  const matches =
+    configuration.headers.filter(
+      (rule) =>
+        rule.source === source,
+    );
 
   assert.equal(
     matches.length,
@@ -95,10 +198,12 @@ function getSingleHeaderRule(configuration, source) {
 
 function createHeaderMap(rule) {
   const headers = new Map(
-    rule.headers.map(({ key, value }) => [
-      key.toLowerCase(),
-      value,
-    ]),
+    rule.headers.map(
+      ({ key, value }) => [
+        key.toLowerCase(),
+        value,
+      ],
+    ),
   );
 
   assert.equal(
@@ -114,9 +219,12 @@ async function countVercelFunctions(
   directoryUrl,
   isApiRoot = true,
 ) {
-  const entries = await readdir(directoryUrl, {
-    withFileTypes: true,
-  });
+  const entries = await readdir(
+    directoryUrl,
+    {
+      withFileTypes: true,
+    },
+  );
 
   let count = 0;
 
@@ -130,20 +238,28 @@ async function countVercelFunctions(
     }
 
     const entryUrl = new URL(
-      `${entry.name}${entry.isDirectory() ? "/" : ""}`,
+      `${entry.name}${
+        entry.isDirectory()
+          ? "/"
+          : ""
+      }`,
       directoryUrl,
     );
 
     if (entry.isDirectory()) {
-      count += await countVercelFunctions(
-        entryUrl,
-        false,
-      );
+      count +=
+        await countVercelFunctions(
+          entryUrl,
+          false,
+        );
 
       continue;
     }
 
-    if (entry.isFile() && entry.name.endsWith(".js")) {
+    if (
+      entry.isFile() &&
+      entry.name.endsWith(".js")
+    ) {
       count += 1;
     }
   }
@@ -151,15 +267,21 @@ async function countVercelFunctions(
   return count;
 }
 
-const vercelConfiguration = JSON.parse(
-  await readFile(
-    new URL("../vercel.json", import.meta.url),
-    "utf8",
-  ),
-);
+const vercelConfiguration =
+  JSON.parse(
+    await readFile(
+      new URL(
+        "../vercel.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
 
 assert.ok(
-  Array.isArray(vercelConfiguration.headers),
+  Array.isArray(
+    vercelConfiguration.headers,
+  ),
   "vercel.json must contain header rules.",
 );
 
@@ -169,57 +291,80 @@ assert.deepEqual(
   "Existing Vercel rewrites must remain unchanged.",
 );
 
-const globalHeaderRule = getSingleHeaderRule(
-  vercelConfiguration,
-  "/(.*)",
-);
+const globalHeaderRule =
+  getSingleHeaderRule(
+    vercelConfiguration,
+    "/(.*)",
+  );
 
-const apiHeaderRule = getSingleHeaderRule(
-  vercelConfiguration,
-  "/api/(.*)",
-);
+const apiHeaderRule =
+  getSingleHeaderRule(
+    vercelConfiguration,
+    "/api/(.*)",
+  );
 
-const globalHeaders = createHeaderMap(globalHeaderRule);
-const apiHeaders = createHeaderMap(apiHeaderRule);
+const globalHeaders =
+  createHeaderMap(
+    globalHeaderRule,
+  );
+
+const apiHeaders =
+  createHeaderMap(apiHeaderRule);
 
 assert.equal(
-  globalHeaders.get("content-security-policy"),
+  globalHeaders.get(
+    "content-security-policy",
+  ),
   EXPECTED_CONTENT_SECURITY_POLICY,
 );
 
 assert.equal(
-  globalHeaders.get("strict-transport-security"),
+  globalHeaders.get(
+    "strict-transport-security",
+  ),
   "max-age=31536000",
 );
 
 assert.equal(
-  globalHeaders.get("x-content-type-options"),
+  globalHeaders.get(
+    "x-content-type-options",
+  ),
   "nosniff",
 );
 
 assert.equal(
-  globalHeaders.get("referrer-policy"),
+  globalHeaders.get(
+    "referrer-policy",
+  ),
   "no-referrer",
 );
 
 assert.equal(
-  globalHeaders.get("permissions-policy"),
+  globalHeaders.get(
+    "permissions-policy",
+  ),
   EXPECTED_PERMISSIONS_POLICY,
 );
 
 assert.equal(
-  globalHeaders.get("x-frame-options"),
+  globalHeaders.get(
+    "x-frame-options",
+  ),
   "DENY",
 );
 
 assert.equal(
-  globalHeaders.has("cache-control"),
+  globalHeaders.has(
+    "cache-control",
+  ),
   false,
   "Static assets must not receive global no-store.",
 );
 
 assert.equal(
-  apiHeaders.get("cache-control"),
+  apiHeaders.get(
+    "cache-control",
+  ),
   "no-store",
 );
 
@@ -252,33 +397,44 @@ const apiJsonResponse = json(
 );
 
 assert.equal(
-  apiJsonResponse.headers.get("cache-control"),
+  apiJsonResponse.headers.get(
+    "cache-control",
+  ),
   "no-store",
 );
 
-const throttledJsonResponse = json(
-  {
-    error: "Too many requests.",
-  },
-  429,
-  {
-    "Retry-After": "600",
-  },
-);
+const throttledJsonResponse =
+  json(
+    {
+      error:
+        "Too many requests.",
+    },
+    429,
+    {
+      "Retry-After": "600",
+    },
+  );
 
 assert.equal(
-  throttledJsonResponse.headers.get("cache-control"),
+  throttledJsonResponse.headers.get(
+    "cache-control",
+  ),
   "no-store",
 );
 
 assert.equal(
-  throttledJsonResponse.headers.get("retry-after"),
+  throttledJsonResponse.headers.get(
+    "retry-after",
+  ),
   "600",
 );
 
 const vercelFunctionCount =
   await countVercelFunctions(
-    new URL("../api/", import.meta.url),
+    new URL(
+      "../api/",
+      import.meta.url,
+    ),
   );
 
 assert.equal(

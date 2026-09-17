@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VISIT_TOWER_VALUES } from "../constants/visitorOptions.js";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -8,6 +9,17 @@ const visitStatusSchema = z.enum([
   "checked_out",
   "cancelled",
 ]);
+
+const towerSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) =>
+      value === "" ||
+      VISIT_TOWER_VALUES.includes(value),
+    "Select a valid tower.",
+  )
+  .default("");
 
 function isValidDateString(value) {
   if (!DATE_PATTERN.test(value)) {
@@ -30,8 +42,13 @@ function isValidDateString(value) {
 }
 
 function getDayDifference(start, end) {
-  const startTime = Date.parse(`${start}T00:00:00Z`);
-  const endTime = Date.parse(`${end}T00:00:00Z`);
+  const startTime = Date.parse(
+    `${start}T00:00:00Z`,
+  );
+
+  const endTime = Date.parse(
+    `${end}T00:00:00Z`,
+  );
 
   return Math.floor(
     (endTime - startTime) / 86_400_000,
@@ -53,10 +70,14 @@ const optionalDateSchema = z
 
 export const staffVisitCheckoutSchema = z
   .object({
+    tower: towerSchema,
+
     visitId: z
       .string()
       .trim()
-      .uuid("A valid visit identifier is required."),
+      .uuid(
+        "A valid visit identifier is required.",
+      ),
   })
   .strict();
 
@@ -108,6 +129,8 @@ export const visitHistorySchema = z
       .default(""),
 
     status: visitStatusSchema.default(""),
+
+    tower: towerSchema,
   })
   .strict()
   .superRefine((values, context) => {

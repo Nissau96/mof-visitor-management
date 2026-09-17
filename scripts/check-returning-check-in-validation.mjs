@@ -13,10 +13,28 @@ import {
   CUSTOM_MEETING_OPTION,
   MINISTRY_OF_FINANCE_AGENCY,
 } from "../src/constants/visitorOptions.js";
+import {
+  createWeeklyQrCookie,
+  createWeeklyQrToken,
+} from "../src/server/weeklyQrAccess.js";
 import { returningVisitCheckInSchema } from "../src/validation/returningVisit.js";
 
 process.env.VISITOR_LOOKUP_SECRET =
   "stage-seven-test-secret-that-is-longer-than-thirty-two-bytes";
+
+process.env.WEEKLY_QR_SECRET =
+  "invented-weekly-qr-secret-for-validation-only-2026";
+
+const weeklyAccessToken =
+  createWeeklyQrToken().token;
+
+const weeklyAccessCookie =
+  createWeeklyQrCookie(
+    new Request(
+      "http://localhost/api/register",
+    ),
+    weeklyAccessToken,
+  ).split(";")[0];
 
 const visitorId =
   "00000000-0000-4000-8000-000000000007";
@@ -157,7 +175,9 @@ const invalidBodyResponse =
       {
         body: JSON.stringify({}),
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
         },
         method: "POST",
       },
@@ -240,7 +260,9 @@ const successfulCheckInResponse =
           validNonMeetingInput,
         ),
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
         },
         method: "POST",
       },

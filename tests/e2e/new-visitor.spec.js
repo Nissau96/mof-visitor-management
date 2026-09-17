@@ -5,6 +5,9 @@ import {
 import {
   expectNoWcagViolations,
 } from "./support/accessibility.js";
+import {
+  installMockVisitorAccess,
+} from "./support/visitor-access.js";
 
 const MEETING_ID =
   "00000000-0000-4000-8000-000000000013";
@@ -25,6 +28,8 @@ async function fulfillJson(
 }
 
 async function openRegistration(page) {
+  await installMockVisitorAccess(page);
+
   await page.goto("/visit/new");
 
   await expect(

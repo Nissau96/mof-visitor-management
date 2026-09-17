@@ -15,6 +15,7 @@ import {
 } from "../_lib/visitorLookup.js";
 import { PRIVACY_NOTICE_VERSION } from "../../src/constants/privacy.js";
 import { CUSTOM_MEETING_OPTION } from "../../src/constants/visitorOptions.js";
+import { readWeeklyQrAccess } from "../../src/server/weeklyQrAccess.js";
 import { returningVisitCheckInSchema } from "../../src/validation/returningVisit.js";
 
 const CHECK_IN_RATE_LIMIT = {
@@ -45,6 +46,8 @@ export function createReturningCheckInHandler({
       }
 
       try {
+        readWeeklyQrAccess(request);
+
         const requestBody = await readJsonBody(request);
 
         const parsed =

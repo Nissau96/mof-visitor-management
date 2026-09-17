@@ -15,6 +15,7 @@ import {
   createVerifiedVisitorToken,
   readVisitorToken,
 } from "../_lib/visitorLookup.js";
+import { readWeeklyQrAccess } from "../../src/server/weeklyQrAccess.js";
 import { returningVisitorVerificationSchema } from "../../src/validation/returningVisitor.js";
 
 const GLOBAL_VERIFICATION_RATE_LIMIT = {
@@ -49,6 +50,8 @@ export default {
     }
 
     try {
+      readWeeklyQrAccess(request);
+
       const requestBody = await readJsonBody(request);
 
       const parsed =

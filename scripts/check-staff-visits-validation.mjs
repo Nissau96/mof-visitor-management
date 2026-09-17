@@ -28,6 +28,7 @@ async function readResponse(response) {
 function verifyCheckoutValidation() {
   const validResult =
     staffVisitCheckoutSchema.safeParse({
+      tower: "tower_1",
       visitId: TEST_VISIT_ID,
     });
 
@@ -36,10 +37,36 @@ function verifyCheckoutValidation() {
     validResult.data.visitId,
     TEST_VISIT_ID,
   );
+  assert.equal(
+    validResult.data.tower,
+    "tower_1",
+  );
+
+  const allTowerResult =
+    staffVisitCheckoutSchema.safeParse({
+      visitId: TEST_VISIT_ID,
+    });
+
+  assert.equal(
+    allTowerResult.success,
+    true,
+  );
+  assert.equal(
+    allTowerResult.data.tower,
+    "",
+  );
 
   assert.equal(
     staffVisitCheckoutSchema.safeParse({
       visitId: "not-a-uuid",
+    }).success,
+    false,
+  );
+
+  assert.equal(
+    staffVisitCheckoutSchema.safeParse({
+      tower: "tower_3",
+      visitId: TEST_VISIT_ID,
     }).success,
     false,
   );
@@ -73,6 +100,7 @@ function verifyHistoryValidation() {
     pageSize: 10,
     search: "",
     status: "",
+    tower: "",
   });
 
   const validResult =
@@ -85,6 +113,7 @@ function verifyHistoryValidation() {
       pageSize: 10,
       search: "VIS-123456",
       status: "checked_out",
+      tower: "tower_2",
     });
 
   assert.equal(validResult.success, true);
@@ -92,6 +121,10 @@ function verifyHistoryValidation() {
   assert.equal(
     validResult.data.status,
     "checked_out",
+  );
+  assert.equal(
+    validResult.data.tower,
+    "tower_2",
   );
 
   assert.equal(
@@ -111,6 +144,13 @@ function verifyHistoryValidation() {
   assert.equal(
     visitHistorySchema.safeParse({
       status: "unknown",
+    }).success,
+    false,
+  );
+
+  assert.equal(
+    visitHistorySchema.safeParse({
+      tower: "tower_3",
     }).success,
     false,
   );

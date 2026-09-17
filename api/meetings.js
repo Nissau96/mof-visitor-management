@@ -4,9 +4,11 @@ import {
 } from "./_lib/rateLimit.js";
 import { getAdminClient } from "./_lib/supabase.js";
 import {
+  HttpError,
   json,
   methodNotAllowed,
 } from "./_lib/http.js";
+import { readWeeklyQrAccess } from "../src/server/weeklyQrAccess.js";
 
 export const MEETING_DIRECTORY_RATE_LIMIT =
   Object.freeze({
@@ -26,6 +28,8 @@ export function createMeetingsHandler({
       }
 
       try {
+        readWeeklyQrAccess(request);
+
         await enforceRateLimitForRequest(
           request,
           MEETING_DIRECTORY_RATE_LIMIT,
@@ -75,6 +79,15 @@ export function createMeetingsHandler({
                 error.retryAfterSeconds,
               ),
             },
+          );
+        }
+
+        if (error instanceof HttpError) {
+          return json(
+            {
+              error: error.message,
+            },
+            error.status,
           );
         }
 

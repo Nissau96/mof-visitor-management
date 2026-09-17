@@ -1,4 +1,3 @@
-import process from "node:process";
 import { requireActiveStaff } from "./_lib/staffAuth.js";
 import {
   RateLimitExceededError,
@@ -14,43 +13,120 @@ import { getAdminClient } from "./_lib/supabase.js";
 import {
   adminHostListSchema,
   adminHostSaveSchema,
+  adminStaffDeleteSchema,
   adminStaffInviteSchema,
   adminStaffListSchema,
+  adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
 } from "../src/validation/adminManagement.js";
+import {
+  adminVisitorCardCreationSchema,
+  adminVisitorCardInventorySchema,
+  adminVisitorCardTowerSchema,
+} from "../src/validation/visitorCards.js";
+import {
+  createTemporaryPassword,
+  createTemporaryPasswordExpiry,
+  sendStaffInvitationEmail,
+} from "../src/server/staffInvitation.js";
 
 const OPERATION_BY_PATH = new Map([
+  [
+    "/api/admin/cards/assign-tower",
+    "card-tower-assign",
+  ],
+  [
+    "/api/admin/cards/create",
+    "card-create",
+  ],
+  [
+    "/api/admin/cards/inventory",
+    "card-inventory",
+  ],
   ["/api/admin/hosts/list", "host-list"],
   ["/api/admin/hosts/save", "host-save"],
-  ["/api/admin/staff/invite", "staff-invite"],
-  ["/api/admin/staff/list", "staff-list"],
-  ["/api/admin/staff/update", "staff-update"],
+  [
+    "/api/admin/staff/delete",
+    "staff-delete",
+  ],
+  [
+    "/api/admin/staff/invite",
+    "staff-invite",
+  ],
+  [
+    "/api/admin/staff/list",
+    "staff-list",
+  ],
+  [
+    "/api/admin/staff/reissue-password",
+    "staff-password-reissue",
+  ],
+  [
+    "/api/admin/staff/update",
+    "staff-update",
+  ],
 ]);
 
 const UNEXPECTED_ERROR_MESSAGES = {
+  "card-create":
+    "Visitor cards could not be added to the inventory. Please try again.",
+  "card-inventory":
+    "Visitor-card inventory could not be loaded. Please try again.",
+  "card-tower-assign":
+    "The visitor-card tower could not be updated. Please try again.",
   "host-list":
     "Host records could not be loaded. Please try again.",
   "host-save":
     "The host record could not be saved. Please try again.",
+  "staff-delete":
+    "The staff account could not be deleted. Please try again.",
   "staff-invite":
     "The staff invitation could not be completed. Please try again.",
   "staff-list":
     "Staff records could not be loaded. Please try again.",
+  "staff-password-reissue":
+    "The temporary password could not be reissued. Please try again.",
   "staff-update":
     "The staff profile could not be updated. Please try again.",
 };
 
 export const ADMIN_WRITE_RATE_LIMITS =
   Object.freeze({
+        "card-create": Object.freeze({
+      limit: 20,
+      scope:
+        "admin-visitor-card-create",
+      windowSeconds: 60 * 60,
+    }),
+
+    "card-tower-assign": Object.freeze({
+      limit: 60,
+      scope:
+        "admin-visitor-card-tower-assign",
+      windowSeconds: 10 * 60,
+    }),
+
     "host-save": Object.freeze({
       limit: 60,
       scope: "admin-host-save",
       windowSeconds: 10 * 60,
     }),
 
+    "staff-delete": Object.freeze({
+      limit: 10,
+      scope: "admin-staff-delete",
+      windowSeconds: 60 * 60,
+    }),
+
     "staff-invite": Object.freeze({
       limit: 20,
       scope: "admin-staff-invite",
+      windowSeconds: 60 * 60,
+    }),
+
+    "staff-password-reissue": Object.freeze({
+      limit: 10,
+      scope: "admin-staff-password-reissue",
       windowSeconds: 60 * 60,
     }),
 
@@ -203,49 +279,61 @@ function getProfileDatabaseError(error) {
   );
 }
 
-function getInviteRedirectUrl() {
-  const configuredUrl =
-    process.env.STAFF_INVITE_REDIRECT_URL;
-
-  if (!configuredUrl) {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
+function getAdminVisitorCardDatabaseError(
+  operation,
+  error,
+) {
+  if (error?.code === "P0002") {
+    return new HttpError(
+      "The visitor card could not be found.",
+      404,
     );
   }
 
-  let redirectUrl;
-
-  try {
-    redirectUrl = new URL(configuredUrl);
-  } catch {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
+  if (error?.code === "42501") {
+    return new HttpError(
+      "Super Administrator access is required.",
+      403,
     );
   }
 
-  const localDevelopment =
-    redirectUrl.protocol === "http:" &&
-    (redirectUrl.hostname === "localhost" ||
-      redirectUrl.hostname === "127.0.0.1");
+  if (error?.code === "55000") {
+    return new HttpError(
+      operation ===
+        "card-tower-assign"
+        ? "Only an available visitor card can be assigned to another tower."
+        : "The visitor-card operation conflicts with the current inventory state.",
+      409,
+    );
+  }
+
+  if (error?.code === "23505") {
+    return new HttpError(
+      "One or more of these visitor-card numbers already exist.",
+      409,
+    );
+  }
 
   if (
-    (redirectUrl.protocol !== "https:" &&
-      !localDevelopment) ||
-    redirectUrl.username ||
-    redirectUrl.password ||
-    redirectUrl.search ||
-    redirectUrl.hash ||
-    redirectUrl.pathname !== "/staff/setup"
+    error?.code === "22023" ||
+    error?.code === "22P02" ||
+    error?.code === "23514"
   ) {
-    throw new HttpError(
-      "Staff invitation is not configured.",
-      500,
+    return new HttpError(
+      operation === "card-inventory"
+        ? "The visitor-card inventory filters are invalid."
+        : "The visitor-card information is invalid.",
+      400,
     );
   }
 
-  return redirectUrl.toString();
+  return new HttpError(
+    UNEXPECTED_ERROR_MESSAGES[
+      operation
+    ] ||
+      "The visitor-card administration request could not be completed. Please try again.",
+    500,
+  );
 }
 
 function isExistingUserError(error) {
@@ -256,6 +344,94 @@ function isExistingUserError(error) {
       error?.message || "",
     )
   );
+}
+
+async function rollbackCreatedStaffAccount(
+  adminClient,
+  userId,
+  failureMessage,
+) {
+  const { error } =
+    await adminClient.auth.admin
+      .deleteUser(userId);
+
+  if (error) {
+    throw new HttpError(
+      failureMessage,
+      500,
+    );
+  }
+}
+
+async function getStaffAccountTarget(
+  adminClient,
+  userId,
+) {
+  const {
+    data: staffProfile,
+    error: profileError,
+  } = await adminClient
+    .from("staff_profiles")
+    .select(
+      "user_id, full_name, role, active, password_change_required",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new HttpError(
+      "The staff account could not be verified. Please try again.",
+      500,
+    );
+  }
+
+  if (
+    !staffProfile?.user_id ||
+    !staffProfile?.full_name ||
+    !staffProfile?.role
+  ) {
+    throw new HttpError(
+      "The staff profile could not be found.",
+      404,
+    );
+  }
+
+  const {
+    data: accountData,
+    error: accountError,
+  } = await adminClient.auth.admin
+    .getUserById(userId);
+
+  const email = String(
+    accountData?.user?.email || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    accountError ||
+    accountData?.user?.id !== userId ||
+    !email
+  ) {
+    throw new HttpError(
+      "The staff Auth account could not be verified. Please try again.",
+      500,
+    );
+  }
+
+  return {
+    active:
+      staffProfile.active === true,
+    email,
+    fullName:
+      staffProfile.full_name,
+    passwordChangeRequired:
+      staffProfile
+        .password_change_required ===
+      true,
+    role: staffProfile.role,
+    userId: staffProfile.user_id,
+  };
 }
 
 async function handleHostList(request) {
@@ -439,16 +615,19 @@ async function handleStaffInvite(request) {
       ["admin"],
     );
 
-    await enforceAdminWriteRateLimit(
-  request,
-  "staff-invite",
-  profile.userId,
-);
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-invite",
+    profile.userId,
+  );
 
-  const body = await readJsonBody(request);
+  const body =
+    await readJsonBody(request);
 
   const parsed =
-    adminStaffInviteSchema.safeParse(body);
+    adminStaffInviteSchema.safeParse(
+      body,
+    );
 
   if (!parsed.success) {
     throw new HttpError(
@@ -457,31 +636,37 @@ async function handleStaffInvite(request) {
     );
   }
 
-  const redirectTo = getInviteRedirectUrl();
-  const adminClient = getAdminClient();
+  const adminClient =
+    getAdminClient();
+
+  const temporaryPassword =
+    createTemporaryPassword();
+
+  const temporaryPasswordExpiresAt =
+    createTemporaryPasswordExpiry();
 
   const {
-    data: invitationData,
-    error: invitationError,
+    data: accountData,
+    error: accountError,
   } =
     await adminClient.auth.admin
-      .inviteUserByEmail(
-        parsed.data.email,
-        {
-          data: {
-            full_name: parsed.data.fullName,
-          },
-          redirectTo,
+      .createUser({
+        email: parsed.data.email,
+        email_confirm: true,
+        password: temporaryPassword,
+        user_metadata: {
+          full_name:
+            parsed.data.fullName,
         },
-      );
+      });
 
   if (
-    invitationError ||
-    !invitationData?.user?.id
+    accountError ||
+    !accountData?.user?.id
   ) {
     if (
       isExistingUserError(
-        invitationError,
+        accountError,
       )
     ) {
       throw new HttpError(
@@ -491,13 +676,13 @@ async function handleStaffInvite(request) {
     }
 
     throw new HttpError(
-      "The invitation email could not be sent. Please try again.",
+      "The staff account could not be created. Please try again.",
       502,
     );
   }
 
-  const invitedUserId =
-    invitationData.user.id;
+  const createdUserId =
+    accountData.user.id;
 
   const {
     data: staffProfile,
@@ -506,23 +691,19 @@ async function handleStaffInvite(request) {
     "create_invited_staff_profile",
     {
       p_actor_id: profile.userId,
-      p_full_name: parsed.data.fullName,
+      p_full_name:
+        parsed.data.fullName,
       p_role: parsed.data.role,
-      p_user_id: invitedUserId,
+      p_user_id: createdUserId,
     },
   );
 
   if (profileError) {
-    const { error: rollbackError } =
-      await adminClient.auth.admin
-        .deleteUser(invitedUserId);
-
-    if (rollbackError) {
-      throw new HttpError(
-        "The invitation was sent, but staff authorisation could not be completed. Deactivate the invited account in Supabase before retrying.",
-        500,
-      );
-    }
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but staff authorisation could not be completed. Remove the account in Supabase before retrying.",
+    );
 
     throw getProfileDatabaseError(
       profileError,
@@ -530,14 +711,81 @@ async function handleStaffInvite(request) {
   }
 
   if (
-    !staffProfile?.userId ||
+    staffProfile?.userId !==
+      createdUserId ||
     !staffProfile?.email ||
     !staffProfile?.fullName ||
     !staffProfile?.role
   ) {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but the staff-profile response could not be verified. Remove the account in Supabase before retrying.",
+    );
+
     throw new HttpError(
-      "The staff invitation could not be completed. Please try again.",
+      "The staff account was created, but the response could not be verified.",
       500,
+    );
+  }
+
+  const {
+    data: configuredProfile,
+    error: configurationError,
+  } = await adminClient
+    .from("staff_profiles")
+    .update({
+      password_change_required: true,
+      password_setup_completed_at:
+        null,
+      temporary_password_expires_at:
+        temporaryPasswordExpiresAt
+          .toISOString(),
+    })
+    .eq(
+      "user_id",
+      createdUserId,
+    )
+    .select("user_id")
+    .maybeSingle();
+
+  if (
+    configurationError ||
+    configuredProfile?.user_id !==
+      createdUserId
+  ) {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but temporary-password protection could not be configured. Remove the account in Supabase before retrying.",
+    );
+
+    throw new HttpError(
+      "Temporary-password protection could not be configured. Please try again.",
+      500,
+    );
+  }
+
+  try {
+    await sendStaffInvitationEmail({
+      email: parsed.data.email,
+      expiresAt:
+        temporaryPasswordExpiresAt,
+      fullName:
+        parsed.data.fullName,
+      role: parsed.data.role,
+      temporaryPassword,
+    });
+  } catch {
+    await rollbackCreatedStaffAccount(
+      adminClient,
+      createdUserId,
+      "The staff account was created, but the onboarding email could not be sent. Remove the account in Supabase before retrying.",
+    );
+
+    throw new HttpError(
+      "The onboarding email could not be sent. Please verify the SMTP configuration and try again.",
+      502,
     );
   }
 
@@ -547,6 +795,309 @@ async function handleStaffInvite(request) {
       staff: staffProfile,
     },
     201,
+  );
+}
+
+async function handleStaffPasswordReissue(
+  request,
+) {
+  const { profile: actorProfile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-password-reissue",
+    actorProfile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminStaffPasswordReissueSchema
+      .safeParse(body);
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The password-reissue request is invalid.",
+      400,
+    );
+  }
+
+  if (
+    parsed.data.userId ===
+      actorProfile.userId
+  ) {
+    throw new HttpError(
+      "You cannot reissue your own temporary password.",
+      409,
+    );
+  }
+
+  const adminClient =
+    getAdminClient();
+
+  const target =
+    await getStaffAccountTarget(
+      adminClient,
+      parsed.data.userId,
+    );
+
+  if (!target.active) {
+    throw new HttpError(
+      "Activate this staff account before reissuing its temporary password.",
+      409,
+    );
+  }
+
+  if (
+    !target.passwordChangeRequired
+  ) {
+    throw new HttpError(
+      "A temporary password can be reissued only while password setup is pending.",
+      409,
+    );
+  }
+
+  const temporaryPassword =
+    createTemporaryPassword();
+
+  const temporaryPasswordExpiresAt =
+    createTemporaryPasswordExpiry();
+
+  const {
+    data: passwordData,
+    error: passwordError,
+  } = await adminClient.auth.admin
+    .updateUserById(
+      target.userId,
+      {
+        password:
+          temporaryPassword,
+      },
+    );
+
+  if (
+    passwordError ||
+    passwordData?.user?.id !==
+      target.userId
+  ) {
+    throw new HttpError(
+      "The temporary password could not be replaced. Please try again.",
+      502,
+    );
+  }
+
+  const {
+    data: updatedStaff,
+    error: recoveryError,
+  } = await adminClient.rpc(
+    "prepare_admin_staff_password_reissue",
+    {
+      p_actor_id:
+        actorProfile.userId,
+      p_expires_at:
+        temporaryPasswordExpiresAt
+          .toISOString(),
+      p_user_id:
+        target.userId,
+    },
+  );
+
+  if (recoveryError) {
+    if (
+      recoveryError.code ===
+        "P0002" ||
+      recoveryError.code ===
+        "42501" ||
+      recoveryError.code ===
+        "55000" ||
+      recoveryError.code ===
+        "22023" ||
+      recoveryError.code ===
+        "23514"
+    ) {
+      throw getStaffDatabaseError(
+        recoveryError,
+      );
+    }
+
+    throw new HttpError(
+      "The temporary password was replaced, but account recovery could not be completed. Reissue the password again.",
+      500,
+    );
+  }
+
+  if (
+    updatedStaff?.userId !==
+      target.userId ||
+    updatedStaff?.email !==
+      target.email ||
+    !updatedStaff?.fullName ||
+    !updatedStaff?.role ||
+    updatedStaff
+      ?.passwordChangeRequired !==
+      true ||
+    !updatedStaff
+      ?.temporaryPasswordExpiresAt
+  ) {
+    throw new HttpError(
+      "The temporary password was replaced, but account recovery could not be verified. Reissue the password again.",
+      500,
+    );
+  }
+
+  try {
+    await sendStaffInvitationEmail({
+      email: updatedStaff.email,
+      expiresAt:
+        temporaryPasswordExpiresAt,
+      fullName:
+        updatedStaff.fullName,
+      messageType: "reissue",
+      role: updatedStaff.role,
+      temporaryPassword,
+    });
+  } catch {
+    throw new HttpError(
+      "A new temporary password was generated, but the recovery email could not be sent. Verify the SMTP configuration and reissue the password again.",
+      502,
+    );
+  }
+
+  return json(
+    {
+      staff: updatedStaff,
+      temporaryPasswordReissued:
+        true,
+    },
+    200,
+  );
+}
+
+async function handleStaffDelete(
+  request,
+) {
+  const { profile: actorProfile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "staff-delete",
+    actorProfile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminStaffDeleteSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The staff-deletion request is invalid.",
+      400,
+    );
+  }
+
+  if (
+    parsed.data.userId ===
+      actorProfile.userId
+  ) {
+    throw new HttpError(
+      "You cannot delete your own staff account.",
+      409,
+    );
+  }
+
+  const adminClient =
+    getAdminClient();
+
+  const target =
+    await getStaffAccountTarget(
+      adminClient,
+      parsed.data.userId,
+    );
+
+  if (
+    parsed.data
+      .confirmationEmail !==
+    target.email
+  ) {
+    throw new HttpError(
+      "The confirmation email does not match the selected staff account.",
+      400,
+    );
+  }
+
+  const {
+    data: preparedStaff,
+    error: preparationError,
+  } = await adminClient.rpc(
+    "prepare_admin_staff_deletion",
+    {
+      p_actor_id:
+        actorProfile.userId,
+      p_user_id:
+        target.userId,
+    },
+  );
+
+  if (preparationError) {
+    throw getStaffDatabaseError(
+      preparationError,
+    );
+  }
+
+  if (
+    preparedStaff?.userId !==
+      target.userId ||
+    preparedStaff?.email !==
+      target.email ||
+    !preparedStaff?.fullName ||
+    !preparedStaff?.role ||
+    !preparedStaff?.auditEventId
+  ) {
+    throw new HttpError(
+      "The staff account could not be prepared for deletion. Please try again.",
+      500,
+    );
+  }
+
+  const { error: deletionError } =
+    await adminClient.auth.admin
+      .deleteUser(target.userId);
+
+  if (deletionError) {
+    throw new HttpError(
+      "The staff account was disabled, but permanent deletion could not be completed. Retry deletion.",
+      502,
+    );
+  }
+
+  return json(
+    {
+      accountDeleted: true,
+      staff: {
+        email:
+          preparedStaff.email,
+        fullName:
+          preparedStaff.fullName,
+        role:
+          preparedStaff.role,
+        userId:
+          preparedStaff.userId,
+      },
+    },
+    200,
   );
 }
 
@@ -611,12 +1162,288 @@ async function handleStaffUpdate(request) {
   );
 }
 
+async function handleVisitorCardInventory(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardInventorySchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card inventory filters are invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "get_admin_visitor_card_inventory",
+      {
+        p_actor_id: profile.userId,
+        p_card_type:
+          parsed.data.cardType,
+        p_page: parsed.data.page,
+        p_page_size:
+          parsed.data.pageSize,
+        p_search: parsed.data.search,
+        p_status: parsed.data.status,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-inventory",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    !Array.isArray(data.cards) ||
+    !data.pagination ||
+    typeof data.pagination !==
+      "object" ||
+    !data.summary ||
+    typeof data.summary !==
+      "object" ||
+    !data.filters ||
+    typeof data.filters !==
+      "object"
+  ) {
+    throw new HttpError(
+      "Visitor-card inventory could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      cards: data.cards,
+      filters: data.filters,
+      pagination: data.pagination,
+      summary: data.summary,
+    },
+    200,
+  );
+}
+
+async function handleVisitorCardCreate(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "card-create",
+    profile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardCreationSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card information is invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "create_admin_visitor_cards",
+      {
+        p_actor_id: profile.userId,
+        p_card_type:
+          parsed.data.cardType,
+        p_end_number:
+          parsed.data.endNumber,
+        p_start_number:
+          parsed.data.startNumber,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-create",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    data.cardsCreated !== true ||
+    !Number.isInteger(
+      data.cardCount,
+    ) ||
+    data.cardCount < 1 ||
+    !Array.isArray(data.cards) ||
+    typeof data.cardType !==
+      "string" ||
+    typeof data.tower !== "string"
+  ) {
+    throw new HttpError(
+      "Visitor cards could not be added to the inventory. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      cardCount: data.cardCount,
+      cards: data.cards,
+      cardsCreated:
+        data.cardsCreated,
+      cardType: data.cardType,
+      tower: data.tower,
+    },
+    201,
+  );
+}
+
+async function handleVisitorCardTowerAssign(
+  request,
+) {
+  const { profile } =
+    await requireActiveStaff(
+      request,
+      ["admin"],
+    );
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "card-tower-assign",
+    profile.userId,
+  );
+
+  const body =
+    await readJsonBody(request);
+
+  const parsed =
+    adminVisitorCardTowerSchema.safeParse(
+      body,
+    );
+
+  if (!parsed.success) {
+    throw new HttpError(
+      "The visitor-card tower assignment is invalid.",
+      400,
+    );
+  }
+
+  const { data, error } =
+    await getAdminClient().rpc(
+      "assign_admin_visitor_card_tower",
+      {
+        p_actor_id: profile.userId,
+        p_card_id:
+          parsed.data.cardId,
+        p_tower: parsed.data.tower,
+      },
+    );
+
+  if (error) {
+    throw getAdminVisitorCardDatabaseError(
+      "card-tower-assign",
+      error,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    data.towerAssigned !== true ||
+    typeof data.alreadyAssigned !==
+      "boolean" ||
+    typeof data.cardId !== "string" ||
+    typeof data.cardType !==
+      "string" ||
+    typeof data.cardNumber !==
+      "string" ||
+    typeof data.tower !== "string"
+  ) {
+    throw new HttpError(
+      "The visitor-card tower could not be updated. Please try again.",
+      500,
+    );
+  }
+
+  return json(
+    {
+      alreadyAssigned:
+        data.alreadyAssigned,
+      cardId: data.cardId,
+      cardNumber: data.cardNumber,
+      cardType: data.cardType,
+      previousTower:
+        data.previousTower || null,
+      tower: data.tower,
+      towerAssigned:
+        data.towerAssigned,
+    },
+    200,
+  );
+}
+
+
 const OPERATION_HANDLERS = new Map([
+  [
+    "card-create",
+    handleVisitorCardCreate,
+  ],
+  [
+    "card-inventory",
+    handleVisitorCardInventory,
+  ],
+  [
+    "card-tower-assign",
+    handleVisitorCardTowerAssign,
+  ],
   ["host-list", handleHostList],
   ["host-save", handleHostSave],
-  ["staff-invite", handleStaffInvite],
+  [
+    "staff-delete",
+    handleStaffDelete,
+  ],
+  [
+    "staff-invite",
+    handleStaffInvite,
+  ],
   ["staff-list", handleStaffList],
-  ["staff-update", handleStaffUpdate],
+  [
+    "staff-password-reissue",
+    handleStaffPasswordReissue,
+  ],
+  [
+    "staff-update",
+    handleStaffUpdate,
+  ],
 ]);
 
 export function createAdminHandler({

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const staffRoleSchema = z.enum([
   "receptionist",
+  "client_service_head",
   "admin",
 ]);
 
@@ -10,6 +11,23 @@ const statusFilterSchema = z.enum([
   "active",
   "inactive",
 ]);
+
+const staffUserIdSchema = z
+  .string()
+  .trim()
+  .uuid(
+    "A valid staff user identifier is required.",
+  );
+
+const staffEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address.")
+  .max(
+    254,
+    "Email address cannot exceed 254 characters.",
+  );
 
 const optionalUuidSchema = z
   .union([
@@ -92,6 +110,7 @@ export const adminStaffListSchema = z
       .enum([
         "all",
         "receptionist",
+        "client_service_head",
         "admin",
       ])
       .default("all"),
@@ -109,15 +128,7 @@ export const adminStaffListSchema = z
 
 export const adminStaffInviteSchema = z
   .object({
-    email: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email("Enter a valid email address.")
-      .max(
-        254,
-        "Email address cannot exceed 254 characters.",
-      ),
+    email: staffEmailSchema,
 
     fullName: z
       .string()
@@ -153,12 +164,21 @@ export const adminStaffUpdateSchema = z
 
     role: staffRoleSchema,
 
-    userId: z
-      .string()
-      .trim()
-      .uuid(
-        "A valid staff user identifier is required.",
-      ),
+    userId: staffUserIdSchema,
+  })
+  .strict();
+
+export const adminStaffPasswordReissueSchema =
+  z
+    .object({
+      userId: staffUserIdSchema,
+    })
+    .strict();
+
+export const adminStaffDeleteSchema = z
+  .object({
+    confirmationEmail: staffEmailSchema,
+    userId: staffUserIdSchema,
   })
   .strict();
 

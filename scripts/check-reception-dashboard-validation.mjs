@@ -12,9 +12,14 @@ const validRequest =
     division: MOF_DIVISIONS[0],
     page: 1,
     query: "VIS-",
+    tower: "tower_1",
   });
 
 assert.equal(validRequest.success, true);
+assert.equal(
+  validRequest.data.tower,
+  "tower_1",
+);
 
 const validEmptyFilters =
   receptionDashboardSchema.safeParse({
@@ -25,6 +30,16 @@ const validEmptyFilters =
   });
 
 assert.equal(validEmptyFilters.success, true);
+assert.deepEqual(
+  validEmptyFilters.data,
+  {
+    agency: "",
+    division: "",
+    page: 1,
+    query: "",
+    tower: "",
+  },
+);
 
 const invalidPage =
   receptionDashboardSchema.safeParse({
@@ -45,6 +60,17 @@ const invalidSearch =
   });
 
 assert.equal(invalidSearch.success, false);
+
+const invalidTower =
+  receptionDashboardSchema.safeParse({
+    agency: "",
+    division: "",
+    page: 1,
+    query: "",
+    tower: "tower_3",
+  });
+
+assert.equal(invalidTower.success, false);
 
 const invalidDivision =
   receptionDashboardSchema.safeParse({
@@ -80,6 +106,7 @@ const missingToken = await dashboardHandler.fetch(
         division: "",
         page: 1,
         query: "",
+        tower: "tower_1",
       }),
       headers: {
         "Content-Type": "application/json",

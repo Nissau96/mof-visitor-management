@@ -13,12 +13,30 @@ import {
   readVisitorToken,
 } from "../api/_lib/visitorLookup.js";
 import {
+  createWeeklyQrCookie,
+  createWeeklyQrToken,
+} from "../src/server/weeklyQrAccess.js";
+import {
   returningVisitorSearchSchema,
   returningVisitorVerificationSchema,
 } from "../src/validation/returningVisitor.js";
 
 process.env.VISITOR_LOOKUP_SECRET =
   "stage-six-test-secret-that-is-longer-than-thirty-two-bytes";
+
+process.env.WEEKLY_QR_SECRET =
+  "invented-weekly-qr-secret-for-validation-only-2026";
+
+const weeklyAccessToken =
+  createWeeklyQrToken().token;
+
+const weeklyAccessCookie =
+  createWeeklyQrCookie(
+    new Request(
+      "http://localhost/api/register",
+    ),
+    weeklyAccessToken,
+  ).split(";")[0];
 
 const visitorId =
   "00000000-0000-4000-8000-000000000006";
@@ -141,17 +159,23 @@ assert.equal(
   "POST",
 );
 
-const invalidSearchResponse = await searchHandler.fetch(
-  new Request("http://localhost/api/returning/search", {
-    body: JSON.stringify({
-      query: "Te",
-    }),
-    headers: {
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  }),
-);
+const invalidSearchResponse =
+  await searchHandler.fetch(
+    new Request(
+      "http://localhost/api/returning/search",
+      {
+        body: JSON.stringify({
+          query: "Te",
+        }),
+        headers: {
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
+        },
+        method: "POST",
+      },
+    ),
+  );
 
 assert.equal(invalidSearchResponse.status, 400);
 
@@ -162,7 +186,9 @@ const invalidVerificationResponse =
       {
         body: JSON.stringify({}),
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
+          Cookie: weeklyAccessCookie,
         },
         method: "POST",
       },

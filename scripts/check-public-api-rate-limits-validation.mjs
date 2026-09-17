@@ -14,9 +14,40 @@ import {
 import {
   createPrivateRequestKey,
 } from "../api/_lib/visitorLookup.js";
+import {
+  createWeeklyQrCookie,
+  createWeeklyQrToken,
+} from "../src/server/weeklyQrAccess.js";
 
 process.env.VISITOR_LOOKUP_SECRET =
   "isolated-public-rate-limit-test-secret-longer-than-thirty-two-bytes";
+
+process.env.WEEKLY_QR_SECRET =
+  "invented-weekly-qr-secret-for-public-rate-limit-validation-2026";
+
+const weeklyAccessToken =
+  createWeeklyQrToken().token;
+
+const weeklyAccessCookie =
+  createWeeklyQrCookie(
+    new Request(
+      "http://localhost/api/register",
+    ),
+    weeklyAccessToken,
+  ).split(";")[0];
+
+function createWeeklyAccessRequest(
+  path,
+) {
+  return new Request(
+    `http://localhost${path}`,
+    {
+      headers: {
+        Cookie: weeklyAccessCookie,
+      },
+    },
+  );
+}
 
 assert.deepEqual(
   HOST_DIRECTORY_RATE_LIMIT,
@@ -256,8 +287,8 @@ const hostsHandler = createHostsHandler({
 
 const hostsResponse =
   await hostsHandler.fetch(
-    new Request(
-      "http://localhost/api/hosts",
+    createWeeklyAccessRequest(
+      "/api/hosts",
     ),
   );
 
@@ -331,8 +362,8 @@ const meetingsHandler =
 
 const meetingsResponse =
   await meetingsHandler.fetch(
-    new Request(
-      "http://localhost/api/meetings",
+    createWeeklyAccessRequest(
+      "/api/meetings",
     ),
   );
 
@@ -384,8 +415,8 @@ const hostRateLimitedHandler =
 
 const hostRateLimitedResponse =
   await hostRateLimitedHandler.fetch(
-    new Request(
-      "http://localhost/api/hosts",
+    createWeeklyAccessRequest(
+      "/api/hosts",
     ),
   );
 
@@ -425,8 +456,8 @@ const meetingRateLimitedHandler =
 
 const meetingRateLimitedResponse =
   await meetingRateLimitedHandler.fetch(
-    new Request(
-      "http://localhost/api/meetings",
+    createWeeklyAccessRequest(
+      "/api/meetings",
     ),
   );
 
