@@ -84,7 +84,7 @@ The weekly QR code opens the visitor landing route and exchanges its short-lived
 
 ### Current stage
 
-Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 added administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination. Stage 12 added database privilege hardening, request-boundary protection, security headers, data retention controls, rate limiting and privacy notice version 2.0. Stage 13 added automated unit, component, browser, accessibility, responsive-layout and CI quality checks. Stage 14 added controlled Vercel Preview and Production deployment environments. Stage 15 added Production-readiness controls, tower-aware visitor routing, weekly visitor QR access and temporary-password staff onboarding. Stage 16 added auditable regular and VIP visitor-card inventory, physical-card admission, return monitoring, incident investigation, replacement-card lineage and administrator inventory controls.
+Stages 1 through 3 established the React, Supabase and secure environment foundation. Stage 4 added the responsive application shell and visitor routes. Stage 5 completed first-time visitor registration. Stage 6 added privacy-aware returning-visitor search and mobile-number verification. Stage 7 completed replay-protected returning-visitor check-in. Stage 8 added Supabase staff authentication, server-verified sessions and protected routes. Stage 9 added the protected reception dashboard, active-visitor metrics, staff search, filtering and server-side pagination. Stage 10 added transactional visitor checkout, audit recording, retry-safe status handling and protected paginated visit history. Stage 11 added administrator-only host and staff management, email-based staff invitations, role and status controls, protected setup and administration routes, audit recording and server-side pagination. Stage 12 added database privilege hardening, request-boundary protection, security headers, data retention controls, rate limiting and privacy notice version 2.0. Stage 13 added automated unit, component, browser, accessibility, responsive-layout and CI quality checks. Stage 14 added controlled Vercel Preview and Production deployment environments. Stage 15 added Production-readiness controls, tower-aware visitor routing, weekly visitor QR access and temporary-password staff onboarding. Stage 16 added auditable regular and VIP visitor-card inventory, physical-card admission, return monitoring, incident investigation, replacement-card lineage and administrator inventory controls. Stage 16 is deployed to Production at merge commit `54c6e29`; the application remains under controlled operational rollout until the outstanding Stage 15 launch controls are resolved.
 
 ### Stage 1 completion checklist — completed
 
@@ -500,7 +500,7 @@ Completed:
 - [x] Intentional deny-by-default RLS tables documented
 - [x] Intentional authenticated RLS helper functions reviewed
 - [x] Production post-merge smoke test passed
-- [x] Production visitor, visit, host and meeting datasets confirmed empty
+- [x] Initial Production visitor, visit, host and meeting datasets confirmed empty before controlled smoke testing
 - [x] Backend-generated visit-tower routing implemented
 - [x] Receptionist Assigned Tower authorization implemented
 - [x] Administrator all-tower access and tower filtering implemented
@@ -522,21 +522,31 @@ Completed:
 - [x] All 129 unit and component tests passed
 - [x] All 102 Playwright browser tests passed
 - [x] Vercel public Function count retained at 11
+- [x] All 13 pending Stage 15 and Stage 16 migrations applied to Production
+- [x] Production migration history aligned with the release
+- [x] Production release deployed from `main` at merge commit `54c6e29`
+- [x] Production Vercel environment binding verified
+- [x] Production routes and security headers verified
+- [x] Controlled Production visitor registration, Tower 1 routing, card assignment, checkout and card-return smoke test passed
+- [x] Pre-migration and post-deployment encrypted local backups created, decrypted, opened and checksum-verified
 
 Pilot restrictions:
 
-- Do not enter or retain real visitor information in Production.
+- Do not enter or retain real visitor information in Production until final operational approval.
 - Do not publish, print or distribute the Production visitor QR code.
-- Do not use Production staff invitations or other email-dependent account operations.
-- Run invented-data workflow and UAT checks only against Preview.
-- Keep Stage 15 incomplete until the launch blockers are resolved.
+- Do not use Production staff invitations or other email-dependent account operations until SMTP delivery is verified.
+- Use Preview for routine invented-data workflow testing; Production smoke tests require explicit approval and clearly labelled synthetic records.
+- Keep Stage 15 incomplete until the remaining launch controls are resolved.
 
-Full-launch blockers:
+Full-launch controls:
 
-- [ ] Obtain approved managed backup and recovery capability
-- [ ] Enable leaked-password protection through an eligible Supabase plan
-- [ ] Configure and verify an approved custom SMTP sender
-- [ ] Complete Production reference-data preparation and final launch UAT
+- [x] Create and verify encrypted pre-migration and post-deployment local Production backups
+- [ ] Complete and document a full database restoration drill from an encrypted backup
+- [ ] Enable leaked-password protection through an eligible Supabase plan or record formal risk acceptance
+- [x] Configure Production SMTP environment values
+- [ ] Verify the approved SMTP sender and Production invitation-email delivery
+- [x] Verify Production inventory, hosts, role access, environment binding and controlled workflow operation
+- [ ] Obtain final operational approval for real visitor data and QR distribution
 - [ ] Generate and physically test the final Production visitor QR code
 
 ### Stage 16 completion checklist — completed
@@ -576,8 +586,19 @@ Full-launch blockers:
 - [x] Preview role-based smoke testing completed
 - [x] Preview responsive and accessibility inspection completed
 - [x] Feature branch pushed and synchronized with GitHub
+- [x] Production migration dry run matched the 13 reviewed pending migrations
+- [x] Verified encrypted pre-migration recovery archive created
+- [x] All 13 reviewed migrations applied successfully to Production
+- [x] Production migration history aligned with the release
+- [x] Release merged into `main` and deployed at commit `54c6e29`
+- [x] Production routes returned HTTP 200
+- [x] Production security headers verified
+- [x] Production Supabase project binding verified
+- [x] Administrator workspaces and protected-route handling verified
+- [x] Controlled end-to-end visitor-card workflow passed
+- [x] Verified encrypted post-deployment recovery archive created
 
-Stage 16 application development and Preview verification are complete. All visitor-card database migrations were applied only to the approved Preview Supabase project. Production has not been modified and requires a separate explicitly approved release process.
+Stage 16 application development, Preview verification and controlled Production deployment are complete. The release was deployed from `main` at merge commit `54c6e29` after the Production database migrations, environment configuration and recovery point were verified. A clearly labelled synthetic transaction confirmed visitor registration, Tower 1 routing, physical-card assignment, checkout, card return, visit history and session protection. Production remains under controlled operational rollout until the outstanding Stage 15 launch controls are resolved.
 
 ## Technology stack
 
@@ -1466,6 +1487,22 @@ git diff --check
 - ESLint, production build and `git diff --check` passed
 - Production database and Production deployment remained unchanged
 
+### Completed Stage 16 Production checks
+
+- Verified encrypted pre-migration backup `mof-visitor-production-20260917T115010Z.dump.enc`
+- All 13 pending Stage 15 and Stage 16 migrations applied successfully
+- Production migration history aligned with the complete local migration history
+- Supabase CLI link restored to the approved Preview project after migration deployment
+- Production Vercel environment variables updated before the application deployment
+- Release deployed from `main` at merge commit `54c6e29`
+- Production root, visitor and staff-login routes returned HTTP 200
+- Content Security Policy, Permissions Policy, Referrer Policy, HSTS and MIME-sniffing protection verified
+- Production frontend binding to the dedicated Production Supabase project verified
+- Administrator dashboard, hosts, staff, card inventory and weekly QR workspaces verified
+- Controlled visitor registration, Tower 1 routing, admission, card assignment, checkout and card return passed
+- Visit history, card availability and protected sign-out behaviour verified
+- Verified encrypted post-deployment backup `mof-visitor-production-20260917T160341Z.dump.enc`
+- No plaintext database dump retained after backup verification
 
 ## Deployment
 
@@ -1497,9 +1534,9 @@ npx supabase@latest db lint \
   --fail-on error
 ```
 
-The Production deployment has been verified to render the visitor interface, execute the public host and meeting Functions, reject unauthenticated staff sessions and use an empty Production dataset. The first Production administrator was created manually and linked to an active confirmed `admin` profile.
+The Production release was deployed from `main` at merge commit `54c6e29`. The deployment has been verified to render the visitor interface, execute the public host and meeting Functions, reject unauthenticated staff sessions and connect to the dedicated Production Supabase project. The first Production administrator remains linked to an active confirmed `admin` profile. A clearly labelled synthetic visitor-card transaction was retained as an intentional Production smoke-test and audit record.
 
-Approved custom SMTP is not yet configured. Production staff invitations and other email-dependent staff-account operations must not be used until an approved SMTP sender has been configured and delivery tested.
+Production SMTP environment values are configured. Production staff invitations and other email-dependent staff-account operations must remain restricted until an approved sender and controlled invitation-email delivery have been verified.
 
 ### Controlled technical pilot
 
@@ -1507,18 +1544,19 @@ The Stage 15 readiness decision is to operate only as a controlled technical pil
 
 During the controlled pilot:
 
-- the stable Production deployment may be used for non-destructive runtime and administrator-access checks;
-- Production must not contain real visitor records;
-- invented-data visitor workflow testing must remain in Preview;
-- Production staff invitations and email-dependent account operations must remain unused; and
+- the stable Production deployment may be used for approved runtime, administrator-access and operational smoke checks;
+- Production must not contain real visitor records until final operational approval;
+- routine invented-data workflow testing must remain in Preview;
+- any approved Production smoke test must use a clearly labelled synthetic record;
+- Production staff invitations and email-dependent account operations must remain restricted until delivery is verified; and
 - the Production visitor QR code must not be published, printed or distributed.
 
 A full Production launch remains blocked until:
 
-- approved backup and recovery capability is available and tested;
-- leaked-password protection can be enabled;
-- approved custom SMTP is configured and delivery tested;
-- Production launch data and final UAT are approved; and
+- a complete database restoration drill from an encrypted local backup is documented;
+- leaked-password protection is enabled through an eligible Supabase plan or the residual risk is formally accepted;
+- the approved SMTP sender and Production invitation-email delivery are verified;
+- final operational approval permits real visitor data and QR distribution; and
 - the final QR code is generated from the stable Production visitor URL and passes physical-device scan testing.
 
 The final visitor QR code must contain only the stable Production visitor URL. QR-code publication remains part of Stage 15 and must not use a temporary Vercel Preview address.
@@ -1540,6 +1578,7 @@ The final visitor QR code must contain only the stable Production visitor URL. Q
 - [x] Stage 13 — Automated testing and accessibility
 - [x] Stage 14 — Vercel deployment and environments
 - [ ] Stage 15 — Production readiness and visitor QR code
+- [x] Stage 16 — Visitor-card control and incident management
 
 The roadmap checkboxes must be updated only after the relevant validation and commit have been completed.
 
@@ -2427,7 +2466,7 @@ The initial Preview inventory contains:
 
 Administrators can create additional regular or VIP card numbers up to `999`, in batches of no more than 100, and choose the issuing tower. Tower reassignment is restricted to available cards without active assignments or incidents.
 
-Stage 16 was validated in the approved Preview environment through automated checks and role-based manual smoke testing. Production was deliberately left unchanged pending pull-request review and explicit release approval.
+Stage 16 was validated in the approved Preview environment through automated checks and role-based manual smoke testing. After pull-request approval, verified encrypted recovery-point creation and a successful migration dry run, all 13 pending Stage 15 and Stage 16 migrations were applied to Production. The release was deployed from `main` at merge commit `54c6e29` and passed controlled Production route, security-header, environment-binding, administrator-access and end-to-end visitor-card smoke testing. A verified encrypted post-deployment backup was then created. The application remains under controlled operational rollout while the remaining Stage 15 launch controls are completed.
 
 ## README update policy
 
