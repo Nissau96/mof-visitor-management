@@ -2480,6 +2480,14 @@ Stage 16 was validated in the approved Preview environment through automated che
 - Imported `src/assets/images/building-bg.jpeg` for production
   asset bundling.
 
+### Dependency security maintenance
+
+- Updated Nodemailer to the ^10.0.12 dependency range.
+- Added a Lodash ^4.18.1 override.
+- Retained Plex UI for the staff-login Select component and styles.
+- Verified production dependencies with `npm audit --omit=dev`
+  after a clean installation using `npm ci`.
+
 ## README update policy
 
 The README is a required deliverable for every development stage.
