@@ -16,6 +16,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { TOWER_OPTIONS } from "../../src/constants/visitorOptions.js";
 import StaffLoginPage from "../../src/pages/StaffLoginPage.jsx";
 import useAuth from "../../src/hooks/useAuth.js";
 
@@ -82,11 +83,18 @@ async function completeLoginForm(
     "  RECEPTIONIST.DEV@EXAMPLE.COM  ",
   );
 
-  await user.selectOptions(
-    screen.getByRole("combobox", {
+  await user.click(
+    screen.getByRole("button", {
       name: /Assigned Tower/i,
     }),
-    tower,
+  );
+
+  await user.click(
+    await screen.findByRole("option", {
+      name: TOWER_OPTIONS.find(
+        (option) => option.value === tower,
+      ).label,
+    }),
   );
 
   await user.type(

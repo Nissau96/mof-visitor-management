@@ -9,3 +9,10 @@ import {
 afterEach(() => {
   cleanup();
 });
+// jsdom does not implement scrollIntoView, which the Plex UI Select menu calls.
+if (
+  typeof Element !== "undefined" &&
+  !Element.prototype.scrollIntoView
+) {
+  Element.prototype.scrollIntoView = () => {};
+}

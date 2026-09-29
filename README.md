@@ -2468,6 +2468,18 @@ Administrators can create additional regular or VIP card numbers up to `999`, in
 
 Stage 16 was validated in the approved Preview environment through automated checks and role-based manual smoke testing. After pull-request approval, verified encrypted recovery-point creation and a successful migration dry run, all 13 pending Stage 15 and Stage 16 migrations were applied to Production. The release was deployed from `main` at merge commit `54c6e29` and passed controlled Production route, security-header, environment-binding, administrator-access and end-to-end visitor-card smoke testing. A verified encrypted post-deployment backup was then created. The application remains under controlled operational rollout while the remaining Stage 15 launch controls are completed.
 
+### Staff login design update
+
+- Applied a muted green background with a white split-panel card.
+- Added a compact login form and a rounded building-image panel
+  with a bottom information overlay.
+- Retained Assigned Tower, Email address, and Password fields.
+- Preserved authentication, validation, password visibility,
+  session handling, and post-login redirects.
+- Displayed the image panel on desktop and the form on mobile.
+- Imported `src/assets/images/building-bg.jpeg` for production
+  asset bundling.
+
 ## README update policy
 
 The README is a required deliverable for every development stage.

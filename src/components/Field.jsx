@@ -11,7 +11,7 @@ export default function Field({
 
   return (
     <div className="grid gap-2">
-      <label htmlFor={id}>
+      <label htmlFor={id} id={`${id}-label`}>
         {label}
         {required ? (
           <span aria-hidden="true" className="ml-1 text-red-700">

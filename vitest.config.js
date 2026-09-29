@@ -19,6 +19,13 @@ export default defineConfig({
       "./tests/setup.js",
     ],
 
+    // Plex UI ships extensionless ESM imports that Node cannot resolve.
+    server: {
+      deps: {
+        inline: ["@plexui/ui"],
+      },
+    },
+
     restoreMocks: true,
 
     coverage: {

@@ -1,6 +1,7 @@
 import {
   expect,
 } from "@playwright/test";
+import { TOWER_OPTIONS } from "../../../src/constants/visitorOptions.js";
 
 export const SYNTHETIC_STAFF_ID =
   "00000000-0000-4000-8000-000000000020";
@@ -297,8 +298,19 @@ export async function signInAsStaff(
     .fill(password);
 
   await page
-    .getByLabel("Assigned Tower")
-    .selectOption(tower);
+    .getByRole("button", {
+      name: /Assigned Tower/i,
+    })
+    .click();
+
+  await page
+    .getByRole("option", {
+      name: TOWER_OPTIONS.find(
+        (option) => option.value === tower,
+      ).label,
+      exact: true,
+    })
+    .click();
 
   await page
     .getByRole("button", {

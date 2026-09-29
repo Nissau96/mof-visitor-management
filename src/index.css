@@ -1,4 +1,13 @@
+/*
+ * Plex UI design tokens only. The full "@plexui/ui/css" bundle resets
+ * Tailwind's colour, text and shadow scales, which this app relies on.
+ */
+@import "../node_modules/@plexui/ui/dist/es/styles/variables-tokens-root.css" layer(theme);
 @import "tailwindcss";
+@import "../node_modules/@plexui/ui/dist/es/styles/variables-primitive.css";
+@import "../node_modules/@plexui/ui/dist/es/styles/variables-semantic.css";
+@import "../node_modules/@plexui/ui/dist/es/styles/variables-components.css";
+@source "../node_modules/@plexui/ui/dist/es/components/Select";
 
 @theme {
   --color-brand-50: #effcf3;
