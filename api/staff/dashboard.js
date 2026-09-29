@@ -49,6 +49,149 @@ function getDashboardDatabaseError(error) {
   );
 }
 
+async function addVisitorDetails(client, visitors) {
+  if (visitors.length === 0) {
+    return visitors;
+  }
+
+  const visitIds = visitors.map(
+    (visitor) => visitor.visitId,
+  );
+
+  const [
+    visitsResult,
+    assignmentsResult,
+  ] = await Promise.all([
+    client
+      .from("visits")
+      .select("id, visitor_id")
+      .in("id", visitIds),
+
+    client
+      .from("visitor_card_assignments")
+      .select("visit_id, card_id, status")
+      .in("visit_id", visitIds),
+  ]);
+
+  if (
+    visitsResult.error ||
+    assignmentsResult.error
+  ) {
+    throw new HttpError(
+      "Dashboard information could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  const profileIds = [
+    ...new Set(
+      (visitsResult.data || [])
+        .map((visit) => visit.visitor_id)
+        .filter(Boolean),
+    ),
+  ];
+
+  const cardIds = [
+    ...new Set(
+      (assignmentsResult.data || [])
+        .map((assignment) => assignment.card_id)
+        .filter(Boolean),
+    ),
+  ];
+
+  const [
+    profilesResult,
+    cardsResult,
+  ] = await Promise.all([
+    profileIds.length
+      ? client
+          .from("visitor_profiles")
+          .select("id, email")
+          .in("id", profileIds)
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
+
+    cardIds.length
+      ? client
+          .from("visitor_cards")
+          .select("id, card_number")
+          .in("id", cardIds)
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
+  ]);
+
+  if (
+    profilesResult.error ||
+    cardsResult.error
+  ) {
+    throw new HttpError(
+      "Dashboard information could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  const visitsById = new Map(
+    (visitsResult.data || []).map(
+      (visit) => [visit.id, visit],
+    ),
+  );
+
+  const profilesById = new Map(
+    (profilesResult.data || []).map(
+      (profile) => [profile.id, profile],
+    ),
+  );
+
+  const assignmentsByVisitId = new Map(
+    (assignmentsResult.data || []).map(
+      (assignment) => [
+        assignment.visit_id,
+        assignment,
+      ],
+    ),
+  );
+
+  const cardsById = new Map(
+    (cardsResult.data || []).map(
+      (card) => [card.id, card],
+    ),
+  );
+
+  return visitors.map((visitor) => {
+    const visit = visitsById.get(
+      visitor.visitId,
+    );
+
+    const assignment =
+      assignmentsByVisitId.get(
+        visitor.visitId,
+      );
+
+    return {
+      ...visitor,
+
+      email:
+        profilesById.get(
+          visit?.visitor_id,
+        )?.email || null,
+
+      cardNumber:
+        assignment?.status === "assigned"
+          ? cardsById.get(
+              assignment.card_id,
+            )?.card_number || null
+          : null,
+
+      cardStatus:
+        assignment?.status || null,
+    };
+  });
+}
+
 export default {
   async fetch(request) {
     if (request.method !== "POST") {
@@ -88,18 +231,26 @@ export default {
           filters.tower,
         );
 
+      const client = getAdminClient();
+
       const { data, error } =
-        await getAdminClient().rpc(
+        await client.rpc(
           "get_reception_dashboard",
           {
-            p_actor_id: profile.userId,
-            p_agency: filters.agency,
-            p_division: filters.division,
-            p_page: filters.page,
+            p_actor_id:
+              profile.userId,
+            p_agency:
+              filters.agency,
+            p_division:
+              filters.division,
+            p_page:
+              filters.page,
             p_page_size:
               DASHBOARD_PAGE_SIZE,
-            p_search: filters.query,
-            p_tower: towerScope,
+            p_search:
+              filters.query,
+            p_tower:
+              towerScope,
           },
         );
 
@@ -116,11 +267,19 @@ export default {
         );
       }
 
+      const visitors =
+        await addVisitorDetails(
+          client,
+          data.visitors,
+        );
+
       return json(
         {
           ...data,
+          visitors,
           staffRole:
-            data.staffRole || profile.role,
+            data.staffRole ||
+            profile.role,
           towerScope:
             data.towerScope ??
             towerScope ??
@@ -137,7 +296,8 @@ export default {
           error.status,
           error.status === 401
             ? {
-                "WWW-Authenticate": "Bearer",
+                "WWW-Authenticate":
+                  "Bearer",
               }
             : {},
         );
