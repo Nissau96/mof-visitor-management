@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   LogIn,
   LogOut,
+  Mail,
   MapPin,
   Phone,
   RefreshCw,
@@ -36,11 +37,14 @@ const EMPTY_FILTERS = {
   query: "",
 };
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-GH", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Africa/Accra",
-});
+const dateTimeFormatter = new Intl.DateTimeFormat(
+  "en-GH",
+  {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Accra",
+  },
+);
 
 function formatDateTime(value) {
   const date = new Date(value);
@@ -60,6 +64,24 @@ function getVisitContact(visitor) {
   return visitor.personVisiting || "Not provided";
 }
 
+function getVisitorInitials(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(
+      (part) =>
+        part[0]?.toUpperCase() || "",
+    )
+    .join("");
+}
+
+function getCardStatus(visitor) {
+  return visitor.cardStatus === "assigned"
+    ? "Assigned"
+    : "Checked in";
+}
+
 function normalizeDashboardResult(result) {
   if (
     !result ||
@@ -70,47 +92,83 @@ function normalizeDashboardResult(result) {
     typeof result.pagination !== "object" ||
     !Array.isArray(result.visitors)
   ) {
-    throw new Error("The dashboard returned an invalid response.");
+    throw new Error(
+      "The dashboard returned an invalid response.",
+    );
   }
 
   const stats = {
-    active: Number(result.stats.active),
-    checkedInToday: Number(result.stats.checkedInToday),
-    checkedOutToday: Number(result.stats.checkedOutToday),
+    active: Number(
+      result.stats.active,
+    ),
+    checkedInToday: Number(
+      result.stats.checkedInToday,
+    ),
+    checkedOutToday: Number(
+      result.stats.checkedOutToday,
+    ),
   };
 
   const pagination = {
-    page: Number(result.pagination.page),
-    pageSize: Number(result.pagination.pageSize),
-    totalCount: Number(result.pagination.totalCount),
-    totalPages: Number(result.pagination.totalPages),
+    page: Number(
+      result.pagination.page,
+    ),
+    pageSize: Number(
+      result.pagination.pageSize,
+    ),
+    totalCount: Number(
+      result.pagination.totalCount,
+    ),
+    totalPages: Number(
+      result.pagination.totalPages,
+    ),
   };
 
-  const validStats = Object.values(stats).every(
-    (value) => Number.isInteger(value) && value >= 0,
-  );
+  const validStats =
+    Object.values(stats).every(
+      (value) =>
+        Number.isInteger(value) &&
+        value >= 0,
+    );
 
-  const validPagination = Object.values(pagination).every(
-    (value) => Number.isInteger(value) && value >= 0,
-  );
+  const validPagination =
+    Object.values(
+      pagination,
+    ).every(
+      (value) =>
+        Number.isInteger(value) &&
+        value >= 0,
+    );
 
-  const validVisitors = result.visitors.every(
-    (visitor) =>
-      visitor &&
-      typeof visitor === "object" &&
-      typeof visitor.visitId === "string" &&
-      typeof visitor.reference === "string" &&
-      typeof visitor.fullName === "string" &&
-      typeof visitor.agency === "string" &&
-      typeof visitor.purpose === "string" &&
-      typeof visitor.checkedInAt === "string" &&
-      VISIT_TOWER_VALUES.includes(visitor.tower),
-  );
+  const validVisitors =
+    result.visitors.every(
+      (visitor) =>
+        visitor &&
+        typeof visitor ===
+          "object" &&
+        typeof visitor.visitId ===
+          "string" &&
+        typeof visitor.reference ===
+          "string" &&
+        typeof visitor.fullName ===
+          "string" &&
+        typeof visitor.agency ===
+          "string" &&
+        typeof visitor.purpose ===
+          "string" &&
+        typeof visitor.checkedInAt ===
+          "string" &&
+        VISIT_TOWER_VALUES.includes(
+          visitor.tower,
+        ),
+    );
 
   const validTowerScope =
     result.towerScope === null ||
     result.towerScope === "" ||
-    VISIT_TOWER_VALUES.includes(result.towerScope);
+    VISIT_TOWER_VALUES.includes(
+      result.towerScope,
+    );
 
   if (
     !validStats ||
@@ -118,51 +176,77 @@ function normalizeDashboardResult(result) {
     !validVisitors ||
     !validTowerScope
   ) {
-    throw new Error("The dashboard returned an invalid response.");
+    throw new Error(
+      "The dashboard returned an invalid response.",
+    );
   }
 
   return {
     generatedAt:
-      typeof result.generatedAt === "string"
+      typeof result.generatedAt ===
+      "string"
         ? result.generatedAt
         : "",
     pagination,
     staffRole:
-      typeof result.staffRole === "string"
+      typeof result.staffRole ===
+      "string"
         ? result.staffRole
         : "",
     stats,
-    towerScope: result.towerScope || "",
-    visitors: result.visitors,
+    towerScope:
+      result.towerScope || "",
+    visitors:
+      result.visitors,
   };
 }
 
 function normalizeCheckoutResult(result) {
-  const checkout = result?.checkout;
+  const checkout =
+    result?.checkout;
 
   if (
     !checkout ||
     typeof checkout !== "object" ||
-    typeof checkout.visitId !== "string" ||
-    typeof checkout.reference !== "string" ||
-    !VISIT_TOWER_VALUES.includes(checkout.tower) ||
-    checkout.status !== "checked_out" ||
-    typeof checkout.checkedOutAt !== "string"
+    typeof checkout.visitId !==
+      "string" ||
+    typeof checkout.reference !==
+      "string" ||
+    !VISIT_TOWER_VALUES.includes(
+      checkout.tower,
+    ) ||
+    checkout.status !==
+      "checked_out" ||
+    typeof checkout.checkedOutAt !==
+      "string"
   ) {
-    throw new Error("Check-out returned an invalid response.");
+    throw new Error(
+      "Check-out returned an invalid response.",
+    );
   }
 
   return {
-    alreadyCheckedOut: Boolean(checkout.alreadyCheckedOut),
-    checkedOutAt: checkout.checkedOutAt,
-    reference: checkout.reference,
-    status: checkout.status,
-    tower: checkout.tower,
-    visitId: checkout.visitId,
+    alreadyCheckedOut:
+      Boolean(
+        checkout.alreadyCheckedOut,
+      ),
+    checkedOutAt:
+      checkout.checkedOutAt,
+    reference:
+      checkout.reference,
+    status:
+      checkout.status,
+    tower:
+      checkout.tower,
+    visitId:
+      checkout.visitId,
   };
 }
 
-function getVisiblePages(currentPage, totalPages) {
+function getVisiblePages(
+  currentPage,
+  totalPages,
+) {
   if (totalPages <= 0) {
     return [];
   }
@@ -175,13 +259,17 @@ function getVisiblePages(currentPage, totalPages) {
   }
 
   const start = Math.min(
-    Math.max(currentPage - 2, 1),
+    Math.max(
+      currentPage - 2,
+      1,
+    ),
     totalPages - 4,
   );
 
   return Array.from(
     { length: 5 },
-    (_, index) => start + index,
+    (_, index) =>
+      start + index,
   );
 }
 
@@ -194,70 +282,157 @@ export default function StaffHomePage() {
     tower,
   } = useAuth();
 
-  const [dashboard, setDashboard] = useState(null);
-  const [status, setStatus] = useState("loading");
-  const [requestError, setRequestError] = useState("");
-  const [filterError, setFilterError] = useState("");
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [queryDraft, setQueryDraft] = useState("");
-  const [agencyDraft, setAgencyDraft] = useState("");
-  const [divisionDraft, setDivisionDraft] = useState("");
-  const [page, setPage] = useState(1);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [checkoutTarget, setCheckoutTarget] = useState(null);
-  const [checkoutError, setCheckoutError] = useState("");
-  const [checkoutSuccess, setCheckoutSuccess] = useState("");
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [
+    dashboard,
+    setDashboard,
+  ] = useState(null);
 
-  const accessToken = session?.access_token || "";
-  const administrator = profile.role === "admin";
+  const [
+    status,
+    setStatus,
+  ] = useState("loading");
+
+  const [
+    requestError,
+    setRequestError,
+  ] = useState("");
+
+  const [
+    filterError,
+    setFilterError,
+  ] = useState("");
+
+  const [
+    filters,
+    setFilters,
+  ] = useState(EMPTY_FILTERS);
+
+  const [
+    queryDraft,
+    setQueryDraft,
+  ] = useState("");
+
+  const [
+    agencyDraft,
+    setAgencyDraft,
+  ] = useState("");
+
+  const [
+    divisionDraft,
+    setDivisionDraft,
+  ] = useState("");
+
+  const [
+    page,
+    setPage,
+  ] = useState(1);
+
+  const [
+    refreshKey,
+    setRefreshKey,
+  ] = useState(0);
+
+  const [
+    checkoutTarget,
+    setCheckoutTarget,
+  ] = useState(null);
+
+  const [
+    checkoutError,
+    setCheckoutError,
+  ] = useState("");
+
+  const [
+    checkoutSuccess,
+    setCheckoutSuccess,
+  ] = useState("");
+
+  const [
+    checkingOut,
+    setCheckingOut,
+  ] = useState(false);
+
+  const accessToken =
+    session?.access_token || "";
+
+  const administrator =
+    profile.role === "admin";
 
   useEffect(() => {
-    const controller = new AbortController();
+    const controller =
+      new AbortController();
 
-    apiRequest("/api/staff/dashboard", {
-      body: JSON.stringify({
-        agency: filters.agency,
-        division: filters.division,
-        page,
-        query: filters.query,
-        tower,
-      }),
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+    apiRequest(
+      "/api/staff/dashboard",
+      {
+        body: JSON.stringify({
+          agency:
+            filters.agency,
+          division:
+            filters.division,
+          page,
+          query:
+            filters.query,
+          tower,
+        }),
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+        },
+        method: "POST",
+        signal:
+          controller.signal,
       },
-      method: "POST",
-      signal: controller.signal,
-    })
+    )
       .then((result) => {
-        if (controller.signal.aborted) {
+        if (
+          controller.signal
+            .aborted
+        ) {
           return;
         }
 
-        const normalized = normalizeDashboardResult(result);
+        const normalized =
+          normalizeDashboardResult(
+            result,
+          );
 
-        setDashboard(normalized);
+        setDashboard(
+          normalized,
+        );
         setRequestError("");
         setStatus("ready");
       })
       .catch((error) => {
         if (
-          controller.signal.aborted ||
-          error?.name === "AbortError"
+          controller.signal
+            .aborted ||
+          error?.name ===
+            "AbortError"
         ) {
           return;
         }
 
         if (
-          error instanceof ApiError &&
-          (error.status === 401 || error.status === 403)
+          error instanceof
+            ApiError &&
+          (
+            error.status ===
+              401 ||
+            error.status ===
+              403
+          )
         ) {
-          void signOut().catch(() => undefined);
+          void signOut().catch(
+            () => undefined,
+          );
           return;
         }
 
         setRequestError(
-          error instanceof Error && error.message
+          error instanceof
+            Error &&
+            error.message
             ? error.message
             : "Dashboard information could not be loaded. Please try again.",
         );
@@ -281,41 +456,61 @@ export default function StaffHomePage() {
     event.preventDefault();
     setFilterError("");
 
-    const parsed = receptionDashboardSchema.safeParse({
-      agency: agencyDraft,
-      division: divisionDraft,
-      page: 1,
-      query: queryDraft,
-      tower,
-    });
-
-    if (!parsed.success) {
-      setFilterError(
-        parsed.error.issues[0]?.message ||
-          "Check the dashboard filters and try again.",
+    const parsed =
+      receptionDashboardSchema.safeParse(
+        {
+          agency:
+            agencyDraft,
+          division:
+            divisionDraft,
+          page: 1,
+          query:
+            queryDraft,
+          tower,
+        },
       );
 
+    if (
+      !parsed.success
+    ) {
+      setFilterError(
+        parsed.error
+          .issues[0]
+          ?.message ||
+          "Check the dashboard filters and try again.",
+      );
       return;
     }
 
     const nextFilters = {
-      agency: parsed.data.agency,
-      division: parsed.data.division,
-      query: parsed.data.query,
+      agency:
+        parsed.data.agency,
+      division:
+        parsed.data.division,
+      query:
+        parsed.data.query,
     };
 
     setDashboard(null);
     setStatus("loading");
     setPage(1);
-    setFilters(nextFilters);
+    setFilters(
+      nextFilters,
+    );
 
     if (
       page === 1 &&
-      filters.agency === nextFilters.agency &&
-      filters.division === nextFilters.division &&
-      filters.query === nextFilters.query
+      filters.agency ===
+        nextFilters.agency &&
+      filters.division ===
+        nextFilters.division &&
+      filters.query ===
+        nextFilters.query
     ) {
-      setRefreshKey((currentKey) => currentKey + 1);
+      setRefreshKey(
+        (currentKey) =>
+          currentKey + 1,
+      );
     }
   }
 
@@ -327,14 +522,22 @@ export default function StaffHomePage() {
     setDashboard(null);
     setStatus("loading");
     setPage(1);
-    setFilters(EMPTY_FILTERS);
-    setRefreshKey((currentKey) => currentKey + 1);
+    setFilters(
+      EMPTY_FILTERS,
+    );
+    setRefreshKey(
+      (currentKey) =>
+        currentKey + 1,
+    );
   }
 
   function refreshDashboard() {
     setRequestError("");
     setStatus("loading");
-    setRefreshKey((currentKey) => currentKey + 1);
+    setRefreshKey(
+      (currentKey) =>
+        currentKey + 1,
+    );
   }
 
   function changeTower(event) {
@@ -343,7 +546,9 @@ export default function StaffHomePage() {
     }
 
     try {
-      setTowerScope(event.target.value);
+      setTowerScope(
+        event.target.value,
+      );
       setCheckoutTarget(null);
       setCheckoutError("");
       setCheckoutSuccess("");
@@ -353,11 +558,12 @@ export default function StaffHomePage() {
       setPage(1);
     } catch (error) {
       setRequestError(
-        error instanceof Error && error.message
+        error instanceof
+          Error &&
+          error.message
           ? error.message
           : "The tower filter could not be changed.",
       );
-
       setStatus("error");
     }
   }
@@ -367,7 +573,11 @@ export default function StaffHomePage() {
       nextPage < 1 ||
       nextPage === page ||
       nextPage >
-        (dashboard?.pagination.totalPages || 1)
+        (
+          dashboard?.pagination
+            .totalPages ||
+          1
+        )
     ) {
       return;
     }
@@ -378,15 +588,19 @@ export default function StaffHomePage() {
     setPage(nextPage);
 
     window.scrollTo({
-      behavior: "smooth",
+      behavior:
+        "smooth",
       top: 0,
     });
   }
 
   function changeAgency(event) {
-    const nextAgency = event.target.value;
+    const nextAgency =
+      event.target.value;
 
-    setAgencyDraft(nextAgency);
+    setAgencyDraft(
+      nextAgency,
+    );
 
     if (
       nextAgency !==
@@ -399,7 +613,9 @@ export default function StaffHomePage() {
   function openCheckout(visitor) {
     setCheckoutError("");
     setCheckoutSuccess("");
-    setCheckoutTarget(visitor);
+    setCheckoutTarget(
+      visitor,
+    );
   }
 
   function closeCheckout() {
@@ -412,7 +628,10 @@ export default function StaffHomePage() {
   }
 
   async function confirmCheckout() {
-    if (!checkoutTarget || checkingOut) {
+    if (
+      !checkoutTarget ||
+      checkingOut
+    ) {
       return;
     }
 
@@ -420,22 +639,30 @@ export default function StaffHomePage() {
     setCheckingOut(true);
 
     try {
-      const result = await apiRequest(
-        "/api/staff/checkout",
-        {
-          body: JSON.stringify({
-            tower,
-            visitId: checkoutTarget.visitId,
-          }),
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
+      const result =
+        await apiRequest(
+          "/api/staff/checkout",
+          {
+            body: JSON.stringify(
+              {
+                tower,
+                visitId:
+                  checkoutTarget.visitId,
+              },
+            ),
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+            method:
+              "POST",
           },
-          method: "POST",
-        },
-      );
+        );
 
       const checkout =
-        normalizeCheckoutResult(result);
+        normalizeCheckoutResult(
+          result,
+        );
 
       const visitorName =
         checkoutTarget.fullName;
@@ -460,42 +687,62 @@ export default function StaffHomePage() {
       setRequestError("");
       setStatus("loading");
       setPage(1);
-      setRefreshKey((currentKey) => currentKey + 1);
+      setRefreshKey(
+        (currentKey) =>
+          currentKey + 1,
+      );
     } catch (error) {
       if (
-        error instanceof ApiError &&
-        (error.status === 401 || error.status === 403)
+        error instanceof
+          ApiError &&
+        (
+          error.status ===
+            401 ||
+          error.status ===
+            403
+        )
       ) {
-        void signOut().catch(() => undefined);
+        void signOut().catch(
+          () => undefined,
+        );
         return;
       }
 
       setCheckoutError(
-        error instanceof Error && error.message
+        error instanceof
+          Error &&
+          error.message
           ? error.message
           : "Check-out could not be completed. Please try again.",
       );
     } finally {
-      setCheckingOut(false);
+      setCheckingOut(
+        false,
+      );
     }
   }
 
-  const loading = status === "loading";
+  const loading =
+    status === "loading";
 
-  const filtersApplied = Boolean(
-    filters.agency ||
-      filters.division ||
-      filters.query,
-  );
+  const filtersApplied =
+    Boolean(
+      filters.agency ||
+        filters.division ||
+        filters.query,
+    );
 
-  const visiblePages = getVisiblePages(
-    page,
-    dashboard?.pagination.totalPages || 0,
-  );
+  const visiblePages =
+    getVisiblePages(
+      page,
+      dashboard?.pagination
+        .totalPages || 0,
+    );
 
-  const towerHeading = tower
-    ? getTowerLabel(tower)
-    : "All towers";
+  const towerHeading =
+    tower
+      ? getTowerLabel(tower)
+      : "All towers";
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -511,26 +758,49 @@ export default function StaffHomePage() {
 
           <p className="mt-4 max-w-2xl leading-7 text-slate-600">
             Review visitors currently checked into{" "}
-            <strong>{towerHeading}</strong> and record their
-            departure securely.
+            <strong>
+              {towerHeading}
+            </strong>{" "}
+            and record their departure securely.
           </p>
         </div>
 
-        <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} onClick={refreshDashboard} type="button">
-          <RefreshCw aria-hidden="true" className={`size-5 ${loading ? "animate-spin" : ""}`} />
+        <button
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={loading}
+          onClick={refreshDashboard}
+          type="button"
+        >
+          <RefreshCw
+            aria-hidden="true"
+            className={`size-5 ${
+              loading
+                ? "animate-spin"
+                : ""
+            }`}
+          />
           Refresh dashboard
         </button>
       </header>
 
-      <section aria-labelledby="tower-scope-heading" className="mt-6 rounded-3xl border border-brand-100 bg-brand-50 p-5 shadow-sm sm:p-6">
+      <section
+        aria-labelledby="tower-scope-heading"
+        className="mt-6 rounded-3xl border border-brand-100 bg-brand-50 p-5 shadow-sm sm:p-6"
+      >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-800 text-white">
-              <MapPin aria-hidden="true" className="size-5" />
+              <MapPin
+                aria-hidden="true"
+                className="size-5"
+              />
             </span>
 
             <div>
-              <h2 className="font-black text-brand-950" id="tower-scope-heading">
+              <h2
+                className="font-black text-brand-950"
+                id="tower-scope-heading"
+              >
                 Reception tower
               </h2>
 
@@ -544,51 +814,127 @@ export default function StaffHomePage() {
 
           {administrator ? (
             <div className="grid w-full gap-2 sm:w-64">
-              <label className="font-bold text-brand-950" htmlFor="dashboard-tower">
+              <label
+                className="font-bold text-brand-950"
+                htmlFor="dashboard-tower"
+              >
                 Tower filter
               </label>
 
-              <select className="min-h-12 w-full rounded-xl border border-brand-200 bg-white px-4 text-base font-bold text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="dashboard-tower" onChange={changeTower} value={tower}>
-                <option value="">All towers</option>
+              <select
+                className="min-h-12 w-full rounded-xl border border-brand-200 bg-white px-4 text-base font-bold text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
+                id="dashboard-tower"
+                onChange={changeTower}
+                value={tower}
+              >
+                <option value="">
+                  All towers
+                </option>
 
-                {TOWER_OPTIONS.map((towerOption) => (
-                  <option key={towerOption.value} value={towerOption.value}>
-                    {towerOption.label}
-                  </option>
-                ))}
+                {TOWER_OPTIONS.map(
+                  (towerOption) => (
+                    <option
+                      key={
+                        towerOption.value
+                      }
+                      value={
+                        towerOption.value
+                      }
+                    >
+                      {
+                        towerOption.label
+                      }
+                    </option>
+                  ),
+                )}
               </select>
             </div>
           ) : (
-            <TowerBadge tower={tower} />
+            <TowerBadge
+              tower={tower}
+            />
           )}
         </div>
       </section>
 
       {checkoutSuccess ? (
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" role="status">
-          <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+        <div
+          className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"
+          role="status"
+        >
+          <CheckCircle2
+            aria-hidden="true"
+            className="mt-0.5 size-5 shrink-0 text-emerald-700"
+          />
 
           <p className="flex-1 text-sm font-semibold leading-6">
             {checkoutSuccess}
           </p>
 
-          <button aria-label="Dismiss check-out confirmation" className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100" onClick={() => setCheckoutSuccess("")} type="button">
-            <X aria-hidden="true" className="size-4" />
+          <button
+            aria-label="Dismiss check-out confirmation"
+            className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
+            onClick={() =>
+              setCheckoutSuccess(
+                "",
+              )
+            }
+            type="button"
+          >
+            <X
+              aria-hidden="true"
+              className="size-4"
+            />
           </button>
         </div>
       ) : null}
 
       {dashboard ? (
-        <section aria-label="Reception statistics" className="mt-8 grid gap-4 sm:grid-cols-3">
-          <MetricCard icon={Users} label="Currently checked in" tone="brand" value={dashboard.stats.active} />
-          <MetricCard icon={LogIn} label="Checked in today" tone="emerald" value={dashboard.stats.checkedInToday} />
-          <MetricCard icon={LogOut} label="Checked out today" tone="slate" value={dashboard.stats.checkedOutToday} />
+        <section
+          aria-label="Reception statistics"
+          className="mt-8 grid gap-4 sm:grid-cols-3"
+        >
+          <MetricCard
+            icon={Users}
+            label="Currently checked in"
+            tone="brand"
+            value={
+              dashboard.stats
+                .active
+            }
+          />
+
+          <MetricCard
+            icon={LogIn}
+            label="Checked in today"
+            tone="emerald"
+            value={
+              dashboard.stats
+                .checkedInToday
+            }
+          />
+
+          <MetricCard
+            icon={LogOut}
+            label="Checked out today"
+            tone="slate"
+            value={
+              dashboard.stats
+                .checkedOutToday
+            }
+          />
         </section>
       ) : null}
 
-      <section aria-labelledby="dashboard-filters-heading" className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <section
+        aria-labelledby="dashboard-filters-heading"
+        className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+      >
         <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-black text-slate-950" id="dashboard-filters-heading">
+          <h2
+            className="text-xl font-black text-slate-950"
+            id="dashboard-filters-heading"
+          >
             Search and filter
           </h2>
 
@@ -599,22 +945,43 @@ export default function StaffHomePage() {
           </p>
         </div>
 
-        <form className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr_1fr_auto]" noValidate onSubmit={submitFilters}>
+        <form
+          className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr_1fr_auto]"
+          noValidate
+          onSubmit={submitFilters}
+        >
           <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="dashboard-query">
+            <label
+              className="font-bold text-slate-800"
+              htmlFor="dashboard-query"
+            >
               Name or reference
             </label>
 
             <div className="relative">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
+              />
 
               <input
-                aria-describedby={filterError ? "dashboard-filter-error" : undefined}
+                aria-describedby={
+                  filterError
+                    ? "dashboard-filter-error"
+                    : undefined
+                }
                 autoComplete="off"
                 className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pl-12 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
                 id="dashboard-query"
                 maxLength="80"
-                onChange={(event) => setQueryDraft(event.target.value)}
+                onChange={(
+                  event,
+                ) =>
+                  setQueryDraft(
+                    event.target
+                      .value,
+                  )
+                }
                 placeholder="Name or VIS-reference"
                 type="search"
                 value={queryDraft}
@@ -623,105 +990,219 @@ export default function StaffHomePage() {
           </div>
 
           <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="dashboard-agency">
+            <label
+              className="font-bold text-slate-800"
+              htmlFor="dashboard-agency"
+            >
               Agency
             </label>
 
-            <select className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="dashboard-agency" onChange={changeAgency} value={agencyDraft}>
-              <option value="">All agencies</option>
+            <select
+              className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
+              id="dashboard-agency"
+              onChange={
+                changeAgency
+              }
+              value={
+                agencyDraft
+              }
+            >
+              <option value="">
+                All agencies
+              </option>
 
-              {VISIT_AGENCIES.map((agency) => (
-                <option key={agency} value={agency}>
-                  {agency}
-                </option>
-              ))}
+              {VISIT_AGENCIES.map(
+                (agency) => (
+                  <option
+                    key={agency}
+                    value={agency}
+                  >
+                    {agency}
+                  </option>
+                ),
+              )}
             </select>
           </div>
 
           <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="dashboard-division">
+            <label
+              className="font-bold text-slate-800"
+              htmlFor="dashboard-division"
+            >
               Ministry division
             </label>
 
             <select
               className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-              disabled={agencyDraft !== MINISTRY_OF_FINANCE_AGENCY}
+              disabled={
+                agencyDraft !==
+                MINISTRY_OF_FINANCE_AGENCY
+              }
               id="dashboard-division"
-              onChange={(event) => setDivisionDraft(event.target.value)}
-              value={divisionDraft}
+              onChange={(
+                event,
+              ) =>
+                setDivisionDraft(
+                  event.target
+                    .value,
+                )
+              }
+              value={
+                divisionDraft
+              }
             >
-              <option value="">All Ministry divisions</option>
+              <option value="">
+                All Ministry divisions
+              </option>
 
-              {MOF_DIVISIONS.map((division) => (
-                <option key={division} value={division}>
-                  {division}
-                </option>
-              ))}
+              {MOF_DIVISIONS.map(
+                (division) => (
+                  <option
+                    key={division}
+                    value={
+                      division
+                    }
+                  >
+                    {division}
+                  </option>
+                ),
+              )}
             </select>
           </div>
 
           <div className="flex items-end">
-            <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-bold text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} type="submit">
-              <Search aria-hidden="true" className="size-5" />
+            <button
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-bold text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={
+                loading
+              }
+              type="submit"
+            >
+              <Search
+                aria-hidden="true"
+                className="size-5"
+              />
               Apply
             </button>
           </div>
         </form>
 
         {filterError ? (
-          <p className="mt-4 text-sm font-semibold text-red-700" id="dashboard-filter-error" role="alert">
+          <p
+            className="mt-4 text-sm font-semibold text-red-700"
+            id="dashboard-filter-error"
+            role="alert"
+          >
             {filterError}
           </p>
         ) : null}
 
         {filtersApplied ? (
-          <button className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50" disabled={loading} onClick={clearFilters} type="button">
-            <X aria-hidden="true" className="size-4" />
+          <button
+            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
+            disabled={
+              loading
+            }
+            onClick={
+              clearFilters
+            }
+            type="button"
+          >
+            <X
+              aria-hidden="true"
+              className="size-4"
+            />
             Clear filters
           </button>
         ) : null}
       </section>
 
-      {loading && !dashboard ? (
+      {loading &&
+      !dashboard ? (
         <div className="mt-6">
-          <LoadingState message={`Loading active visitors for ${towerHeading}…`} />
+          <LoadingState
+            message={`Loading active visitors for ${towerHeading}…`}
+          />
         </div>
       ) : null}
 
-      {status === "error" ? (
+      {status ===
+      "error" ? (
         <div className="mt-6">
-          <ErrorMessage message={requestError} onRetry={refreshDashboard} title="Dashboard unavailable" />
+          <ErrorMessage
+            message={
+              requestError
+            }
+            onRetry={
+              refreshDashboard
+            }
+            title="Dashboard unavailable"
+          />
         </div>
       ) : null}
 
-      {dashboard && status !== "error" ? (
-        <section aria-busy={loading} aria-labelledby="active-visitors-heading" className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      {dashboard &&
+      status !==
+        "error" ? (
+        <section
+          aria-busy={
+            loading
+          }
+          aria-labelledby="active-visitors-heading"
+          className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+        >
           <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
             <div>
-              <h2 className="text-xl font-black text-slate-950" id="active-visitors-heading">
+              <h2
+                className="text-xl font-black text-slate-950"
+                id="active-visitors-heading"
+              >
                 Currently checked-in visitors
               </h2>
 
-              <p aria-live="polite" className="mt-2 text-sm text-slate-600">
-                {dashboard.pagination.totalCount}{" "}
-                {dashboard.pagination.totalCount === 1
+              <p
+                aria-live="polite"
+                className="mt-2 text-sm text-slate-600"
+              >
+                {
+                  dashboard
+                    .pagination
+                    .totalCount
+                }{" "}
+                {dashboard
+                  .pagination
+                  .totalCount ===
+                1
                   ? "matching visitor"
                   : "matching visitors"}{" "}
-                in {towerHeading}
+                in{" "}
+                {
+                  towerHeading
+                }
               </p>
             </div>
 
-            {dashboard.generatedAt ? (
+            {dashboard
+              .generatedAt ? (
               <p className="text-sm text-slate-500">
-                Updated {formatDateTime(dashboard.generatedAt)}
+                Updated{" "}
+                {formatDateTime(
+                  dashboard.generatedAt,
+                )}
               </p>
             ) : null}
           </div>
 
-          {dashboard.visitors.length === 0 ? (
+          {dashboard
+            .visitors
+            .length ===
+          0 ? (
             <div className="p-5 sm:p-8">
               <div className="rounded-2xl bg-slate-50 p-6 text-center">
-                <Users aria-hidden="true" className="mx-auto size-10 text-slate-400" />
+                <Users
+                  aria-hidden="true"
+                  className="mx-auto size-10 text-slate-400"
+                />
 
                 <h3 className="mt-4 font-black text-slate-950">
                   No active visitors found
@@ -736,57 +1217,117 @@ export default function StaffHomePage() {
           ) : (
             <>
               <div className="grid gap-4 p-4 md:hidden">
-                {dashboard.visitors.map((visitor) => (
-                  <VisitorCard key={visitor.visitId} onCheckout={openCheckout} visitor={visitor} />
-                ))}
+                {dashboard.visitors.map(
+                  (visitor) => (
+                    <VisitorCard
+                      key={
+                        visitor.visitId
+                      }
+                      onCheckout={
+                        openCheckout
+                      }
+                      visitor={
+                        visitor
+                      }
+                    />
+                  ),
+                )}
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full border-collapse text-left">
-                  <thead className="bg-slate-50 text-sm text-slate-700">
+                <table className="w-full min-w-[990px] border-collapse text-left">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                     <tr>
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Visitor
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Visit
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Destination
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Tower
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Checked in
-                      </th>
-
-                      <th className="px-6 py-4 text-right font-bold" scope="col">
-                        Action
-                      </th>
+                      {[
+                        "Reference",
+                        "Visitor",
+                        "Card",
+                        "Destination",
+                        "Checked in",
+                        "Status",
+                        "Action",
+                      ].map(
+                        (
+                          label,
+                        ) => (
+                          <th
+                            className={`px-5 py-4 font-bold ${
+                              label ===
+                              "Action"
+                                ? "text-right"
+                                : ""
+                            }`}
+                            key={
+                              label
+                            }
+                            scope="col"
+                          >
+                            {
+                              label
+                            }
+                          </th>
+                        ),
+                      )}
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-200">
-                    {dashboard.visitors.map((visitor) => (
-                      <VisitorRow key={visitor.visitId} onCheckout={openCheckout} visitor={visitor} />
-                    ))}
+                    {dashboard.visitors.map(
+                      (
+                        visitor,
+                      ) => (
+                        <VisitorRow
+                          key={
+                            visitor.visitId
+                          }
+                          onCheckout={
+                            openCheckout
+                          }
+                          visitor={
+                            visitor
+                          }
+                        />
+                      ),
+                    )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+                {
+                  dashboard
+                    .pagination
+                    .totalCount
+                }{" "}
+                {dashboard
+                  .pagination
+                  .totalCount ===
+                1
+                  ? "entry"
+                  : "entries"}
               </div>
             </>
           )}
 
-          {dashboard.pagination.totalPages > 1 ? (
+          {dashboard
+            .pagination
+            .totalPages >
+          1 ? (
             <Pagination
-              currentPage={page}
-              goToPage={goToPage}
-              totalPages={dashboard.pagination.totalPages}
-              visiblePages={visiblePages}
+              currentPage={
+                page
+              }
+              goToPage={
+                goToPage
+              }
+              totalPages={
+                dashboard
+                  .pagination
+                  .totalPages
+              }
+              visiblePages={
+                visiblePages
+              }
             />
           ) : null}
         </section>
@@ -794,24 +1335,49 @@ export default function StaffHomePage() {
 
       {checkoutTarget ? (
         <CheckoutDialog
-          checkingOut={checkingOut}
-          error={checkoutError}
-          onCancel={closeCheckout}
-          onConfirm={confirmCheckout}
-          visitor={checkoutTarget}
+          checkingOut={
+            checkingOut
+          }
+          error={
+            checkoutError
+          }
+          onCancel={
+            closeCheckout
+          }
+          onConfirm={
+            confirmCheckout
+          }
+          visitor={
+            checkoutTarget
+          }
         />
       ) : null}
     </div>
   );
 }
 
-function TowerBadge({ tower }) {
-  const towerOne = tower === "tower_1";
+function TowerBadge({
+  tower,
+}) {
+  const towerOne =
+    tower ===
+    "tower_1";
 
   return (
-    <span className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1 text-xs font-black ${towerOne ? "bg-sky-100 text-sky-900" : "bg-violet-100 text-violet-900"}`}>
-      <MapPin aria-hidden="true" className="size-4" />
-      {getTowerLabel(tower)}
+    <span
+      className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1 text-xs font-black ${
+        towerOne
+          ? "bg-sky-100 text-sky-900"
+          : "bg-violet-100 text-violet-900"
+      }`}
+    >
+      <MapPin
+        aria-hidden="true"
+        className="size-4"
+      />
+      {getTowerLabel(
+        tower,
+      )}
     </span>
   );
 }
@@ -832,8 +1398,13 @@ function MetricCard({
   };
 
   return (
-    <article className={`rounded-3xl border p-5 shadow-sm sm:p-6 ${toneClasses[tone]}`}>
-      <Icon aria-hidden="true" className="size-7" />
+    <article
+      className={`rounded-3xl border p-5 shadow-sm sm:p-6 ${toneClasses[tone]}`}
+    >
+      <Icon
+        aria-hidden="true"
+        className="size-7"
+      />
 
       <p className="mt-5 text-3xl font-black">
         {value}
@@ -846,10 +1417,21 @@ function MetricCard({
   );
 }
 
-function CheckoutButton({ onClick }) {
+function CheckoutButton({
+  onClick,
+}) {
   return (
-    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-4 text-sm font-black text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200" onClick={onClick} type="button">
-      <LogOut aria-hidden="true" className="size-4" />
+    <button
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-4 text-sm font-black text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200"
+      onClick={
+        onClick
+      }
+      type="button"
+    >
+      <LogOut
+        aria-hidden="true"
+        className="size-4"
+      />
       Check out
     </button>
   );
@@ -863,7 +1445,7 @@ function VisitorCard({
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="wrap-break-word text-lg font-black text-slate-950">
+          <h3 className="wrap-break-word text-lg font-bold text-slate-950">
             {visitor.fullName}
           </h3>
 
@@ -872,17 +1454,48 @@ function VisitorCard({
           </p>
         </div>
 
-        <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
-          Checked in
+        <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+          {getCardStatus(
+            visitor,
+          )}
         </span>
       </div>
 
-      <div className="mt-4">
-        <TowerBadge tower={visitor.tower} />
-      </div>
-
       <dl className="mt-5 grid text-sm">
-        <VisitDetail icon={Phone} label="Phone" value={visitor.phone || "Not provided"} />
+        <VisitDetail
+          icon={Mail}
+          label="Email"
+          value={
+            visitor.email ||
+            "Not provided"
+          }
+        />
+
+        <VisitDetail
+          icon={Building2}
+          label="Card"
+          value={
+            visitor.cardNumber ||
+            "Not assigned"
+          }
+        />
+
+        <VisitDetail
+          icon={MapPin}
+          label="Tower"
+          value={getTowerLabel(
+            visitor.tower,
+          )}
+        />
+
+        <VisitDetail
+          icon={Phone}
+          label="Phone"
+          value={
+            visitor.phone ||
+            "Not provided"
+          }
+        />
 
         <VisitDetail
           icon={Building2}
@@ -895,12 +1508,31 @@ function VisitorCard({
             .join(" — ")}
         />
 
-        <VisitDetail icon={Users} label="Purpose" value={`${visitor.purpose} — ${getVisitContact(visitor)}`} />
-        <VisitDetail icon={Clock} label="Checked in" value={formatDateTime(visitor.checkedInAt)} />
+        <VisitDetail
+          icon={Users}
+          label="Purpose"
+          value={`${visitor.purpose} — ${getVisitContact(
+            visitor,
+          )}`}
+        />
+
+        <VisitDetail
+          icon={Clock}
+          label="Checked in"
+          value={formatDateTime(
+            visitor.checkedInAt,
+          )}
+        />
       </dl>
 
       <div className="mt-5 border-t border-slate-200 pt-5">
-        <CheckoutButton onClick={() => onCheckout(visitor)} />
+        <CheckoutButton
+          onClick={() =>
+            onCheckout(
+              visitor,
+            )
+          }
+        />
       </div>
     </article>
   );
@@ -914,8 +1546,13 @@ function VisitDetail({
   return (
     <>
       <dt className="mt-4 flex items-start gap-3 font-semibold text-slate-600 first:mt-0">
-        <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-brand-800" />
-        <span>{label}</span>
+        <Icon
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0 text-brand-800"
+        />
+        <span>
+          {label}
+        </span>
       </dt>
 
       <dd className="ml-8 mt-1 wrap-break-word font-bold text-slate-950">
@@ -930,59 +1567,110 @@ function VisitorRow({
   visitor,
 }) {
   return (
-    <tr className="align-top hover:bg-slate-50">
-      <td className="px-6 py-5">
-        <p className="font-black text-slate-950">
-          {visitor.fullName}
-        </p>
-
-        <p className="mt-1 font-mono text-sm font-bold text-brand-800">
+    <tr className="align-middle transition hover:bg-slate-50">
+      <td className="whitespace-nowrap px-5 py-5">
+        <p className="font-mono text-sm font-bold text-brand-800">
           {visitor.reference}
         </p>
-
-        <p className="mt-2 text-sm text-slate-600">
-          {visitor.phone || "No phone provided"}
-        </p>
-
-        {visitor.organization ? (
-          <p className="mt-1 text-sm text-slate-500">
-            {visitor.organization}
-          </p>
-        ) : null}
       </td>
 
-      <td className="px-6 py-5">
+      <td className="px-5 py-5">
+        <div className="flex min-w-[190px] items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-50 text-xs font-bold text-amber-700"
+          >
+            {getVisitorInitials(
+              visitor.fullName,
+            )}
+          </span>
+
+          <div className="min-w-0">
+            <p className="font-bold text-slate-950">
+              {visitor.fullName}
+            </p>
+
+            <p
+              className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500"
+              title={
+                visitor.email ||
+                visitor.phone ||
+                ""
+              }
+            >
+              {visitor.email ||
+                visitor.phone ||
+                "No contact provided"}
+            </p>
+          </div>
+        </div>
+      </td>
+
+      <td className="whitespace-nowrap px-5 py-5">
         <p className="font-bold text-slate-950">
-          {visitor.purpose}
+          {visitor.cardNumber ||
+            "Not assigned"}
         </p>
 
-        <p className="mt-2 max-w-xs text-sm leading-6 text-slate-600">
-          {getVisitContact(visitor)}
+        <p className="mt-1 text-xs text-slate-500">
+          {getTowerLabel(
+            visitor.tower,
+          )}
         </p>
       </td>
 
-      <td className="px-6 py-5">
-        <p className="font-bold text-slate-950">
+      <td className="px-5 py-5">
+        <p className="font-semibold text-slate-950">
           {visitor.agency}
         </p>
 
-        {visitor.division ? (
-          <p className="mt-2 max-w-xs text-sm leading-6 text-slate-600">
-            {visitor.division}
-          </p>
-        ) : null}
+        <p
+          className="mt-1 max-w-[220px] truncate text-xs text-slate-500"
+          title={
+            visitor.division ||
+            getVisitContact(
+              visitor,
+            )
+          }
+        >
+          {visitor.division ||
+            `Visiting ${getVisitContact(
+              visitor,
+            )}`}
+        </p>
       </td>
 
-      <td className="px-6 py-5">
-        <TowerBadge tower={visitor.tower} />
+      <td className="whitespace-nowrap px-5 py-5 text-sm text-slate-600">
+        {formatDateTime(
+          visitor.checkedInAt,
+        )}
       </td>
 
-      <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-700">
-        {formatDateTime(visitor.checkedInAt)}
+      <td className="px-5 py-5">
+        <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+          {getCardStatus(
+            visitor,
+          )}
+        </span>
       </td>
 
-      <td className="px-6 py-5 text-right">
-        <CheckoutButton onClick={() => onCheckout(visitor)} />
+      <td className="px-5 py-5 text-right">
+        <button
+          aria-label="Check out"
+          className="inline-grid size-11 place-items-center rounded-full border border-emerald-100 bg-emerald-50 text-brand-800 transition hover:bg-emerald-100 focus-visible:ring-4 focus-visible:ring-brand-200"
+          onClick={() =>
+            onCheckout(
+              visitor,
+            )
+          }
+          title={`Check out ${visitor.fullName}`}
+          type="button"
+        >
+          <LogOut
+            aria-hidden="true"
+            className="size-5"
+          />
+        </button>
       </td>
     </tr>
   );
@@ -996,19 +1684,37 @@ function CheckoutDialog({
   visitor,
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center" role="presentation">
-      <section aria-describedby="checkout-dialog-description" aria-labelledby="checkout-dialog-heading" aria-modal="true" className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-7" role="dialog">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
+      role="presentation"
+    >
+      <section
+        aria-describedby="checkout-dialog-description"
+        aria-labelledby="checkout-dialog-heading"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
+        role="dialog"
+      >
         <div className="flex items-start gap-4">
           <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
-            <CircleAlert aria-hidden="true" className="size-6" />
+            <CircleAlert
+              aria-hidden="true"
+              className="size-6"
+            />
           </span>
 
           <div>
-            <h2 className="text-xl font-black text-slate-950" id="checkout-dialog-heading">
+            <h2
+              className="text-xl font-black text-slate-950"
+              id="checkout-dialog-heading"
+            >
               Confirm visitor check-out
             </h2>
 
-            <p className="mt-2 leading-7 text-slate-600" id="checkout-dialog-description">
+            <p
+              className="mt-2 leading-7 text-slate-600"
+              id="checkout-dialog-description"
+            >
               Confirm that this visitor is leaving the
               premises. This records the departure time,
               tower and staff account performing the action.
@@ -1043,7 +1749,11 @@ function CheckoutDialog({
             </dt>
 
             <dd className="mt-2">
-              <TowerBadge tower={visitor.tower} />
+              <TowerBadge
+                tower={
+                  visitor.tower
+                }
+              />
             </dd>
           </div>
 
@@ -1053,27 +1763,57 @@ function CheckoutDialog({
             </dt>
 
             <dd className="mt-1 font-bold text-slate-950">
-              {formatDateTime(visitor.checkedInAt)}
+              {formatDateTime(
+                visitor.checkedInAt,
+              )}
             </dd>
           </div>
         </dl>
 
         {error ? (
-          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800" role="alert">
+          <div
+            className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800"
+            role="alert"
+          >
             {error}
           </div>
         ) : null}
 
         <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button autoFocus className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={checkingOut} onClick={onCancel} type="button">
+          <button
+            autoFocus
+            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              checkingOut
+            }
+            onClick={
+              onCancel
+            }
+            type="button"
+          >
             Cancel
           </button>
 
-          <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60" disabled={checkingOut} onClick={onConfirm} type="button">
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              checkingOut
+            }
+            onClick={
+              onConfirm
+            }
+            type="button"
+          >
             {checkingOut ? (
-              <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-5 animate-spin"
+              />
             ) : (
-              <LogOut aria-hidden="true" className="size-5" />
+              <LogOut
+                aria-hidden="true"
+                className="size-5"
+              />
             )}
 
             {checkingOut
@@ -1093,37 +1833,96 @@ function Pagination({
   visiblePages,
 }) {
   return (
-    <nav aria-label="Active visitor pages" className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-      <p aria-live="polite" className="text-center text-sm font-semibold text-slate-600 sm:text-left">
-        Page {currentPage} of {totalPages}
+    <nav
+      aria-label="Active visitor pages"
+      className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+    >
+      <p
+        aria-live="polite"
+        className="text-center text-sm font-semibold text-slate-600 sm:text-left"
+      >
+        Page {currentPage} of{" "}
+        {totalPages}
       </p>
 
       <div className="flex items-center justify-center gap-2">
-        <button aria-label="Previous page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)} type="button">
-          <ChevronLeft aria-hidden="true" className="size-5" />
+        <button
+          aria-label="Previous page"
+          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={
+            currentPage <=
+            1
+          }
+          onClick={() =>
+            goToPage(
+              currentPage -
+                1,
+            )
+          }
+          type="button"
+        >
+          <ChevronLeft
+            aria-hidden="true"
+            className="size-5"
+          />
         </button>
 
         <div className="hidden items-center gap-2 sm:flex">
-          {visiblePages.map((pageNumber) => (
-            <button
-              aria-current={pageNumber === currentPage ? "page" : undefined}
-              aria-label={`Page ${pageNumber}`}
-              className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
-                pageNumber === currentPage
-                  ? "border-brand-800 bg-brand-800 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              key={pageNumber}
-              onClick={() => goToPage(pageNumber)}
-              type="button"
-            >
-              {pageNumber}
-            </button>
-          ))}
+          {visiblePages.map(
+            (
+              pageNumber,
+            ) => (
+              <button
+                aria-current={
+                  pageNumber ===
+                  currentPage
+                    ? "page"
+                    : undefined
+                }
+                aria-label={`Page ${pageNumber}`}
+                className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
+                  pageNumber ===
+                  currentPage
+                    ? "border-brand-800 bg-brand-800 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+                key={
+                  pageNumber
+                }
+                onClick={() =>
+                  goToPage(
+                    pageNumber,
+                  )
+                }
+                type="button"
+              >
+                {
+                  pageNumber
+                }
+              </button>
+            ),
+          )}
         </div>
 
-        <button aria-label="Next page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)} type="button">
-          <ChevronRight aria-hidden="true" className="size-5" />
+        <button
+          aria-label="Next page"
+          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={
+            currentPage >=
+            totalPages
+          }
+          onClick={() =>
+            goToPage(
+              currentPage +
+                1,
+            )
+          }
+          type="button"
+        >
+          <ChevronRight
+            aria-hidden="true"
+            className="size-5"
+          />
         </button>
       </div>
     </nav>

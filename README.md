@@ -1982,6 +1982,16 @@ Validation completed:
 - `npm run build`
 - `git diff --check`
 
+### Checked-in visitor table
+
+- Updated the dashboard table to show Reference, Visitor, Card,
+  Destination, Checked in, Status, and Action.
+- Added visitor email and current card details to the authorised
+  staff dashboard response.
+- Shows "Not assigned" when no card is currently assigned.
+- Preserved mobile visitor cards, tower filtering, search,
+  pagination, and checkout confirmation.
+
 ### Stage 10 — Visitor checkout and visit history
 
 Status: Completed
