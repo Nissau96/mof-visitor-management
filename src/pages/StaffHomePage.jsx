@@ -10,7 +10,6 @@ import {
   LogOut,
   Mail,
   MapPin,
-  Phone,
   RefreshCw,
   Search,
   Users,
@@ -64,22 +63,28 @@ function getVisitContact(visitor) {
   return visitor.personVisiting || "Not provided";
 }
 
-function getVisitorInitials(name) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(
-      (part) =>
-        part[0]?.toUpperCase() || "",
-    )
-    .join("");
-}
-
 function getCardStatus(visitor) {
   return visitor.cardStatus === "assigned"
     ? "Assigned"
     : "Checked in";
+}
+
+function VisitorTypeBadge({ type }) {
+  if (type !== "vip" && type !== "regular") {
+    return <span className="text-sm text-slate-500">—</span>;
+  }
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${
+        type === "vip"
+          ? "border-amber-300 bg-amber-100 text-amber-900"
+          : "border-blue-200 bg-blue-50 text-blue-700"
+      }`}
+    >
+      {type === "vip" ? "VIP" : "Regular"}
+    </span>
+  );
 }
 
 function normalizeDashboardResult(result) {
@@ -1235,16 +1240,21 @@ export default function StaffHomePage() {
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[990px] border-collapse text-left">
+                <table className="w-full min-w-[1450px] border-collapse text-left">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                     <tr>
                       {[
                         "Reference",
-                        "Visitor",
-                        "Card",
-                        "Destination",
-                        "Checked in",
-                        "Status",
+                        "Agency",
+                        "Visitor Type",
+                        "Given Card",
+                        "Card Status",
+                        "Name",
+                        "Contact Details",
+                        "Person / Div. Visiting",
+                        "Purpose of Visit",
+                        "Institution",
+                        "Date",
                         "Action",
                       ].map(
                         (
@@ -1462,59 +1472,26 @@ function VisitorCard({
       </div>
 
       <dl className="mt-5 grid text-sm">
-        <VisitDetail
-          icon={Mail}
-          label="Email"
-          value={
-            visitor.email ||
-            "Not provided"
-          }
-        />
-
-        <VisitDetail
-          icon={Building2}
-          label="Card"
-          value={
-            visitor.cardNumber ||
-            "Not assigned"
-          }
-        />
-
-        <VisitDetail
-          icon={MapPin}
-          label="Tower"
-          value={getTowerLabel(
-            visitor.tower,
-          )}
-        />
-
-        <VisitDetail
-          icon={Phone}
-          label="Phone"
-          value={
-            visitor.phone ||
-            "Not provided"
-          }
-        />
-
-        <VisitDetail
-          icon={Building2}
-          label="Destination"
-          value={[
-            visitor.agency,
-            visitor.division,
-          ]
-            .filter(Boolean)
-            .join(" — ")}
-        />
-
-        <VisitDetail
-          icon={Users}
-          label="Purpose"
-          value={`${visitor.purpose} — ${getVisitContact(
-            visitor,
-          )}`}
-        />
+        <VisitDetail icon={Building2} label="Agency" value={visitor.agency} />
+        <dt className="mt-4 font-semibold text-slate-600">Visitor Type</dt>
+        <dd className="mt-1"><VisitorTypeBadge type={visitor.visitorType} /></dd>
+        <dt className="mt-4 font-semibold text-slate-600">Given Card</dt>
+        <dd className="mt-1">
+          <span className="inline-flex rounded-full border border-brand-100 bg-brand-50 px-3 py-1 font-bold text-brand-800">
+            {visitor.cardNumber || "Not assigned"}
+          </span>
+        </dd>
+        <VisitDetail icon={Mail} label="Contact Details" value={
+          <span className="grid gap-1">
+            <span>{visitor.email || "No email provided"}</span>
+            {visitor.phone ? <span>{visitor.phone}</span> : null}
+          </span>
+        } />
+        <VisitDetail icon={Users} label="Person / Div. Visiting" value={
+          [getVisitContact(visitor), visitor.division].filter(Boolean).join(" — ")
+        } />
+        <VisitDetail icon={Users} label="Purpose of Visit" value={visitor.purpose} />
+        <VisitDetail icon={Building2} label="Institution" value={visitor.organization || "Not provided"} />
 
         <VisitDetail
           icon={Clock}
@@ -1573,85 +1550,33 @@ function VisitorRow({
           {visitor.reference}
         </p>
       </td>
-
-      <td className="px-5 py-5">
-        <div className="flex min-w-[190px] items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grid size-10 shrink-0 place-items-center rounded-full bg-amber-50 text-xs font-bold text-amber-700"
-          >
-            {getVisitorInitials(
-              visitor.fullName,
-            )}
-          </span>
-
-          <div className="min-w-0">
-            <p className="font-bold text-slate-950">
-              {visitor.fullName}
-            </p>
-
-            <p
-              className="mt-0.5 max-w-[220px] truncate text-xs text-slate-500"
-              title={
-                visitor.email ||
-                visitor.phone ||
-                ""
-              }
-            >
-              {visitor.email ||
-                visitor.phone ||
-                "No contact provided"}
-            </p>
-          </div>
-        </div>
-      </td>
-
+      <td className="px-5 py-5 font-semibold text-slate-950">{visitor.agency}</td>
+      <td className="px-5 py-5"><VisitorTypeBadge type={visitor.visitorType} /></td>
       <td className="whitespace-nowrap px-5 py-5">
-        <p className="font-bold text-slate-950">
-          {visitor.cardNumber ||
-            "Not assigned"}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          {getTowerLabel(
-            visitor.tower,
-          )}
-        </p>
+        <span className="inline-flex rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">
+          {visitor.cardNumber || "Not assigned"}
+        </span>
       </td>
-
-      <td className="px-5 py-5">
-        <p className="font-semibold text-slate-950">
-          {visitor.agency}
-        </p>
-
-        <p
-          className="mt-1 max-w-[220px] truncate text-xs text-slate-500"
-          title={
-            visitor.division ||
-            getVisitContact(
-              visitor,
-            )
-          }
-        >
-          {visitor.division ||
-            `Visiting ${getVisitContact(
-              visitor,
-            )}`}
-        </p>
-      </td>
-
-      <td className="whitespace-nowrap px-5 py-5 text-sm text-slate-600">
-        {formatDateTime(
-          visitor.checkedInAt,
-        )}
-      </td>
-
       <td className="px-5 py-5">
         <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-          {getCardStatus(
-            visitor,
-          )}
+          {getCardStatus(visitor)}
         </span>
+      </td>
+      <td className="px-5 py-5 font-bold text-slate-950">{visitor.fullName}</td>
+      <td className="px-5 py-5 text-sm">
+        <div className="grid min-w-[180px] gap-1">
+          <span className="break-all text-slate-950">{visitor.email || "No email provided"}</span>
+          {visitor.phone ? <span className="text-slate-600">{visitor.phone}</span> : null}
+        </div>
+      </td>
+      <td className="px-5 py-5 text-sm">
+        <p className="font-semibold text-slate-950">{getVisitContact(visitor)}</p>
+        {visitor.division ? <p className="mt-1 text-slate-600">{visitor.division}</p> : null}
+      </td>
+      <td className="px-5 py-5 text-sm text-slate-700">{visitor.purpose}</td>
+      <td className="px-5 py-5 text-sm text-slate-700">{visitor.organization || "—"}</td>
+      <td className="whitespace-nowrap px-5 py-5 text-sm text-slate-600">
+        {formatDateTime(visitor.checkedInAt)}
       </td>
 
       <td className="px-5 py-5 text-right">

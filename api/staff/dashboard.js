@@ -116,7 +116,7 @@ async function addVisitorDetails(client, visitors) {
     cardIds.length
       ? client
           .from("visitor_cards")
-          .select("id, card_number")
+          .select("id, card_number, card_type")
           .in("id", cardIds)
       : Promise.resolve({
           data: [],
@@ -188,6 +188,13 @@ async function addVisitorDetails(client, visitors) {
 
       cardStatus:
         assignment?.status || null,
+
+      visitorType:
+        assignment?.status === "assigned"
+          ? cardsById.get(
+              assignment.card_id,
+            )?.card_type || null
+          : null,
     };
   });
 }
