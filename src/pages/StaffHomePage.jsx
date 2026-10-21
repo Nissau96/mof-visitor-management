@@ -961,12 +961,7 @@ export default function StaffHomePage() {
 
           <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent" />
 
-          <p className="absolute right-[4%] top-[12%] w-[17%] text-sm font-bold leading-snug text-white xl:text-base">
-            Efficient Service
-            <span className="block font-medium">
-              for a Stronger Ghana
-            </span>
-          </p>
+          
         </div>
 
         <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">
