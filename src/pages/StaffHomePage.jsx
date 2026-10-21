@@ -1,5 +1,6 @@
 import {
   Building2,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -12,10 +13,16 @@ import {
   MapPin,
   RefreshCw,
   Search,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
+import heroIllustration from "../assets/images/reception-hero.jpg";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -45,14 +52,80 @@ const dateTimeFormatter = new Intl.DateTimeFormat(
   },
 );
 
-function formatDateTime(value) {
+const timeFormatter = new Intl.DateTimeFormat(
+  "en-GH",
+  {
+    timeStyle: "short",
+    timeZone: "Africa/Accra",
+  },
+);
+
+const dateFormatter = new Intl.DateTimeFormat(
+  "en-GB",
+  {
+    day: "numeric",
+    month: "short",
+    timeZone: "Africa/Accra",
+    year: "numeric",
+  },
+);
+
+const monthFormatter = new Intl.DateTimeFormat(
+  "en-GB",
+  {
+    month: "long",
+    timeZone: "Africa/Accra",
+    year: "numeric",
+  },
+);
+
+function formatWith(formatter, value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "Unavailable";
   }
 
-  return dateTimeFormatter.format(date);
+  return formatter.format(date);
+}
+
+function formatDateTime(value) {
+  return formatWith(
+    dateTimeFormatter,
+    value,
+  );
+}
+
+function formatTimeOnSite(
+  checkedInAt,
+  referenceTime,
+) {
+  const minutes = Math.floor(
+    (
+      new Date(referenceTime).getTime() -
+      new Date(checkedInAt).getTime()
+    ) / 60000,
+  );
+
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return "";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m on site`;
+  }
+
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m on site`;
+}
+
+function getInitials(fullName) {
+  return fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function getVisitContact(visitor) {
@@ -111,6 +184,9 @@ function normalizeDashboardResult(result) {
     ),
     checkedOutToday: Number(
       result.stats.checkedOutToday,
+    ),
+    checkedInThisMonth: Number(
+      result.stats.checkedInThisMonth,
     ),
   };
 
@@ -457,20 +533,19 @@ export default function StaffHomePage() {
     tower,
   ]);
 
-  function submitFilters(event) {
-    event.preventDefault();
+  // Filters apply as soon as they change; the dashboard keeps showing the
+  // previous results (dimmed) so the toolbar never unmounts mid-typing.
+  function applyFilters(
+    draft,
+    { forceRefresh = false } = {},
+  ) {
     setFilterError("");
 
     const parsed =
       receptionDashboardSchema.safeParse(
         {
-          agency:
-            agencyDraft,
-          division:
-            divisionDraft,
+          ...draft,
           page: 1,
-          query:
-            queryDraft,
           tower,
         },
       );
@@ -496,22 +571,30 @@ export default function StaffHomePage() {
         parsed.data.query,
     };
 
-    setDashboard(null);
-    setStatus("loading");
-    setPage(1);
-    setFilters(
-      nextFilters,
-    );
-
-    if (
+    const unchanged =
       page === 1 &&
       filters.agency ===
         nextFilters.agency &&
       filters.division ===
         nextFilters.division &&
       filters.query ===
-        nextFilters.query
+        nextFilters.query;
+
+    if (
+      unchanged &&
+      !forceRefresh
     ) {
+      return;
+    }
+
+    setRequestError("");
+    setStatus("loading");
+    setPage(1);
+    setFilters(
+      nextFilters,
+    );
+
+    if (unchanged) {
       setRefreshKey(
         (currentKey) =>
           currentKey + 1,
@@ -519,20 +602,78 @@ export default function StaffHomePage() {
     }
   }
 
+  const applySearchDraft =
+    useEffectEvent(() => {
+      applyFilters({
+        agency:
+          agencyDraft,
+        division:
+          divisionDraft,
+        query:
+          queryDraft,
+      });
+    });
+
+  useEffect(() => {
+    const timeout =
+      window.setTimeout(
+        applySearchDraft,
+        400,
+      );
+
+    return () => {
+      window.clearTimeout(
+        timeout,
+      );
+    };
+  }, [queryDraft]);
+
+  function submitSearch(event) {
+    event.preventDefault();
+
+    applyFilters(
+      {
+        agency:
+          agencyDraft,
+        division:
+          divisionDraft,
+        query:
+          queryDraft,
+      },
+      {
+        forceRefresh: true,
+      },
+    );
+  }
+
+  function changeDivision(event) {
+    const nextDivision =
+      event.target.value;
+
+    setDivisionDraft(
+      nextDivision,
+    );
+
+    applyFilters({
+      agency:
+        agencyDraft,
+      division:
+        nextDivision,
+      query:
+        queryDraft,
+    });
+  }
+
   function clearFilters() {
     setQueryDraft("");
     setAgencyDraft("");
     setDivisionDraft("");
-    setFilterError("");
-    setDashboard(null);
-    setStatus("loading");
-    setPage(1);
-    setFilters(
+
+    applyFilters(
       EMPTY_FILTERS,
-    );
-    setRefreshKey(
-      (currentKey) =>
-        currentKey + 1,
+      {
+        forceRefresh: true,
+      },
     );
   }
 
@@ -545,14 +686,17 @@ export default function StaffHomePage() {
     );
   }
 
-  function changeTower(event) {
-    if (!administrator) {
+  function changeTower(nextTower) {
+    if (
+      !administrator ||
+      nextTower === tower
+    ) {
       return;
     }
 
     try {
       setTowerScope(
-        event.target.value,
+        nextTower,
       );
       setCheckoutTarget(null);
       setCheckoutError("");
@@ -587,7 +731,6 @@ export default function StaffHomePage() {
       return;
     }
 
-    setDashboard(null);
     setRequestError("");
     setStatus("loading");
     setPage(nextPage);
@@ -603,16 +746,29 @@ export default function StaffHomePage() {
     const nextAgency =
       event.target.value;
 
+    // The division filter only exists for MoF; clear it so a hidden
+    // dropdown can never narrow the results.
+    const nextDivision =
+      nextAgency ===
+      MINISTRY_OF_FINANCE_AGENCY
+        ? divisionDraft
+        : "";
+
     setAgencyDraft(
       nextAgency,
     );
+    setDivisionDraft(
+      nextDivision,
+    );
 
-    if (
-      nextAgency !==
-      MINISTRY_OF_FINANCE_AGENCY
-    ) {
-      setDivisionDraft("");
-    }
+    applyFilters({
+      agency:
+        nextAgency,
+      division:
+        nextDivision,
+      query:
+        queryDraft,
+    });
   }
 
   function openCheckout(visitor) {
@@ -749,116 +905,105 @@ export default function StaffHomePage() {
       ? getTowerLabel(tower)
       : "All towers";
 
+  const workspaceName =
+    administrator
+      ? "Admin Command Center"
+      : "Reception Workspace";
+
+  const referenceTime =
+    dashboard?.generatedAt ||
+    new Date().toISOString();
+
+  const monthLabel =
+    formatWith(
+      monthFormatter,
+      referenceTime,
+    );
+
+  const stats =
+    dashboard?.stats;
+
+  const completionRate =
+    stats &&
+    stats.checkedInToday > 0
+      ? Math.round(
+          (stats.checkedOutToday /
+            stats.checkedInToday) *
+            100,
+        )
+      : null;
+
+  const totalCount =
+    dashboard?.pagination
+      .totalCount ?? 0;
+
+  const matchingSummary = `${totalCount} ${
+    totalCount === 1
+      ? "matching visitor"
+      : "matching visitors"
+  } in ${towerHeading}`;
+
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-800">
-            Reception dashboard
-          </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <section
+        aria-labelledby="dashboard-heading"
+        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e8f8ef] to-[#d6f2e3] shadow-sm"
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[54%] lg:block"
+        >
+          <img
+            alt=""
+            className="size-full object-cover object-right"
+            src={heroIllustration}
+          />
 
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-            Welcome, {profile.fullName}
-          </h1>
+          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent" />
 
-          <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-            Review visitors currently checked into{" "}
-            <strong>
-              {towerHeading}
-            </strong>{" "}
-            and record their departure securely.
+          <p className="absolute right-[4%] top-[12%] w-[17%] text-sm font-bold leading-snug text-white xl:text-base">
+            Efficient Service
+            <span className="block font-medium">
+              for a Stronger Ghana
+            </span>
           </p>
         </div>
 
-        <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={loading}
-          onClick={refreshDashboard}
-          type="button"
-        >
-          <RefreshCw
-            aria-hidden="true"
-            className={`size-5 ${
-              loading
-                ? "animate-spin"
-                : ""
-            }`}
-          />
-          Refresh dashboard
-        </button>
-      </header>
+        <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">
+          <h1
+            className="text-3xl font-black tracking-tight text-brand-900 sm:text-4xl"
+            id="dashboard-heading"
+          >
+            Welcome to your{" "}
+            {workspaceName}
+          </h1>
 
-      <section
-        aria-labelledby="tower-scope-heading"
-        className="mt-6 rounded-3xl border border-brand-100 bg-brand-50 p-5 shadow-sm sm:p-6"
-      >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-800 text-white">
-              <MapPin
-                aria-hidden="true"
-                className="size-5"
-              />
+          <p className="mt-3 max-w-xl leading-7 text-slate-700">
+            Manage visitors, monitor check-ins, issue
+            visitor cards, and keep reception activities
+            running smoothly from one place.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="inline-flex min-h-8 items-center rounded-full bg-brand-100 px-4 text-xs font-black uppercase tracking-[0.08em] text-brand-900">
+              {workspaceName}
             </span>
 
-            <div>
-              <h2
-                className="font-black text-brand-950"
-                id="tower-scope-heading"
-              >
-                Reception tower
-              </h2>
-
-              <p className="mt-1 text-sm leading-6 text-brand-900">
-                {administrator
-                  ? "Administrators may view all towers or filter the dashboard to one tower."
-                  : "Your dashboard is restricted to the tower selected when you signed in."}
-              </p>
-            </div>
+            <span className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-700">
+              {administrator
+                ? "Administrator"
+                : "Receptionist"}
+            </span>
           </div>
 
-          {administrator ? (
-            <div className="grid w-full gap-2 sm:w-64">
-              <label
-                className="font-bold text-brand-950"
-                htmlFor="dashboard-tower"
-              >
-                Tower filter
-              </label>
-
-              <select
-                className="min-h-12 w-full rounded-xl border border-brand-200 bg-white px-4 text-base font-bold text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
-                id="dashboard-tower"
-                onChange={changeTower}
-                value={tower}
-              >
-                <option value="">
-                  All towers
-                </option>
-
-                {TOWER_OPTIONS.map(
-                  (towerOption) => (
-                    <option
-                      key={
-                        towerOption.value
-                      }
-                      value={
-                        towerOption.value
-                      }
-                    >
-                      {
-                        towerOption.label
-                      }
-                    </option>
-                  ),
-                )}
-              </select>
-            </div>
-          ) : (
-            <TowerBadge
-              tower={tower}
+          <p className="mt-6 flex max-w-lg items-center gap-3 rounded-xl bg-white/60 px-4 py-3 text-sm font-semibold text-brand-900">
+            <Users
+              aria-hidden="true"
+              className="size-5 shrink-0"
             />
-          )}
+            A professional, secure and seamless
+            visitor experience.
+          </p>
         </div>
       </section>
 
@@ -894,454 +1039,493 @@ export default function StaffHomePage() {
         </div>
       ) : null}
 
-      {dashboard ? (
-        <section
-          aria-label="Reception statistics"
-          className="mt-8 grid gap-4 sm:grid-cols-3"
-        >
-          <MetricCard
-            icon={Users}
-            label="Currently checked in"
-            tone="brand"
-            value={
-              dashboard.stats
-                .active
-            }
-          />
-
-          <MetricCard
-            icon={LogIn}
-            label="Checked in today"
-            tone="emerald"
-            value={
-              dashboard.stats
-                .checkedInToday
-            }
-          />
-
-          <MetricCard
-            icon={LogOut}
-            label="Checked out today"
-            tone="slate"
-            value={
-              dashboard.stats
-                .checkedOutToday
-            }
-          />
-        </section>
-      ) : null}
-
       <section
-        aria-labelledby="dashboard-filters-heading"
-        className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+        aria-busy={loading}
+        aria-label="Reception statistics"
+        className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
-        <div className="flex flex-col gap-2">
-          <h2
-            className="text-xl font-black text-slate-950"
-            id="dashboard-filters-heading"
-          >
-            Search and filter
-          </h2>
+        <MetricCard
+          icon={UserCheck}
+          label="Currently Checked In"
+          note={`In ${towerHeading}`}
+          tone="emerald"
+          value={stats?.active}
+        />
 
-          <p className="text-sm leading-6 text-slate-600">
-            Search by visitor name or visit reference.
-            Search values are submitted in the request body
-            and are not added to the URL.
-          </p>
-        </div>
+        <MetricCard
+          icon={LogIn}
+          label="Arrivals Today"
+          note={formatWith(
+            dateFormatter,
+            referenceTime,
+          )}
+          tone="blue"
+          value={
+            stats?.checkedInToday
+          }
+        />
 
-        <form
-          className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr_1fr_auto]"
-          noValidate
-          onSubmit={submitFilters}
-        >
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="dashboard-query"
-            >
-              Name or reference
-            </label>
+        <MetricCard
+          icon={LogOut}
+          label="Checked Out Today"
+          note={
+            completionRate === null
+              ? "No arrivals yet"
+              : `${completionRate}% completion`
+          }
+          tone="slate"
+          value={
+            stats?.checkedOutToday
+          }
+        />
 
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                aria-describedby={
-                  filterError
-                    ? "dashboard-filter-error"
-                    : undefined
-                }
-                autoComplete="off"
-                className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pl-12 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
-                id="dashboard-query"
-                maxLength="80"
-                onChange={(
-                  event,
-                ) =>
-                  setQueryDraft(
-                    event.target
-                      .value,
-                  )
-                }
-                placeholder="Name or VIS-reference"
-                type="search"
-                value={queryDraft}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="dashboard-agency"
-            >
-              Agency
-            </label>
-
-            <select
-              className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
-              id="dashboard-agency"
-              onChange={
-                changeAgency
-              }
-              value={
-                agencyDraft
-              }
-            >
-              <option value="">
-                All agencies
-              </option>
-
-              {VISIT_AGENCIES.map(
-                (agency) => (
-                  <option
-                    key={agency}
-                    value={agency}
-                  >
-                    {agency}
-                  </option>
-                ),
-              )}
-            </select>
-          </div>
-
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="dashboard-division"
-            >
-              Ministry division
-            </label>
-
-            <select
-              className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-              disabled={
-                agencyDraft !==
-                MINISTRY_OF_FINANCE_AGENCY
-              }
-              id="dashboard-division"
-              onChange={(
-                event,
-              ) =>
-                setDivisionDraft(
-                  event.target
-                    .value,
-                )
-              }
-              value={
-                divisionDraft
-              }
-            >
-              <option value="">
-                All Ministry divisions
-              </option>
-
-              {MOF_DIVISIONS.map(
-                (division) => (
-                  <option
-                    key={division}
-                    value={
-                      division
-                    }
-                  >
-                    {division}
-                  </option>
-                ),
-              )}
-            </select>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-bold text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={
-                loading
-              }
-              type="submit"
-            >
-              <Search
-                aria-hidden="true"
-                className="size-5"
-              />
-              Apply
-            </button>
-          </div>
-        </form>
-
-        {filterError ? (
-          <p
-            className="mt-4 text-sm font-semibold text-red-700"
-            id="dashboard-filter-error"
-            role="alert"
-          >
-            {filterError}
-          </p>
-        ) : null}
-
-        {filtersApplied ? (
-          <button
-            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-            disabled={
-              loading
-            }
-            onClick={
-              clearFilters
-            }
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
-            />
-            Clear filters
-          </button>
-        ) : null}
+        <MetricCard
+          icon={CalendarDays}
+          label="Total Visitors This Month"
+          note={`${
+            administrator
+              ? "All towers"
+              : towerHeading
+          } · ${monthLabel}`}
+          tone="amber"
+          value={
+            stats?.checkedInThisMonth
+          }
+        />
       </section>
 
-      {loading &&
-      !dashboard ? (
-        <div className="mt-6">
-          <LoadingState
-            message={`Loading active visitors for ${towerHeading}…`}
-          />
-        </div>
-      ) : null}
-
-      {status ===
-      "error" ? (
-        <div className="mt-6">
-          <ErrorMessage
-            message={
-              requestError
-            }
-            onRetry={
-              refreshDashboard
-            }
-            title="Dashboard unavailable"
-          />
-        </div>
-      ) : null}
-
-      {dashboard &&
-      status !==
-        "error" ? (
-        <section
-          aria-busy={
-            loading
-          }
-          aria-labelledby="active-visitors-heading"
-          className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
-        >
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div>
+      <section
+        aria-busy={loading}
+        aria-labelledby="active-visitors-heading"
+        className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+      >
+        <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <h2
                 className="text-xl font-black text-slate-950"
                 id="active-visitors-heading"
               >
-                Currently checked-in visitors
+                Currently Checked-In Visitors
               </h2>
 
-              <p
-                aria-live="polite"
-                className="mt-2 text-sm text-slate-600"
-              >
-                {
-                  dashboard
-                    .pagination
-                    .totalCount
-                }{" "}
-                {dashboard
-                  .pagination
-                  .totalCount ===
-                1
-                  ? "matching visitor"
-                  : "matching visitors"}{" "}
-                in{" "}
-                {
-                  towerHeading
-                }
-              </p>
+              {dashboard ? (
+                <p
+                  aria-live="polite"
+                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"
+                >
+                  {matchingSummary}
+                </p>
+              ) : null}
             </div>
 
-            {dashboard
-              .generatedAt ? (
-              <p className="text-sm text-slate-500">
-                Updated{" "}
-                {formatDateTime(
-                  dashboard.generatedAt,
-                )}
-              </p>
-            ) : null}
-          </div>
+            <form
+              className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end"
+              noValidate
+              onSubmit={submitSearch}
+              role="search"
+            >
+              <div className="relative sm:w-64">
+                <label
+                  className="sr-only"
+                  htmlFor="dashboard-query"
+                >
+                  Name or reference
+                </label>
 
-          {dashboard
-            .visitors
-            .length ===
-          0 ? (
-            <div className="p-5 sm:p-8">
-              <div className="rounded-2xl bg-slate-50 p-6 text-center">
-                <Users
+                <Search
                   aria-hidden="true"
-                  className="mx-auto size-10 text-slate-400"
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
                 />
 
-                <h3 className="mt-4 font-black text-slate-950">
-                  No active visitors found
-                </h3>
-
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  No checked-in visitor matches the current
-                  tower, search and filters.
-                </p>
+                <input
+                  aria-describedby={
+                    filterError
+                      ? "dashboard-filter-error"
+                      : undefined
+                  }
+                  autoComplete="off"
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pl-9 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
+                  id="dashboard-query"
+                  maxLength="80"
+                  onChange={(
+                    event,
+                  ) =>
+                    setQueryDraft(
+                      event.target
+                        .value,
+                    )
+                  }
+                  placeholder="Search name or VIS-reference"
+                  type="search"
+                  value={queryDraft}
+                />
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-4 p-4 md:hidden">
-                {dashboard.visitors.map(
-                  (visitor) => (
-                    <VisitorCard
+
+              <label
+                className="sr-only"
+                htmlFor="dashboard-agency"
+              >
+                Agency
+              </label>
+
+              <select
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 sm:w-56"
+                id="dashboard-agency"
+                onChange={
+                  changeAgency
+                }
+                value={
+                  agencyDraft
+                }
+              >
+                <option value="">
+                  All agencies
+                </option>
+
+                {VISIT_AGENCIES.map(
+                  (agency) => (
+                    <option
+                      key={agency}
+                      value={agency}
+                    >
+                      {agency}
+                    </option>
+                  ),
+                )}
+              </select>
+
+              {agencyDraft ===
+              MINISTRY_OF_FINANCE_AGENCY ? (
+                <>
+                  <label
+                    className="sr-only"
+                    htmlFor="dashboard-division"
+                  >
+                    Ministry division
+                  </label>
+
+                  <select
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 sm:w-56"
+                    id="dashboard-division"
+                    onChange={
+                      changeDivision
+                    }
+                    value={
+                      divisionDraft
+                    }
+                  >
+                    <option value="">
+                      All divisions
+                    </option>
+
+                    {MOF_DIVISIONS.map(
+                      (division) => (
+                        <option
+                          key={division}
+                          value={
+                            division
+                          }
+                        >
+                          {division}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </>
+              ) : null}
+
+              <button
+                className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !filtersApplied &&
+                  !queryDraft &&
+                  !agencyDraft
+                }
+                onClick={
+                  clearFilters
+                }
+                type="button"
+              >
+                Reset
+              </button>
+            </form>
+          </div>
+
+          {filterError ? (
+            <p
+              className="text-sm font-semibold text-red-700"
+              id="dashboard-filter-error"
+              role="alert"
+            >
+              {filterError}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {administrator ? (
+              <div
+                aria-label="Tower filter"
+                className="inline-flex rounded-xl bg-slate-100 p-1"
+                role="group"
+              >
+                {[
+                  {
+                    label:
+                      "All Towers",
+                    value: "",
+                  },
+                  ...TOWER_OPTIONS,
+                ].map(
+                  (towerOption) => (
+                    <button
+                      aria-pressed={
+                        tower ===
+                        towerOption.value
+                      }
+                      className={`min-h-9 rounded-lg px-4 text-sm font-bold transition ${
+                        tower ===
+                        towerOption.value
+                          ? "bg-white text-brand-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
                       key={
-                        visitor.visitId
+                        towerOption.value ||
+                        "all"
                       }
-                      onCheckout={
-                        openCheckout
+                      onClick={() =>
+                        changeTower(
+                          towerOption.value,
+                        )
                       }
-                      visitor={
-                        visitor
+                      type="button"
+                    >
+                      {
+                        towerOption.label
                       }
-                    />
+                    </button>
                   ),
                 )}
               </div>
+            ) : (
+              <TowerBadge
+                tower={tower}
+              />
+            )}
 
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1450px] border-collapse text-left">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
-                    <tr>
-                      {[
-                        "Reference",
-                        "Agency",
-                        "Visitor Type",
-                        "Given Card",
-                        "Card Status",
-                        "Name",
-                        "Contact Details",
-                        "Person / Div. Visiting",
-                        "Purpose of Visit",
-                        "Institution",
-                        "Date",
-                        "Action",
-                      ].map(
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={loading}
+              onClick={
+                refreshDashboard
+              }
+              type="button"
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={`size-4 ${
+                  loading
+                    ? "animate-spin"
+                    : ""
+                }`}
+              />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {loading &&
+        !dashboard ? (
+          <div className="p-5 sm:p-6">
+            <LoadingState
+              message={`Loading active visitors for ${towerHeading}…`}
+            />
+          </div>
+        ) : null}
+
+        {status ===
+        "error" ? (
+          <div className="p-5 sm:p-6">
+            <ErrorMessage
+              message={
+                requestError
+              }
+              onRetry={
+                refreshDashboard
+              }
+              title="Dashboard unavailable"
+            />
+          </div>
+        ) : null}
+
+        {dashboard &&
+        status !==
+          "error" ? (
+          <div
+            className={
+              loading
+                ? "pointer-events-none opacity-60 transition"
+                : "transition"
+            }
+          >
+            {dashboard
+              .visitors
+              .length ===
+            0 ? (
+              <div className="p-5 sm:p-8">
+                <div className="rounded-2xl bg-slate-50 p-6 text-center">
+                  <Users
+                    aria-hidden="true"
+                    className="mx-auto size-10 text-slate-400"
+                  />
+
+                  <h3 className="mt-4 font-black text-slate-950">
+                    No active visitors found
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    No checked-in visitor matches the current
+                    tower, search and filters.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 p-4 md:hidden">
+                  {dashboard.visitors.map(
+                    (visitor) => (
+                      <VisitorCard
+                        key={
+                          visitor.visitId
+                        }
+                        onCheckout={
+                          openCheckout
+                        }
+                        visitor={
+                          visitor
+                        }
+                      />
+                    ),
+                  )}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-275 border-collapse text-left">
+                    <thead className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                      <tr>
+                        {[
+                          "Reference",
+                          "Agency",
+                          "Visitor",
+                          "Contact",
+                          "Purpose of Visit",
+                          "Person / Division Visiting",
+                          "Card",
+                          "Check-In",
+                          "Action",
+                        ].map(
+                          (
+                            label,
+                          ) => (
+                            <th
+                              className={`px-4 py-3 font-bold ${
+                                label ===
+                                "Action"
+                                  ? "text-right"
+                                  : ""
+                              }`}
+                              key={
+                                label
+                              }
+                              scope="col"
+                            >
+                              {
+                                label
+                              }
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {dashboard.visitors.map(
                         (
-                          label,
+                          visitor,
                         ) => (
-                          <th
-                            className={`px-5 py-4 font-bold ${
-                              label ===
-                              "Action"
-                                ? "text-right"
-                                : ""
-                            }`}
+                          <VisitorRow
                             key={
-                              label
+                              visitor.visitId
                             }
-                            scope="col"
-                          >
-                            {
-                              label
+                            onCheckout={
+                              openCheckout
                             }
-                          </th>
+                            referenceTime={
+                              referenceTime
+                            }
+                            visitor={
+                              visitor
+                            }
+                          />
                         ),
                       )}
-                    </tr>
-                  </thead>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
-                  <tbody className="divide-y divide-slate-200">
-                    {dashboard.visitors.map(
-                      (
-                        visitor,
-                      ) => (
-                        <VisitorRow
-                          key={
-                            visitor.visitId
-                          }
-                          onCheckout={
-                            openCheckout
-                          }
-                          visitor={
-                            visitor
-                          }
-                        />
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+            <div className="flex flex-col gap-1 border-t border-slate-200 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing{" "}
                 {
                   dashboard
-                    .pagination
-                    .totalCount
+                    .visitors
+                    .length
                 }{" "}
-                {dashboard
-                  .pagination
-                  .totalCount ===
-                1
-                  ? "entry"
-                  : "entries"}
-              </div>
-            </>
-          )}
+                of {totalCount}{" "}
+                active{" "}
+                {totalCount === 1
+                  ? "visitor"
+                  : "visitors"}{" "}
+                ({towerHeading})
+              </p>
 
-          {dashboard
-            .pagination
-            .totalPages >
-          1 ? (
-            <Pagination
-              currentPage={
-                page
-              }
-              goToPage={
-                goToPage
-              }
-              totalPages={
-                dashboard
-                  .pagination
-                  .totalPages
-              }
-              visiblePages={
-                visiblePages
-              }
-            />
-          ) : null}
-        </section>
-      ) : null}
+              {dashboard
+                .generatedAt ? (
+                <p>
+                  Updated{" "}
+                  {formatDateTime(
+                    dashboard.generatedAt,
+                  )}
+                </p>
+              ) : null}
+            </div>
+
+            {dashboard
+              .pagination
+              .totalPages >
+            1 ? (
+              <Pagination
+                currentPage={
+                  page
+                }
+                goToPage={
+                  goToPage
+                }
+                totalPages={
+                  dashboard
+                    .pagination
+                    .totalPages
+                }
+                visiblePages={
+                  visiblePages
+                }
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {checkoutTarget ? (
         <CheckoutDialog
@@ -1395,33 +1579,56 @@ function TowerBadge({
 function MetricCard({
   icon: Icon,
   label,
+  note,
   tone,
   value,
 }) {
   const toneClasses = {
-    brand:
-      "border-brand-100 bg-brand-50 text-brand-900",
-    emerald:
-      "border-emerald-100 bg-emerald-50 text-emerald-900",
-    slate:
-      "border-slate-200 bg-white text-slate-900",
+    amber: {
+      icon: "bg-amber-50 text-amber-700",
+      note: "bg-amber-50 text-amber-800",
+    },
+    blue: {
+      icon: "bg-blue-50 text-blue-700",
+      note: "bg-blue-50 text-blue-800",
+    },
+    emerald: {
+      icon: "bg-emerald-50 text-brand-800",
+      note: "bg-emerald-50 text-brand-800",
+    },
+    slate: {
+      icon: "bg-slate-100 text-slate-700",
+      note: "bg-slate-100 text-slate-700",
+    },
   };
 
   return (
-    <article
-      className={`rounded-3xl border p-5 shadow-sm sm:p-6 ${toneClasses[tone]}`}
-    >
-      <Icon
-        aria-hidden="true"
-        className="size-7"
-      />
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneClasses[tone].icon}`}
+        >
+          <Icon
+            aria-hidden="true"
+            className="size-5"
+          />
+        </span>
 
-      <p className="mt-5 text-3xl font-black">
-        {value}
+        <p className="text-sm font-bold text-slate-700">
+          {label}
+        </p>
+      </div>
+
+      <p className="mt-4 text-3xl font-black text-slate-950">
+        {Number.isInteger(value)
+          ? value
+          : "—"}
       </p>
 
-      <p className="mt-1 text-sm font-bold">
-        {label}
+      <p
+        className={`mt-3 inline-flex rounded-md px-2 py-1 text-xs font-semibold ${toneClasses[tone].note}`}
+      >
+        {note}
       </p>
     </article>
   );
@@ -1541,60 +1748,133 @@ function VisitDetail({
 
 function VisitorRow({
   onCheckout,
+  referenceTime,
   visitor,
 }) {
+  const cardAssigned =
+    visitor.cardStatus ===
+      "assigned" &&
+    visitor.cardNumber;
+
   return (
     <tr className="align-middle transition hover:bg-slate-50">
-      <td className="whitespace-nowrap px-5 py-5">
-        <p className="font-mono text-sm font-bold text-brand-800">
+      <td className="whitespace-nowrap px-4 py-3">
+        <span className="inline-flex rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-mono text-xs font-bold text-brand-800">
           {visitor.reference}
-        </p>
-      </td>
-      <td className="px-5 py-5 font-semibold text-slate-950">{visitor.agency}</td>
-      <td className="px-5 py-5"><VisitorTypeBadge type={visitor.visitorType} /></td>
-      <td className="whitespace-nowrap px-5 py-5">
-        <span className="inline-flex rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">
-          {visitor.cardNumber || "Not assigned"}
         </span>
-      </td>
-      <td className="px-5 py-5">
-        <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-          {getCardStatus(visitor)}
-        </span>
-      </td>
-      <td className="px-5 py-5 font-bold text-slate-950">{visitor.fullName}</td>
-      <td className="px-5 py-5 text-sm">
-        <div className="grid min-w-[180px] gap-1">
-          <span className="break-all text-slate-950">{visitor.email || "No email provided"}</span>
-          {visitor.phone ? <span className="text-slate-600">{visitor.phone}</span> : null}
-        </div>
-      </td>
-      <td className="px-5 py-5 text-sm">
-        <p className="font-semibold text-slate-950">{getVisitContact(visitor)}</p>
-        {visitor.division ? <p className="mt-1 text-slate-600">{visitor.division}</p> : null}
-      </td>
-      <td className="px-5 py-5 text-sm text-slate-700">{visitor.purpose}</td>
-      <td className="px-5 py-5 text-sm text-slate-700">{visitor.organization || "—"}</td>
-      <td className="whitespace-nowrap px-5 py-5 text-sm text-slate-600">
-        {formatDateTime(visitor.checkedInAt)}
       </td>
 
-      <td className="px-5 py-5 text-right">
+      <td className="px-4 py-3 text-sm">
+        <p className="font-semibold text-slate-800">
+          {visitor.agency}
+        </p>
+        <p className="text-xs text-slate-500">
+          {getTowerLabel(visitor.tower)}
+        </p>
+      </td>
+
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-brand-800"
+          >
+            {getInitials(visitor.fullName)}
+          </span>
+
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-950">
+              {visitor.fullName}
+              {visitor.visitorType ? (
+                <VisitorTypeBadge type={visitor.visitorType} />
+              ) : null}
+            </p>
+            <p className="text-xs text-slate-500">
+              {visitor.organization || "No institution provided"}
+            </p>
+          </div>
+        </div>
+      </td>
+
+      <td className="px-4 py-3 text-sm">
+        <p className="font-medium text-slate-800">
+          {visitor.phone || "No phone provided"}
+        </p>
+        <p className="break-all text-xs text-slate-500">
+          {visitor.email || "No email provided"}
+        </p>
+      </td>
+
+      <td className="px-4 py-3">
+        <span className="inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+          {visitor.purpose}
+        </span>
+      </td>
+
+      <td className="px-4 py-3 text-sm">
+        {visitor.division ? (
+          <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            {visitor.division}
+          </span>
+        ) : null}
+        <p className="mt-1 font-semibold text-slate-800">
+          {getVisitContact(visitor)}
+        </p>
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-3">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold ${
+            cardAssigned
+              ? "bg-emerald-50 text-brand-800"
+              : "bg-amber-50 text-amber-800"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`size-1.5 rounded-full ${
+              cardAssigned
+                ? "bg-emerald-500"
+                : "bg-amber-500"
+            }`}
+          />
+          {cardAssigned
+            ? `Card #${visitor.cardNumber}`
+            : "Not assigned"}
+        </span>
+        <p className="mt-1 text-xs text-slate-500">
+          {getCardStatus(visitor)}
+        </p>
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-3 text-sm">
+        <p className="font-bold text-slate-900">
+          {formatWith(timeFormatter, visitor.checkedInAt)}
+        </p>
+        <p className="text-xs text-slate-500">
+          {formatWith(dateFormatter, visitor.checkedInAt)}
+        </p>
+        <p className="text-xs font-semibold text-brand-700">
+          {formatTimeOnSite(visitor.checkedInAt, referenceTime)}
+        </p>
+      </td>
+
+      <td className="px-4 py-3 text-right">
         <button
-          aria-label="Check out"
-          className="inline-grid size-11 place-items-center rounded-full border border-emerald-100 bg-emerald-50 text-brand-800 transition hover:bg-emerald-100 focus-visible:ring-4 focus-visible:ring-brand-200"
+          aria-label={`Check out ${visitor.fullName}`}
+          className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-4 focus-visible:ring-brand-200"
           onClick={() =>
             onCheckout(
               visitor,
             )
           }
-          title={`Check out ${visitor.fullName}`}
           type="button"
         >
           <LogOut
             aria-hidden="true"
-            className="size-5"
+            className="size-4"
           />
+          Check out
         </button>
       </td>
     </tr>

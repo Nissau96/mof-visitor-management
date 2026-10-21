@@ -174,6 +174,7 @@ async function installMockDashboardApi(page) {
             checkedInToday: 14,
             checkedOutToday:
               3 + checkedOutVisitIds.size,
+            checkedInThisMonth: 87,
           },
           towerScope: body.tower,
           visitors:
@@ -252,7 +253,7 @@ test.describe(
       await expect(
         page.getByRole("heading", {
           name:
-            "Welcome, Synthetic Receptionist",
+            "Welcome to your Reception Workspace",
         }),
       ).toBeVisible();
 
@@ -284,6 +285,22 @@ test.describe(
           exact: true,
         }),
       ).toBeVisible();
+
+      await expect(
+        statistics.getByText("87", {
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      await expect(
+        statistics.getByText(
+          /^Tower 1 · /,
+        ),
+      ).toBeVisible();
+
+      await expect(
+        page.getByLabel("Ministry division"),
+      ).toHaveCount(0);
 
       expect(
         authentication.credentialRequests,
@@ -368,11 +385,6 @@ test.describe(
         .getByLabel("Agency")
         .selectOption("IAA");
 
-      await page
-        .getByRole("button", {
-          name: "Apply",
-        })
-        .click();
 
       await expect(
         page
@@ -508,7 +520,7 @@ await expect(
 
       await page
         .getByRole("button", {
-          name: "Refresh dashboard",
+          name: "Refresh",
         })
         .click();
 

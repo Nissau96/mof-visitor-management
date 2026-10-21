@@ -49,6 +49,60 @@ function getDashboardDatabaseError(error) {
   );
 }
 
+function getAccraMonthStart(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      month: "numeric",
+      timeZone: "Africa/Accra",
+      year: "numeric",
+    })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+
+  // Africa/Accra is UTC+0 with no daylight saving time.
+  return new Date(
+    Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      1,
+    ),
+  );
+}
+
+// Administrators see the month total across all towers regardless of the
+// selected tower tab; receptionists only see their signed-in tower.
+async function countVisitsThisMonth(
+  client,
+  towerScope,
+) {
+  let query = client
+    .from("visits")
+    .select("id", {
+      count: "exact",
+      head: true,
+    })
+    .gte(
+      "checked_in_at",
+      getAccraMonthStart().toISOString(),
+    );
+
+  if (towerScope) {
+    query = query.eq("tower", towerScope);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    throw new HttpError(
+      "Dashboard information could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  return count || 0;
+}
+
 async function addVisitorDetails(client, visitors) {
   if (visitors.length === 0) {
     return visitors;
@@ -274,15 +328,29 @@ export default {
         );
       }
 
-      const visitors =
-        await addVisitorDetails(
+      const [
+        visitors,
+        checkedInThisMonth,
+      ] = await Promise.all([
+        addVisitorDetails(
           client,
           data.visitors,
-        );
+        ),
+        countVisitsThisMonth(
+          client,
+          profile.role === "admin"
+            ? null
+            : towerScope,
+        ),
+      ]);
 
       return json(
         {
           ...data,
+          stats: {
+            ...data.stats,
+            checkedInThisMonth,
+          },
           visitors,
           staffRole:
             data.staffRole ||
