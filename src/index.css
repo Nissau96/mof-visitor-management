@@ -7,7 +7,10 @@
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-primitive.css";
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-semantic.css";
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-components.css";
+@import "./dark-theme.css";
 @source "../node_modules/@plexui/ui/dist/es/components/Select";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-brand-50: #effcf3;

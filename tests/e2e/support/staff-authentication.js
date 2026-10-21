@@ -81,6 +81,7 @@ export async function installMockStaffAuthentication(
   page,
   {
     fullName = "Synthetic Receptionist",
+    notifications = [],
     passwordChangeRequired = false,
     passwordSetupError = null,
     role = "receptionist",
@@ -93,6 +94,7 @@ export async function installMockStaffAuthentication(
   const state = {
     credentialRequests: [],
     logoutRequests: 0,
+    notificationRequests: [],
     passwordSetupRequests: [],
     sessionRequests: 0,
   };
@@ -177,6 +179,33 @@ export async function installMockStaffAuthentication(
             "Unexpected synthetic authentication request.",
         },
         status: 404,
+      });
+    },
+  );
+
+  await page.route(
+    "**/api/staff/notifications",
+    async (route) => {
+      const request = route.request();
+
+      expect(
+        request.headers().authorization,
+      ).toBe(
+        `Bearer ${SYNTHETIC_ACCESS_TOKEN}`,
+      );
+
+      state.notificationRequests.push(
+        request.postDataJSON(),
+      );
+
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          generatedAt:
+            new Date().toISOString(),
+          notifications,
+        },
+        status: 200,
       });
     },
   );

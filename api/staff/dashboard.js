@@ -8,7 +8,12 @@ import {
   requireActiveStaff,
   requireStaffTowerScope,
 } from "../_lib/staffAuth.js";
+import {
+  getAccraMonthStart,
+  loadStaffNotifications,
+} from "../_lib/staffNotifications.js";
 import { getAdminClient } from "../_lib/supabase.js";
+import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { receptionDashboardSchema } from "../../src/validation/receptionDashboard.js";
 
 const DASHBOARD_PAGE_SIZE = 10;
@@ -46,27 +51,6 @@ function getDashboardDatabaseError(error) {
   return new HttpError(
     "Dashboard information could not be loaded. Please try again.",
     500,
-  );
-}
-
-function getAccraMonthStart(now = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      month: "numeric",
-      timeZone: "Africa/Accra",
-      year: "numeric",
-    })
-      .formatToParts(now)
-      .map((part) => [part.type, part.value]),
-  );
-
-  // Africa/Accra is UTC+0 with no daylight saving time.
-  return new Date(
-    Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      1,
-    ),
   );
 }
 
@@ -253,10 +237,116 @@ async function addVisitorDetails(client, visitors) {
   });
 }
 
+function errorResponse(error, fallbackMessage) {
+  if (error instanceof HttpError) {
+    return json(
+      {
+        error: error.message,
+      },
+      error.status,
+      error.status === 401
+        ? {
+            "WWW-Authenticate":
+              "Bearer",
+          }
+        : {},
+    );
+  }
+
+  return json(
+    {
+      error: fallbackMessage,
+    },
+    500,
+  );
+}
+
+function isNotificationsRequest(request) {
+  const url = new URL(request.url);
+
+  return (
+    url.searchParams.get("operation") ===
+      "notifications" ||
+    url.pathname.replace(/\/+$/, "") ===
+      "/api/staff/notifications"
+  );
+}
+
+// Served from this function (via a rewrite) rather than its own file to
+// stay inside the Vercel Hobby serverless-function limit.
+async function handleNotifications(request) {
+  try {
+    const { profile } =
+      await requireActiveStaff(
+        request,
+        [
+          "receptionist",
+          "admin",
+        ],
+      );
+
+    const body =
+      await readJsonBody(request);
+
+    const tower =
+      typeof body?.tower === "string"
+        ? body.tower
+        : "";
+
+    if (
+      tower &&
+      !VISIT_TOWER_VALUES.includes(tower)
+    ) {
+      throw new HttpError(
+        "Select a valid tower.",
+        400,
+      );
+    }
+
+    const administrator =
+      profile.role === "admin";
+
+    // Receptionists are pinned to their signed-in tower; administrators
+    // are notified about every tower regardless of the selected tab.
+    const towerScope = administrator
+      ? null
+      : requireStaffTowerScope(
+          profile,
+          tower,
+        );
+
+    const notifications =
+      await loadStaffNotifications({
+        client: getAdminClient(),
+        includeCardProblems:
+          administrator,
+        towerScope,
+      });
+
+    return json(
+      {
+        generatedAt:
+          new Date().toISOString(),
+        notifications,
+      },
+      200,
+    );
+  } catch (error) {
+    return errorResponse(
+      error,
+      "Notifications could not be loaded. Please try again.",
+    );
+  }
+}
+
 export default {
   async fetch(request) {
     if (request.method !== "POST") {
       return methodNotAllowed(["POST"]);
+    }
+
+    if (isNotificationsRequest(request)) {
+      return handleNotifications(request);
     }
 
     try {
@@ -363,27 +453,9 @@ export default {
         200,
       );
     } catch (error) {
-      if (error instanceof HttpError) {
-        return json(
-          {
-            error: error.message,
-          },
-          error.status,
-          error.status === 401
-            ? {
-                "WWW-Authenticate":
-                  "Bearer",
-              }
-            : {},
-        );
-      }
-
-      return json(
-        {
-          error:
-            "Dashboard information could not be loaded. Please try again.",
-        },
-        500,
+      return errorResponse(
+        error,
+        "Dashboard information could not be loaded. Please try again.",
       );
     }
   },

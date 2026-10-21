@@ -12,7 +12,9 @@ import {
   LoaderCircle,
   LogOut,
   Menu,
+  Moon,
   QrCode,
+  Sun,
   UserCog,
   X,
 } from "lucide-react";
@@ -26,7 +28,12 @@ import {
   NavLink,
   Outlet,
 } from "react-router-dom";
+import NotificationBell from "../components/NotificationBell.jsx";
 import useAuth from "../hooks/useAuth.js";
+import {
+  setTheme,
+  useTheme,
+} from "../lib/theme.js";
 
 const COLLAPSED_STORAGE_KEY =
   "mof-staff-sidebar-collapsed";
@@ -62,6 +69,40 @@ function getInitials(fullName = "") {
     .map((part) => part[0])
     .join("")
     .toUpperCase() || "S";
+}
+
+function ThemeToggle() {
+  const theme = useTheme();
+
+  const dark = theme === "dark";
+
+  return (
+    <button
+      aria-label={
+        dark
+          ? "Switch to light theme"
+          : "Switch to dark theme"
+      }
+      className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-amber-500 shadow-sm transition hover:bg-slate-50"
+      onClick={() =>
+        setTheme(
+          dark ? "light" : "dark",
+        )
+      }
+      title={
+        dark
+          ? "Light theme"
+          : "Dark theme"
+      }
+      type="button"
+    >
+      {dark ? (
+        <Moon aria-hidden="true" className="size-5 text-brand-700" />
+      ) : (
+        <Sun aria-hidden="true" className="size-5" />
+      )}
+    </button>
+  );
 }
 
 function SidebarLink({
@@ -299,7 +340,12 @@ export default function StaffLayout() {
   const [mobileOpen, setMobileOpen] =
     useState(false);
 
-  const { profile, signOut } = useAuth();
+  const {
+    profile,
+    session,
+    signOut,
+    tower,
+  } = useAuth();
 
   const administrator =
     profile?.role === "admin";
@@ -565,11 +611,29 @@ export default function StaffLayout() {
               <Menu aria-hidden="true" className="size-5" />
             </button>
 
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+
+              {receptionAccess &&
+              session?.access_token ? (
+                <NotificationBell
+                  accessToken={
+                    session.access_token
+                  }
+                  tower={tower || ""}
+                  userId={
+                    session.user?.id ||
+                    "staff"
+                  }
+                />
+              ) : null}
+
             <UserMenu
               onSignOut={handleSignOut}
               profile={profile}
               signingOut={signingOut}
             />
+            </div>
           </div>
         </header>
 

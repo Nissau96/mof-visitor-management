@@ -959,7 +959,7 @@ export default function StaffHomePage() {
     <div className="mx-auto w-full max-w-[1760px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <section
         aria-labelledby="dashboard-heading"
-        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e8f8ef] to-[#d6f2e3] shadow-sm"
+        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e8f8ef] to-[#d6f2e3] shadow-sm dark:border-[#1f4a32] dark:from-[#0c2318] dark:via-[#0f2a1e] dark:to-[#123524]"
       >
         <div
           aria-hidden="true"
@@ -967,11 +967,11 @@ export default function StaffHomePage() {
         >
           <img
             alt=""
-            className="size-full object-cover object-right"
+            className="size-full object-cover object-right dark:opacity-90"
             src={heroIllustration}
           />
 
-          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent" />
+          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent dark:from-[#0f2a1e]" />
         </div>
 
         <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">

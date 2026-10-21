@@ -537,5 +537,132 @@ await expect(
         )
         .toBeGreaterThan(0);
     });
+
+    test("shows derived notifications and marks them read", async ({
+      page,
+    }) => {
+      const recent =
+        new Date().toISOString();
+
+      const authentication =
+        await installMockStaffAuthentication(
+          page,
+          {
+            notifications: [
+              {
+                id: "pending_admission:visit-a",
+                kind: "pending_admission",
+                occurredAt: recent,
+                reference: "VIS-PEND01",
+                sortAt: recent,
+                tower: "tower_1",
+                visitorName: "Synthetic Pending Visitor",
+              },
+              {
+                id: "overstay:visit-b",
+                kind: "overstay",
+                occurredAt:
+                  "2026-08-16T08:45:00.000Z",
+                reference: "VIS-OVER01",
+                sortAt: recent,
+                tower: "tower_1",
+                visitorName: "Synthetic Overstay Visitor",
+              },
+            ],
+          },
+        );
+
+      await installMockDashboardApi(page);
+      await signInAsStaff(page);
+
+      const bell = page.getByRole(
+        "button",
+        {
+          name: "Notifications, 2 unread",
+        },
+      );
+
+      await expect(bell).toBeVisible();
+
+      expect(
+        authentication.notificationRequests[0],
+      ).toEqual({
+        tower: "tower_1",
+      });
+
+      await bell.click();
+
+      const panel = page.getByRole(
+        "region",
+        {
+          name: "Notifications",
+        },
+      );
+
+      await expect(
+        panel.getByRole("link", {
+          name: /Synthetic Pending Visitor is waiting for admission/,
+        }),
+      ).toHaveAttribute("href", "/staff");
+
+      await expect(
+        panel.getByRole("link", {
+          name: /Synthetic Overstay Visitor has not been checked out/,
+        }),
+      ).toHaveAttribute(
+        "href",
+        "/staff/history",
+      );
+
+      await expectNoWcagViolations(page);
+
+      await page.keyboard.press("Escape");
+
+      await expect(
+        page.getByRole("button", {
+          exact: true,
+          name: "Notifications",
+        }),
+      ).toBeVisible();
+    });
+
+    test("switches to a persistent dark theme without accessibility problems", async ({
+      page,
+    }) => {
+      await installMockStaffAuthentication(
+        page,
+      );
+
+      await installMockDashboardApi(page);
+      await signInAsStaff(page);
+
+      await page
+        .getByRole("button", {
+          name: "Switch to dark theme",
+        })
+        .click();
+
+      await expect(
+        page.locator("html"),
+      ).toHaveClass(/\bdark\b/);
+
+      await page.reload();
+
+      await expect(
+        page.locator("html"),
+      ).toHaveClass(/\bdark\b/);
+
+      await expect(
+        page.getByRole("button", {
+          name: "Switch to light theme",
+        }),
+      ).toBeVisible();
+
+      await expect(
+        page.getByText("11 matching visitors"),
+      ).toBeVisible();
+
+      await expectNoWcagViolations(page);
+    });
   },
 );

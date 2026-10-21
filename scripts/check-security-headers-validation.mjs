@@ -34,6 +34,11 @@ const EXPECTED_PERMISSIONS_POLICY =
 
 const EXPECTED_REWRITES = [
   {
+    source: "/api/staff/notifications",
+    destination:
+      "/api/staff/dashboard?operation=notifications",
+  },
+  {
     source: "/api/admin/hosts/list",
     destination:
       "/api/admin?operation=host-list",
