@@ -96,33 +96,19 @@ function formatDateTime(value) {
   );
 }
 
-function formatTimeOnSite(
-  checkedInAt,
-  referenceTime,
-) {
-  const minutes = Math.floor(
-    (
-      new Date(referenceTime).getTime() -
-      new Date(checkedInAt).getTime()
-    ) / 60000,
-  );
-
-  if (!Number.isFinite(minutes) || minutes < 0) {
-    return "";
-  }
-
-  if (minutes < 60) {
-    return `${minutes}m on site`;
-  }
-
-  if (minutes >= 24 * 60) {
-    const days = Math.floor(minutes / (24 * 60));
-
-    return `${days}d ${Math.floor((minutes % (24 * 60)) / 60)}h on site`;
-  }
-
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m on site`;
-}
+// One colour per agency so rows can be scanned by agency at a glance.
+const AGENCY_PILL_CLASSES = {
+  [MINISTRY_OF_FINANCE_AGENCY]:
+    "border-brand-200 bg-brand-50 text-brand-800",
+  IAA: "border-blue-200 bg-blue-50 text-blue-800",
+  ITAB: "border-violet-200 bg-violet-50 text-violet-800",
+  GIPC: "border-amber-200 bg-amber-50 text-amber-800",
+  GCX: "border-cyan-200 bg-cyan-50 text-cyan-800",
+  GIFMIS: "border-rose-200 bg-rose-50 text-rose-800",
+  GIIF: "border-sky-200 bg-sky-50 text-sky-800",
+  MIIF: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  PPA: "border-indigo-200 bg-indigo-50 text-indigo-800",
+};
 
 // "Ministry of Finance (MoF)" -> "MoF"; agencies without an abbreviation
 // are shown in full.
@@ -1464,9 +1450,6 @@ export default function StaffHomePage() {
                             onCheckout={
                               openCheckout
                             }
-                            referenceTime={
-                              referenceTime
-                            }
                             visitor={
                               visitor
                             }
@@ -1508,7 +1491,7 @@ export default function StaffHomePage() {
 
             {dashboard
               .pagination
-              .totalPages >
+              .totalPages >=
             1 ? (
               <Pagination
                 currentPage={
@@ -1694,7 +1677,7 @@ function VisitorCard({
         </dd>
         <VisitDetail icon={Mail} label="Contact Details" value={
           <span className="grid gap-1">
-            <span>{visitor.email || "No email provided"}</span>
+            {visitor.email ? <span>{visitor.email}</span> : null}
             {visitor.phone ? <span>{visitor.phone}</span> : null}
           </span>
         } />
@@ -1752,7 +1735,6 @@ function VisitDetail({
 
 function VisitorRow({
   onCheckout,
-  referenceTime,
   visitor,
 }) {
   const cardAssigned =
@@ -1769,13 +1751,16 @@ function VisitorRow({
       </td>
 
       <td className="px-4 py-3 text-sm">
-        <p
-          className="whitespace-nowrap font-semibold text-slate-800"
+        <span
+          className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold ${
+            AGENCY_PILL_CLASSES[visitor.agency] ||
+            "border-slate-200 bg-slate-100 text-slate-700"
+          }`}
           title={visitor.agency}
         >
           {getAgencyShortName(visitor.agency)}
-        </p>
-        <p className="text-xs text-slate-500">
+        </span>
+        <p className="mt-1 text-xs text-slate-500">
           {getTowerLabel(visitor.tower)}
         </p>
       </td>
@@ -1804,12 +1789,16 @@ function VisitorRow({
       </td>
 
       <td className="min-w-48 px-4 py-3 text-sm">
-        <p className="font-medium text-slate-800">
-          {visitor.phone || "No phone provided"}
-        </p>
-        <p className="break-all text-xs text-slate-500">
-          {visitor.email || "No email provided"}
-        </p>
+        {visitor.phone ? (
+          <p className="font-medium text-slate-800">
+            {visitor.phone}
+          </p>
+        ) : null}
+        {visitor.email ? (
+          <p className="break-all text-xs text-slate-500">
+            {visitor.email}
+          </p>
+        ) : null}
       </td>
 
       <td className="px-4 py-3">
@@ -1861,15 +1850,13 @@ function VisitorRow({
         <p className="text-xs text-slate-500">
           {formatWith(dateFormatter, visitor.checkedInAt)}
         </p>
-        <p className="text-xs font-semibold text-brand-700">
-          {formatTimeOnSite(visitor.checkedInAt, referenceTime)}
-        </p>
       </td>
 
       <td className="px-4 py-3">
         <button
           aria-label={`Check out ${visitor.fullName}`}
-          className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-4 focus-visible:ring-brand-200"
+          title={`Check out ${visitor.fullName}`}
+          className="inline-grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-4 focus-visible:ring-brand-200"
           onClick={() =>
             onCheckout(
               visitor,
@@ -1881,7 +1868,6 @@ function VisitorRow({
             aria-hidden="true"
             className="size-4"
           />
-          Check out
         </button>
       </td>
     </tr>
