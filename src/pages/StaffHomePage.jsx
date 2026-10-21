@@ -127,7 +127,7 @@ function formatTimeOnSite(
 // "Ministry of Finance (MoF)" -> "MoF"; agencies without an abbreviation
 // are shown in full.
 function getAgencyShortName(agency) {
-  return agency.match(/(([^)]+))s*$/)?.[1] || agency;
+  return agency.match(/\(([^)]+)\)\s*$/)?.[1] || agency;
 }
 
 function getInitials(fullName) {
