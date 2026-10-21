@@ -115,7 +115,19 @@ function formatTimeOnSite(
     return `${minutes}m on site`;
   }
 
+  if (minutes >= 24 * 60) {
+    const days = Math.floor(minutes / (24 * 60));
+
+    return `${days}d ${Math.floor((minutes % (24 * 60)) / 60)}h on site`;
+  }
+
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m on site`;
+}
+
+// "Ministry of Finance (MoF)" -> "MoF"; agencies without an abbreviation
+// are shown in full.
+function getAgencyShortName(agency) {
+  return agency.match(/(([^)]+))s*$/)?.[1] || agency;
 }
 
 function getInitials(fullName) {
@@ -944,7 +956,7 @@ export default function StaffHomePage() {
   } in ${towerHeading}`;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <section
         aria-labelledby="dashboard-heading"
         className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e8f8ef] to-[#d6f2e3] shadow-sm"
@@ -960,8 +972,6 @@ export default function StaffHomePage() {
           />
 
           <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent" />
-
-          
         </div>
 
         <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">
@@ -1042,7 +1052,11 @@ export default function StaffHomePage() {
         <MetricCard
           icon={UserCheck}
           label="Currently Checked In"
-          note={`In ${towerHeading}`}
+          note={
+            tower
+              ? `In ${towerHeading}`
+              : "Across all towers"
+          }
           tone="emerald"
           value={stats?.active}
         />
@@ -1405,7 +1419,7 @@ export default function StaffHomePage() {
                 </div>
 
                 <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full min-w-275 border-collapse text-left">
+                  <table className="w-full min-w-300 border-collapse text-left">
                     <thead className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
                       <tr>
                         {[
@@ -1423,7 +1437,7 @@ export default function StaffHomePage() {
                             label,
                           ) => (
                             <th
-                              className={`px-4 py-3 font-bold ${
+                              className={`whitespace-nowrap px-4 py-3 font-bold ${
                                 label ===
                                 "Action"
                                   ? "text-right"
@@ -1760,8 +1774,11 @@ function VisitorRow({
       </td>
 
       <td className="px-4 py-3 text-sm">
-        <p className="font-semibold text-slate-800">
-          {visitor.agency}
+        <p
+          className="whitespace-nowrap font-semibold text-slate-800"
+          title={visitor.agency}
+        >
+          {getAgencyShortName(visitor.agency)}
         </p>
         <p className="text-xs text-slate-500">
           {getTowerLabel(visitor.tower)}
@@ -1791,7 +1808,7 @@ function VisitorRow({
         </div>
       </td>
 
-      <td className="px-4 py-3 text-sm">
+      <td className="min-w-48 px-4 py-3 text-sm">
         <p className="font-medium text-slate-800">
           {visitor.phone || "No phone provided"}
         </p>
@@ -1806,7 +1823,7 @@ function VisitorRow({
         </span>
       </td>
 
-      <td className="px-4 py-3 text-sm">
+      <td className="min-w-56 px-4 py-3 text-sm">
         {visitor.division ? (
           <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
             {visitor.division}

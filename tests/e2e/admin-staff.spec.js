@@ -500,15 +500,27 @@ test.describe(
             status: "all",
           });
 
+        const menuButton = page.getByRole("button", {
+          name: "Open navigation menu",
+        });
+
+        if (await menuButton.isVisible()) {
+          await menuButton.click();
+        }
+
         await expect(
   page.getByRole("link", {
-    name: "Staff",
+    name: "Staff Directory",
     exact: true,
   }),
 ).toHaveAttribute(
   "aria-current",
   "page",
 );
+
+        if (await menuButton.isVisible()) {
+          await page.keyboard.press("Escape");
+        }
 
         await expectNoWcagViolations(
           page,
