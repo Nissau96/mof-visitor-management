@@ -1437,12 +1437,7 @@ export default function StaffHomePage() {
                             label,
                           ) => (
                             <th
-                              className={`whitespace-nowrap px-4 py-3 font-bold ${
-                                label ===
-                                "Action"
-                                  ? "text-right"
-                                  : ""
-                              }`}
+                              className="whitespace-nowrap px-4 py-3 text-center font-bold"
                               key={
                                 label
                               }
