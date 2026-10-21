@@ -1761,7 +1761,7 @@ function VisitorRow({
     visitor.cardNumber;
 
   return (
-    <tr className="align-middle transition hover:bg-slate-50">
+    <tr className="text-center align-middle transition hover:bg-slate-50">
       <td className="whitespace-nowrap px-4 py-3">
         <span className="inline-flex rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-mono text-xs font-bold text-brand-800">
           {visitor.reference}
@@ -1781,7 +1781,7 @@ function VisitorRow({
       </td>
 
       <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3">
           <span
             aria-hidden="true"
             className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-brand-800"
@@ -1789,7 +1789,7 @@ function VisitorRow({
             {getInitials(visitor.fullName)}
           </span>
 
-          <div className="min-w-0">
+          <div className="min-w-0 text-left">
             <p className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-950">
               {visitor.fullName}
               {visitor.visitorType ? (
@@ -1866,7 +1866,7 @@ function VisitorRow({
         </p>
       </td>
 
-      <td className="px-4 py-3 text-right">
+      <td className="px-4 py-3">
         <button
           aria-label={`Check out ${visitor.fullName}`}
           className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-4 focus-visible:ring-brand-200"
