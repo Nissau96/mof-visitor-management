@@ -30,6 +30,18 @@ export function getAccraDayStart(now = new Date()) {
   );
 }
 
+// Monday 00:00 Accra time of the current week.
+export function getAccraWeekStart(now = new Date()) {
+  const dayStart = getAccraDayStart(now);
+  const daysSinceMonday =
+    (dayStart.getUTCDay() + 6) % 7;
+
+  return new Date(
+    dayStart.getTime() -
+      daysSinceMonday * 86_400_000,
+  );
+}
+
 export function getAccraMonthStart(now = new Date()) {
   const parts = readAccraDateParts(now);
 

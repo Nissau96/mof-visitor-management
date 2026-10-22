@@ -176,7 +176,15 @@ async function installMockDashboardApi(page) {
               3 + checkedOutVisitIds.size,
             checkedInThisMonth: 87,
           },
+          cardAssignment: {
+            assigned: 4,
+            notAssigned:
+              VISITORS.length -
+              checkedOutVisitIds.size -
+              4,
+          },
           towerScope: body.tower,
+          weeklyArrivals: createWeeklyArrivals(),
           visitors:
             matchingVisitors.slice(
               start,
@@ -234,6 +242,32 @@ async function installMockDashboardApi(page) {
   );
 
   return state;
+}
+
+// Monday-to-Sunday counts for the current UTC (Accra) week; days after
+// today are null, matching the API contract.
+function createWeeklyArrivals() {
+  const today = new Date();
+  const todayStart = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate(),
+  );
+  const monday =
+    todayStart -
+    ((today.getUTCDay() + 6) % 7) * 86_400_000;
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const start = monday + index * 86_400_000;
+
+    return {
+      count:
+        start > todayStart ? null : 3 + index,
+      date: new Date(start)
+        .toISOString()
+        .slice(0, 10),
+    };
+  });
 }
 
 test.describe(

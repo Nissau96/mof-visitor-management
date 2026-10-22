@@ -1,4 +1,5 @@
 import {
+  ArrowUpRight,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -22,7 +23,14 @@ import {
   useEffectEvent,
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 import heroIllustration from "../assets/images/reception-hero.jpg";
+import {
+  CardAssignmentCard,
+  ReceptionClockCard,
+  WeeklyArrivalsCard,
+} from "../components/DashboardInsights.jsx";
+import { getAccraIsoDate } from "../lib/accraDate.js";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -272,7 +280,27 @@ function normalizeDashboardResult(result) {
       "string"
         ? result.staffRole
         : "",
+    // Insight widgets degrade to placeholders if these are missing.
+    cardAssignment:
+      Number.isInteger(
+        result.cardAssignment?.assigned,
+      ) &&
+      Number.isInteger(
+        result.cardAssignment?.notAssigned,
+      )
+        ? result.cardAssignment
+        : null,
     stats,
+    weeklyArrivals: Array.isArray(
+      result.weeklyArrivals,
+    )
+      ? result.weeklyArrivals.filter(
+          (day) =>
+            typeof day?.date === "string" &&
+            (day.count === null ||
+              Number.isInteger(day.count)),
+        )
+      : [],
     towerScope:
       result.towerScope || "",
     visitors:
@@ -921,6 +949,9 @@ export default function StaffHomePage() {
   const stats =
     dashboard?.stats;
 
+  const todayIso =
+    getAccraIsoDate();
+
   const completionRate =
     stats &&
     stats.checkedInToday > 0
@@ -942,10 +973,10 @@ export default function StaffHomePage() {
   } in ${towerHeading}`;
 
   return (
-    <div className="mx-auto w-full max-w-[1760px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
       <section
         aria-labelledby="dashboard-heading"
-        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e8f8ef] to-[#d6f2e3] shadow-sm dark:border-[#1f4a32] dark:from-[#0c2318] dark:via-[#0f2a1e] dark:to-[#123524]"
+        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e6f6f4] to-[#cdeee9] shadow-sm dark:border-[#1d4a46] dark:from-[#0a2321] dark:via-[#0d2a28] dark:to-[#103532]"
       >
         <div
           aria-hidden="true"
@@ -957,7 +988,7 @@ export default function StaffHomePage() {
             src={heroIllustration}
           />
 
-          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e8f8ef] to-transparent dark:from-[#0f2a1e]" />
+          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e6f6f4] to-transparent dark:from-[#0d2a28]" />
         </div>
 
         <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">
@@ -1033,9 +1064,22 @@ export default function StaffHomePage() {
       <section
         aria-busy={loading}
         aria-label="Reception statistics"
-        className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <MetricCard
+          action={{
+            label: "Jump to checked-in visitors",
+            onClick: () =>
+              document
+                .getElementById(
+                  "active-visitors-heading",
+                )
+                ?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                }),
+          }}
+          featured
           icon={UserCheck}
           label="Currently Checked In"
           note={
@@ -1048,6 +1092,16 @@ export default function StaffHomePage() {
         />
 
         <MetricCard
+          action={{
+            label: "View today's arrivals in Visit History",
+            state: {
+              historyFilters: {
+                dateFrom: todayIso,
+                dateTo: todayIso,
+              },
+            },
+            to: "/staff/history",
+          }}
           icon={LogIn}
           label="Arrivals Today"
           note={formatWith(
@@ -1061,6 +1115,17 @@ export default function StaffHomePage() {
         />
 
         <MetricCard
+          action={{
+            label: "View today's check-outs in Visit History",
+            state: {
+              historyFilters: {
+                dateFrom: todayIso,
+                dateTo: todayIso,
+                status: "checked_out",
+              },
+            },
+            to: "/staff/history",
+          }}
           icon={LogOut}
           label="Checked Out Today"
           note={
@@ -1075,6 +1140,16 @@ export default function StaffHomePage() {
         />
 
         <MetricCard
+          action={{
+            label: "View this month's visits in Visit History",
+            state: {
+              historyFilters: {
+                dateFrom: `${todayIso.slice(0, 8)}01`,
+                dateTo: todayIso,
+              },
+            },
+            to: "/staff/history",
+          }}
           icon={CalendarDays}
           label="Total Visitors This Month"
           note={`${
@@ -1086,6 +1161,29 @@ export default function StaffHomePage() {
           value={
             stats?.checkedInThisMonth
           }
+        />
+      </section>
+
+      <section
+        aria-label="Reception insights"
+        className="mt-4 grid gap-4 lg:grid-cols-4"
+      >
+        <WeeklyArrivalsCard
+          days={
+            dashboard?.weeklyArrivals ||
+            []
+          }
+          towerLabel={towerHeading}
+        />
+
+        <CardAssignmentCard
+          assignment={
+            dashboard?.cardAssignment
+          }
+        />
+
+        <ReceptionClockCard
+          towerLabel={towerHeading}
         />
       </section>
 
@@ -1564,6 +1662,8 @@ function TowerBadge({
 }
 
 function MetricCard({
+  action,
+  featured = false,
   icon: Icon,
   label,
   note,
@@ -1580,8 +1680,8 @@ function MetricCard({
       note: "bg-blue-50 text-blue-800",
     },
     emerald: {
-      icon: "bg-emerald-50 text-brand-800",
-      note: "bg-emerald-50 text-brand-800",
+      icon: "bg-brand-50 text-brand-800",
+      note: "bg-brand-50 text-brand-800",
     },
     slate: {
       icon: "bg-slate-100 text-slate-700",
@@ -1589,11 +1689,43 @@ function MetricCard({
     },
   };
 
+  const actionClass = `grid size-10 shrink-0 place-items-center rounded-full border transition focus-visible:ring-4 ${
+    featured
+      ? "border-white/30 bg-white text-brand-800 hover:bg-brand-50 focus-visible:ring-white/40"
+      : "border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-brand-200"
+  }`;
+
+  const actionIcon = (
+    <ArrowUpRight
+      aria-hidden="true"
+      className="size-4"
+    />
+  );
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-3">
+    <article
+      className={`relative overflow-hidden rounded-3xl border p-5 shadow-sm ${
+        featured
+          ? "border-brand-800 bg-brand-800 text-white"
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      {featured ? (
         <span
-          className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneClasses[tone].icon}`}
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-20 -right-14 size-52 rounded-full border-[14px] border-white/10"
+        >
+          <span className="absolute inset-6 rounded-full border-[10px] border-white/10" />
+        </span>
+      ) : null}
+
+      <div className="relative flex items-center gap-3">
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+            featured
+              ? "bg-white/15 text-white"
+              : toneClasses[tone].icon
+          }`}
         >
           <Icon
             aria-hidden="true"
@@ -1601,19 +1733,57 @@ function MetricCard({
           />
         </span>
 
-        <p className="text-sm font-bold text-slate-700">
+        <p
+          className={`flex-1 text-sm font-bold ${
+            featured
+              ? "text-white"
+              : "text-slate-700"
+          }`}
+        >
           {label}
         </p>
+
+        {action?.to ? (
+          <Link
+            aria-label={action.label}
+            className={actionClass}
+            state={action.state}
+            title={action.label}
+            to={action.to}
+          >
+            {actionIcon}
+          </Link>
+        ) : action ? (
+          <button
+            aria-label={action.label}
+            className={actionClass}
+            onClick={action.onClick}
+            title={action.label}
+            type="button"
+          >
+            {actionIcon}
+          </button>
+        ) : null}
       </div>
 
-      <p className="mt-4 text-3xl font-black text-slate-950">
+      <p
+        className={`relative mt-4 text-4xl font-black ${
+          featured
+            ? "text-white"
+            : "text-slate-950"
+        }`}
+      >
         {Number.isInteger(value)
           ? value
           : "—"}
       </p>
 
       <p
-        className={`mt-3 inline-flex rounded-md px-2 py-1 text-xs font-semibold ${toneClasses[tone].note}`}
+        className={`relative mt-3 inline-flex rounded-md px-2 py-1 text-xs font-semibold ${
+          featured
+            ? "bg-white/15 text-white"
+            : toneClasses[tone].note
+        }`}
       >
         {note}
       </p>

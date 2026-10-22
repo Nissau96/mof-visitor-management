@@ -62,77 +62,77 @@
 .dark .hover\:bg-brand-50:hover,
 .dark .focus\:bg-brand-50:focus,
 .dark .focus-visible\:bg-brand-50:focus-visible {
-  background-color: #0f2a1d;
+  background-color: #0b2b29;
 }
 
 .dark .bg-brand-100,
 .dark .hover\:bg-brand-100:hover,
 .dark .focus\:bg-brand-100:focus,
 .dark .focus-visible\:bg-brand-100:focus-visible {
-  background-color: #143823;
+  background-color: #0f3a37;
 }
 
 .dark .text-brand-700,
 .dark .hover\:text-brand-700:hover,
 .dark .focus\:text-brand-700:focus,
 .dark .focus-visible\:text-brand-700:focus-visible {
-  color: #7ee2a8;
+  color: #5eead4;
 }
 
 .dark .text-brand-800,
 .dark .hover\:text-brand-800:hover,
 .dark .focus\:text-brand-800:focus,
 .dark .focus-visible\:text-brand-800:focus-visible {
-  color: #74dda0;
+  color: #4fdcc6;
 }
 
 .dark .text-brand-900,
 .dark .hover\:text-brand-900:hover,
 .dark .focus\:text-brand-900:focus,
 .dark .focus-visible\:text-brand-900:focus-visible {
-  color: #8fe8b5;
+  color: #7ff0dc;
 }
 
 .dark .text-brand-950,
 .dark .hover\:text-brand-950:hover,
 .dark .focus\:text-brand-950:focus,
 .dark .focus-visible\:text-brand-950:focus-visible {
-  color: #a7efc6;
+  color: #a7f5e8;
 }
 
 .dark .border-brand-100,
 .dark .hover\:border-brand-100:hover,
 .dark .focus\:border-brand-100:focus,
 .dark .focus-visible\:border-brand-100:focus-visible {
-  border-color: #1f4a32;
+  border-color: #1a4b47;
 }
 
 .dark .border-brand-200,
 .dark .hover\:border-brand-200:hover,
 .dark .focus\:border-brand-200:focus,
 .dark .focus-visible\:border-brand-200:focus-visible {
-  border-color: #285a3d;
+  border-color: #215b56;
 }
 
 .dark .border-brand-300,
 .dark .hover\:border-brand-300:hover,
 .dark .focus\:border-brand-300:focus,
 .dark .focus-visible\:border-brand-300:focus-visible {
-  border-color: #317048;
+  border-color: #2a6f69;
 }
 
 .dark .ring-brand-100,
 .dark .hover\:ring-brand-100:hover,
 .dark .focus\:ring-brand-100:focus,
 .dark .focus-visible\:ring-brand-100:focus-visible {
-  --tw-ring-color: rgb(22 133 72 / 40%);
+  --tw-ring-color: rgb(13 148 136 / 40%);
 }
 
 .dark .ring-brand-200,
 .dark .hover\:ring-brand-200:hover,
 .dark .focus\:ring-brand-200:focus,
 .dark .focus-visible\:ring-brand-200:focus-visible {
-  --tw-ring-color: rgb(22 133 72 / 50%);
+  --tw-ring-color: rgb(13 148 136 / 50%);
 }
 
 .dark .bg-amber-50,

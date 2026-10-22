@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -212,7 +213,62 @@ function sameFilters(first, second) {
   );
 }
 
+// Other pages (the top-bar search, dashboard KPI links) open this page
+// with filters in router state, so search text never reaches the URL.
+function readPreset(preset, tower) {
+  if (!preset || typeof preset !== "object") {
+    return null;
+  }
+
+  const drafts = {
+    ...EMPTY_DRAFTS,
+    ...Object.fromEntries(
+      Object.entries(preset).filter(
+        ([key, value]) =>
+          key in EMPTY_DRAFTS &&
+          typeof value === "string",
+      ),
+    ),
+  };
+
+  const parsed =
+    visitHistorySchema.safeParse({
+      ...drafts,
+      page: 1,
+      pageSize: 10,
+      tower,
+    });
+
+  if (!parsed.success) {
+    return null;
+  }
+
+  return {
+    drafts,
+    filters: {
+      agency: parsed.data.agency,
+      dateFrom: parsed.data.dateFrom,
+      dateTo: parsed.data.dateTo,
+      division: parsed.data.division,
+      search: parsed.data.search,
+      status: parsed.data.status,
+    },
+  };
+}
+
 export default function StaffVisitHistoryPage() {
+  const location = useLocation();
+
+  // Remount on each navigation so a new preset replaces the old filters.
+  return (
+    <VisitHistory
+      key={location.key}
+      preset={location.state?.historyFilters}
+    />
+  );
+}
+
+function VisitHistory({ preset }) {
   const {
     profile,
     session,
@@ -225,8 +281,15 @@ export default function StaffVisitHistoryPage() {
   const [status, setStatus] = useState("loading");
   const [requestError, setRequestError] = useState("");
   const [filterError, setFilterError] = useState("");
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [drafts, setDrafts] = useState(EMPTY_DRAFTS);
+  const [initialPreset] = useState(() =>
+    readPreset(preset, tower),
+  );
+  const [filters, setFilters] = useState(
+    initialPreset?.filters || EMPTY_FILTERS,
+  );
+  const [drafts, setDrafts] = useState(
+    initialPreset?.drafts || EMPTY_DRAFTS,
+  );
   const [page, setPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
 

@@ -14,6 +14,7 @@ import {
   Menu,
   Moon,
   QrCode,
+  Search,
   Sun,
   UserCog,
   X,
@@ -27,6 +28,7 @@ import {
   Link,
   NavLink,
   Outlet,
+  useNavigate,
 } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell.jsx";
 import useAuth from "../hooks/useAuth.js";
@@ -69,6 +71,96 @@ function getInitials(fullName = "") {
     .map((part) => part[0])
     .join("")
     .toUpperCase() || "S";
+}
+
+// Ctrl/Cmd+K focuses the field; Enter opens Visit History searched for
+// the text. The text travels in router state so it never enters the URL.
+function HistorySearch() {
+  const navigate = useNavigate();
+  const inputRef = useRef(null);
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    function handleShortcut(event) {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    }
+
+    document.addEventListener(
+      "keydown",
+      handleShortcut,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleShortcut,
+      );
+    };
+  }, []);
+
+  function submit(event) {
+    event.preventDefault();
+
+    const search = value.trim();
+
+    if (!search) {
+      return;
+    }
+
+    navigate("/staff/history", {
+      state: {
+        historyFilters: {
+          search,
+        },
+      },
+    });
+    setValue("");
+    inputRef.current?.blur();
+  }
+
+  return (
+    <form
+      className="relative min-w-0 flex-1"
+      onSubmit={submit}
+      role="search"
+    >
+      <label
+        className="sr-only"
+        htmlFor="staff-global-search"
+      >
+        Search visit history
+      </label>
+
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500"
+      />
+
+      <input
+        autoComplete="off"
+        className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-11 pr-20 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-100"
+        id="staff-global-search"
+        maxLength="80"
+        onChange={(event) =>
+          setValue(event.target.value)
+        }
+        placeholder="Search visitor or VIS reference"
+        ref={inputRef}
+        type="search"
+        value={value}
+      />
+
+      <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-xs font-semibold text-slate-600 sm:block">
+        Ctrl K
+      </kbd>
+    </form>
+  );
 }
 
 function ThemeToggle() {
@@ -148,7 +240,7 @@ function SidebarLink({
       className={({ isActive }) =>
         `${baseClass} ${
           isActive
-            ? "bg-brand-50 text-brand-900 ring-1 ring-brand-100"
+            ? "relative bg-brand-50 font-bold text-brand-800 before:absolute before:-left-3 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-brand-600"
             : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         }`
       }
@@ -434,7 +526,7 @@ export default function StaffLayout() {
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-950 lg:flex print:block print:min-h-0 print:bg-white">
+    <div className="min-h-dvh bg-slate-100 text-slate-950 lg:flex lg:gap-4 lg:p-4 print:block print:min-h-0 print:bg-white print:p-0">
       <a className="sr-only z-50 rounded-lg bg-white px-4 py-3 font-semibold text-brand-900 shadow-lg focus:not-sr-only focus:fixed focus:left-4 focus:top-4 print:hidden" href="#staff-main-content">
         Skip to main content
       </a>
@@ -448,7 +540,7 @@ export default function StaffLayout() {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-dvh lg:shrink-0 lg:translate-x-0 print:hidden ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:rounded-3xl lg:border lg:shadow-sm print:hidden ${
           mobileOpen
             ? "translate-x-0"
             : "max-lg:invisible -translate-x-full"
@@ -595,9 +687,9 @@ export default function StaffLayout() {
         ) : null}
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col print:block">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur print:hidden">
-          <div className="flex min-h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:justify-end lg:px-8">
+      <div className="flex min-w-0 flex-1 flex-col lg:gap-4 print:block">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur lg:top-4 lg:rounded-3xl lg:border lg:shadow-sm print:hidden">
+          <div className="flex min-h-20 items-center gap-3 px-4 sm:px-6">
             <button
               aria-controls="staff-sidebar"
               aria-expanded={mobileOpen}
@@ -611,7 +703,13 @@ export default function StaffLayout() {
               <Menu aria-hidden="true" className="size-5" />
             </button>
 
-            <div className="flex items-center gap-3">
+            {receptionAccess ? (
+              <HistorySearch />
+            ) : (
+              <div className="flex-1" />
+            )}
+
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <ThemeToggle />
 
               {receptionAccess &&
@@ -638,7 +736,7 @@ export default function StaffLayout() {
         </header>
 
         {signOutError ? (
-          <div className="px-4 pt-4 print:hidden sm:px-6 lg:px-8" role="alert">
+          <div className="px-4 pt-4 print:hidden sm:px-6 lg:px-0 lg:pt-0" role="alert">
             <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
               {signOutError}
             </p>

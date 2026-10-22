@@ -106,7 +106,7 @@ export default function StaffLoginPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#707d72] px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-[#5f7a77] px-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           <LoadingState message="Checking staff session…" />
         </div>
@@ -128,7 +128,7 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#707d72] px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
+    <div className="flex min-h-dvh items-center justify-center bg-[#5f7a77] px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
       <main className="grid w-full max-w-6xl overflow-hidden rounded-xl bg-white p-2 shadow-[0_24px_80px_-30px_rgba(0,0,0,0.4)] sm:p-3 lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr] lg:rounded-none">
         {/* Form panel */}
         <section
@@ -149,7 +149,7 @@ export default function StaffLoginPage() {
               />
             </Link>
 
-            {/* <span className="rounded-full bg-[#f1f4ef] px-3 py-1 text-xs font-semibold text-brand-800">
+            {/* <span className="rounded-full bg-[#eff5f4] px-3 py-1 text-xs font-semibold text-brand-800">
               Staff portal
             </span> */}
           </header>
@@ -161,8 +161,8 @@ export default function StaffLoginPage() {
                 aria-hidden="true"
                 className="relative mx-auto mb-6 h-11 w-12"
               >
-                <span className="absolute left-0 top-0 size-8 rounded-full bg-[#bccbb8]" />
-                <span className="absolute bottom-0 right-0 size-8 rounded-full bg-[#dbe5d7]/90" />
+                <span className="absolute left-0 top-0 size-8 rounded-full bg-[#b5cfcb]" />
+                <span className="absolute bottom-0 right-0 size-8 rounded-full bg-[#d5e7e4]/90" />
               </div>
 
               <div className="text-center">
@@ -373,7 +373,7 @@ export default function StaffLoginPage() {
         {/* Image panel */}
         <aside
           aria-labelledby="staff-access-heading"
-          className="relative isolate hidden min-w-0 overflow-hidden rounded-[1.75rem] bg-[#7d8b78] lg:flex lg:items-end"
+          className="relative isolate hidden min-w-0 overflow-hidden rounded-[1.75rem] bg-[#6f8a86] lg:flex lg:items-end"
         >
           <img
             alt=""
@@ -385,14 +385,14 @@ export default function StaffLoginPage() {
 
           <div
             aria-hidden="true"
-            className="absolute inset-0 -z-10 bg-gradient-to-b from-[#263b2c]/10 via-transparent to-[#102418]/75"
+            className="absolute inset-0 -z-10 bg-gradient-to-b from-[#1f3d3a]/10 via-transparent to-[#0b2422]/75"
           />
 
           {/* Curved white inset for the return button */}
           <div className="absolute left-0 top-0 rounded-br-[2.5rem] bg-white pb-3 pr-3">
             <Link
               aria-label="Return to the visitor portal"
-              className="grid size-14 place-items-center rounded-full bg-[#f0f2ef] text-slate-600 transition hover:bg-[#e2e8df] hover:text-brand-900"
+              className="grid size-14 place-items-center rounded-full bg-[#eff3f2] text-slate-600 transition hover:bg-[#dde9e7] hover:text-brand-900"
               to="/visit"
             >
               <ArrowLeft
@@ -404,7 +404,7 @@ export default function StaffLoginPage() {
           </div>
 
           <div className="w-full p-4 xl:p-5">
-            <section className="rounded-2xl border border-white/35 bg-[#243b2d]/50 p-5 text-white shadow-lg backdrop-blur-md xl:p-6">
+            <section className="rounded-2xl border border-white/35 bg-[#1e3b38]/50 p-5 text-white shadow-lg backdrop-blur-md xl:p-6">
               <div className="flex items-center gap-2.5">
                 <ShieldCheck
                   aria-hidden="true"

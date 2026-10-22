@@ -9,7 +9,9 @@ import {
   requireStaffTowerScope,
 } from "../_lib/staffAuth.js";
 import {
+  getAccraDayStart,
   getAccraMonthStart,
+  getAccraWeekStart,
   loadStaffNotifications,
 } from "../_lib/staffNotifications.js";
 import { getAdminClient } from "../_lib/supabase.js";
@@ -82,6 +84,100 @@ async function countVisitsThisMonth(
       "Dashboard information could not be loaded. Please try again.",
       500,
     );
+  }
+
+  return count || 0;
+}
+
+const DAY_MS = 86_400_000;
+
+function failedDashboard() {
+  return new HttpError(
+    "Dashboard information could not be loaded. Please try again.",
+    500,
+  );
+}
+
+// Check-ins per day, Monday to Sunday of the current Accra week. Days
+// after today are returned with a null count instead of being queried.
+async function countWeeklyArrivals(
+  client,
+  towerScope,
+) {
+  const weekStart =
+    getAccraWeekStart().getTime();
+
+  const todayStart =
+    getAccraDayStart().getTime();
+
+  return Promise.all(
+    Array.from({ length: 7 }, async (_, index) => {
+      const start = weekStart + index * DAY_MS;
+      const date = new Date(start)
+        .toISOString()
+        .slice(0, 10);
+
+      if (start > todayStart) {
+        return {
+          count: null,
+          date,
+        };
+      }
+
+      let query = client
+        .from("visits")
+        .select("id", {
+          count: "exact",
+          head: true,
+        })
+        .gte(
+          "checked_in_at",
+          new Date(start).toISOString(),
+        )
+        .lt(
+          "checked_in_at",
+          new Date(start + DAY_MS).toISOString(),
+        );
+
+      if (towerScope) {
+        query = query.eq("tower", towerScope);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        throw failedDashboard();
+      }
+
+      return {
+        count: count || 0,
+        date,
+      };
+    }),
+  );
+}
+
+async function countAssignedActiveVisits(
+  client,
+  towerScope,
+) {
+  let query = client
+    .from("visitor_card_assignments")
+    .select("visit_id, visits!inner(status, tower)", {
+      count: "exact",
+      head: true,
+    })
+    .eq("status", "assigned")
+    .eq("visits.status", "checked_in");
+
+  if (towerScope) {
+    query = query.eq("visits.tower", towerScope);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    throw failedDashboard();
   }
 
   return count || 0;
@@ -421,6 +517,8 @@ export default {
       const [
         visitors,
         checkedInThisMonth,
+        weeklyArrivals,
+        assignedCards,
       ] = await Promise.all([
         addVisitorDetails(
           client,
@@ -432,16 +530,38 @@ export default {
             ? null
             : towerScope,
         ),
+        countWeeklyArrivals(
+          client,
+          towerScope,
+        ),
+        countAssignedActiveVisits(
+          client,
+          towerScope,
+        ),
       ]);
+
+      const activeVisits =
+        Number(data.stats.active) || 0;
 
       return json(
         {
           ...data,
+          cardAssignment: {
+            assigned: Math.min(
+              assignedCards,
+              activeVisits,
+            ),
+            notAssigned: Math.max(
+              activeVisits - assignedCards,
+              0,
+            ),
+          },
           stats: {
             ...data.stats,
             checkedInThisMonth,
           },
           visitors,
+          weeklyArrivals,
           staffRole:
             data.staffRole ||
             profile.role,
