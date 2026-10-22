@@ -1022,9 +1022,9 @@ export default function StaffHomePage() {
 
         <div
           aria-hidden="true"
-          className="pointer-events-none relative mx-4 mb-4 aspect-[1400/620] sm:mx-8 sm:mb-6 lg:absolute lg:inset-y-0 lg:right-0 lg:m-0 lg:aspect-auto lg:w-[56%]"
+          className="pointer-events-none relative aspect-[1365/620] lg:absolute lg:inset-y-0 lg:right-0 lg:m-0 lg:aspect-auto lg:w-[56%]"
         >
-          <div className="absolute inset-0 overflow-hidden rounded-2xl lg:rounded-none lg:[mask-image:linear-gradient(to_right,transparent,#000_22%)]">
+          <div className="absolute inset-0 overflow-hidden lg:[mask-image:linear-gradient(to_right,transparent,#000_22%)]">
             <span className="absolute left-[12%] top-[7%] h-[150%] w-[64%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
 
             {["left-[40%]", "left-[52%]", "left-[64%]"].map(
@@ -1036,14 +1036,14 @@ export default function StaffHomePage() {
               ),
             )}
 
-            <span className="absolute inset-y-0 right-[4%] w-[12%] bg-linear-to-b from-[#0f766e] to-[#115e59] dark:from-[#0d9488] dark:to-[#0f766e]" />
+            <span className="absolute inset-y-0 right-0 w-[12%] bg-linear-to-b from-[#0f766e] to-[#115e59] dark:from-[#0d9488] dark:to-[#0f766e]" />
 
             <span className="absolute inset-x-[4%] bottom-[1%] h-[16%] rounded-[50%] bg-[#134e4a33] blur-2xl dark:bg-[#00000066]" />
           </div>
 
           <img
             alt=""
-            className="absolute inset-x-0 bottom-0 w-full [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] lg:left-auto lg:right-[3%] lg:h-[94%] lg:w-[94%] lg:object-contain lg:object-[100%_100%]"
+            className="absolute inset-x-0 bottom-0 w-full [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] lg:left-auto lg:right-0 lg:h-[94%] lg:w-full lg:object-contain lg:object-[100%_100%]"
             src={heroIllustration}
           />
         </div>
