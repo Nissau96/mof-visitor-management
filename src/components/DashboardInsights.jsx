@@ -266,7 +266,7 @@ export function ReceptionClockCard({
   return (
     <article
       aria-labelledby="reception-clock-heading"
-      className="relative overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm sm:p-6"
+      className="relative flex min-h-64 flex-col overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm sm:p-6"
     >
       <DecorativeRings />
 
@@ -288,7 +288,7 @@ export function ReceptionClockCard({
         {longDateFormatter.format(now)}
       </p>
 
-      <p className="mt-6 inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
+      <p className="relative mt-auto self-start rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
         {towerLabel} · Accra time (GMT)
       </p>
     </article>

@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
-  ExternalLink,
   History,
   Landmark,
   LayoutDashboard,
@@ -15,6 +14,7 @@ import {
   Moon,
   QrCode,
   Search,
+  Smartphone,
   Sun,
   UserCog,
   X,
@@ -160,6 +160,73 @@ function HistorySearch() {
         Ctrl K
       </kbd>
     </form>
+  );
+}
+
+// White button and dark text are set with arbitrary values so the dark
+// theme overrides for bg-white / text-brand-* leave this teal card alone.
+function KioskCard({
+  collapsed,
+  onNavigate,
+}) {
+  if (collapsed) {
+    return (
+      <div className="hidden px-3 pb-3 lg:block">
+        <Link
+          aria-label="Open self-check-in kiosk"
+          className="grid min-h-11 place-items-center rounded-xl bg-brand-800 text-white hover:bg-brand-900"
+          onClick={onNavigate}
+          title="Open self-check-in kiosk"
+          to="/visit"
+        >
+          <Smartphone aria-hidden="true" className="size-5" />
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3">
+      <section
+        aria-labelledby="sidebar-kiosk-heading"
+        className="relative overflow-hidden rounded-3xl bg-brand-800 p-5 text-white"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-12 -top-12 size-40 rounded-full border border-white/15"
+        >
+          <span className="absolute inset-5 rounded-full border border-white/15" />
+          <span className="absolute inset-10 rounded-full border border-white/15" />
+        </span>
+
+        <span
+          aria-hidden="true"
+          className="relative grid size-10 place-items-center rounded-xl bg-white/15"
+        >
+          <Smartphone className="size-5" />
+        </span>
+
+        <h2
+          className="relative mt-4 font-black"
+          id="sidebar-kiosk-heading"
+        >
+          Self-Check-In Kiosk
+        </h2>
+
+        <p className="relative mt-2 text-sm leading-6 text-white/90">
+          Let visitors register on the lobby tablet while
+          reception handles cards.
+        </p>
+
+        <Link
+          className="relative mt-5 flex min-h-11 items-center justify-center rounded-full bg-[#ffffff] text-sm font-bold text-[#134e4a] transition hover:bg-[#f0fdfa]"
+          onClick={onNavigate}
+          to="/visit"
+        >
+          Open kiosk
+        </Link>
+      </section>
+    </div>
   );
 }
 
@@ -514,16 +581,12 @@ export default function StaffLayout() {
     }
   }
 
-  const kioskLink = (
-    <SidebarLink
+  const kioskCard = receptionAccess ? (
+    <KioskCard
       collapsed={collapsed}
-      external
-      icon={ExternalLink}
-      label="Self-Check-In Kiosk"
       onNavigate={closeMobile}
-      to="/visit"
     />
-  );
+  ) : null;
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-950 lg:flex lg:gap-4 lg:p-4 print:block print:min-h-0 print:bg-white print:p-0">
@@ -606,11 +669,7 @@ export default function StaffLayout() {
                   collapsed={collapsed}
                   end
                   icon={LayoutDashboard}
-                  label={
-                    administrator
-                      ? "Admin Command Center"
-                      : "Reception Dashboard"
-                  }
+                  label="Dashboard"
                   onNavigate={closeMobile}
                   to="/staff"
                 />
@@ -639,7 +698,6 @@ export default function StaffLayout() {
               to="/staff/cards"
             />
 
-            {!administrator ? kioskLink : null}
           </SidebarGroup>
 
           {administrator ? (
@@ -668,10 +726,11 @@ export default function StaffLayout() {
                 onNavigate={closeMobile}
                 to="/staff/admin/staff"
               />
-              {kioskLink}
             </SidebarGroup>
           ) : null}
         </nav>
+
+        {kioskCard}
 
         {collapsed ? (
           <div className="hidden border-t border-slate-100 p-3 lg:block">
