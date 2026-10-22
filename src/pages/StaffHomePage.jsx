@@ -24,7 +24,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import heroIllustration from "../assets/images/reception-hero.jpg";
+import heroIllustration from "../assets/images/reception-hero-cutout.png";
 import {
   CardAssignmentCard,
   ReceptionClockCard,
@@ -974,51 +974,43 @@ export default function StaffHomePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
+      {/*
+        Hero colours use arbitrary values on purpose: dark-theme.css remaps
+        brand/white utilities globally, and this banner needs its own
+        mint (light) and deep-teal (dark) palette.
+      */}
       <section
         aria-labelledby="dashboard-heading"
-        className="relative overflow-hidden rounded-3xl border border-brand-100 bg-linear-to-r from-brand-50 via-[#e6f6f4] to-[#cdeee9] shadow-sm dark:border-[#1d4a46] dark:from-[#0a2321] dark:via-[#0d2a28] dark:to-[#103532]"
+        className="relative overflow-hidden rounded-3xl border border-[#ccfbf1] bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[54%] lg:block"
-        >
-          <img
-            alt=""
-            className="size-full object-cover object-right dark:opacity-90"
-            src={heroIllustration}
-          />
-
-          <div className="absolute inset-y-0 left-0 w-1/6 bg-linear-to-r from-[#e6f6f4] to-transparent dark:from-[#0d2a28]" />
-        </div>
-
-        <div className="relative p-6 sm:p-8 lg:w-[56%] lg:py-10 lg:pl-10">
+        <div className="relative p-6 sm:p-8 lg:w-[46%] lg:py-10 lg:pl-10">
           <h1
-            className="text-3xl font-black tracking-tight text-brand-900 sm:text-4xl"
+            className="text-3xl font-black tracking-tight text-[#134e4a] sm:text-4xl dark:text-[#ffffff]"
             id="dashboard-heading"
           >
             Welcome to your{" "}
             {workspaceName}
           </h1>
 
-          <p className="mt-3 max-w-xl leading-7 text-slate-700">
+          <p className="mt-3 max-w-xl leading-7 text-[#334155] dark:text-[#cfe9e5]">
             Manage visitors, monitor check-ins, issue
             visitor cards, and keep reception activities
             running smoothly from one place.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <span className="inline-flex min-h-8 items-center rounded-full bg-brand-100 px-4 text-xs font-black uppercase tracking-[0.08em] text-brand-900">
+            <span className="inline-flex min-h-8 items-center rounded-full bg-[#ccfbf1] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#134e4a] dark:bg-[#ffffff1a] dark:text-[#ffffff]">
               {workspaceName}
             </span>
 
-            <span className="inline-flex min-h-8 items-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-700">
+            <span className="inline-flex min-h-8 items-center rounded-full border border-[#b9e9e1] bg-[#ffffff] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#334155] dark:border-[#ffffff33] dark:bg-transparent dark:text-[#ffffff]">
               {administrator
                 ? "Administrator"
                 : "Receptionist"}
             </span>
           </div>
 
-          <p className="mt-6 flex max-w-lg items-center gap-3 rounded-xl bg-white/60 px-4 py-3 text-sm font-semibold text-brand-900">
+          <p className="mt-6 flex max-w-lg items-center gap-3 rounded-xl bg-[#ffffff99] px-4 py-3 text-sm font-semibold text-[#134e4a] dark:bg-[#ffffff14] dark:text-[#ccfbf1]">
             <Users
               aria-hidden="true"
               className="size-5 shrink-0"
@@ -1026,6 +1018,34 @@ export default function StaffHomePage() {
             A professional, secure and seamless
             visitor experience.
           </p>
+        </div>
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none relative mx-4 mb-4 aspect-[1400/620] sm:mx-8 sm:mb-6 lg:absolute lg:inset-y-0 lg:right-0 lg:m-0 lg:aspect-auto lg:w-[56%]"
+        >
+          <div className="absolute inset-0 overflow-hidden rounded-2xl lg:rounded-none lg:[mask-image:linear-gradient(to_right,transparent,#000_22%)]">
+            <span className="absolute left-[12%] top-[7%] h-[150%] w-[64%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
+
+            {["left-[40%]", "left-[52%]", "left-[64%]"].map(
+              (position) => (
+                <span
+                  className={`absolute bottom-[24%] top-0 w-[10%] border-x border-[#ffffff99] bg-[#ffffff4d] dark:border-[#ffffff14] dark:bg-[#ffffff0a] ${position}`}
+                  key={position}
+                />
+              ),
+            )}
+
+            <span className="absolute inset-y-0 right-[4%] w-[12%] bg-linear-to-b from-[#0f766e] to-[#115e59] dark:from-[#0d9488] dark:to-[#0f766e]" />
+
+            <span className="absolute inset-x-[4%] bottom-[1%] h-[16%] rounded-[50%] bg-[#134e4a33] blur-2xl dark:bg-[#00000066]" />
+          </div>
+
+          <img
+            alt=""
+            className="absolute inset-x-0 bottom-0 w-full [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] lg:left-auto lg:right-[3%] lg:h-[94%] lg:w-[94%] lg:object-contain lg:object-[100%_100%]"
+            src={heroIllustration}
+          />
         </div>
       </section>
 

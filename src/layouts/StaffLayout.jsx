@@ -156,9 +156,6 @@ function HistorySearch() {
         value={value}
       />
 
-      <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-xs font-semibold text-slate-600 sm:block">
-        Ctrl K
-      </kbd>
     </form>
   );
 }
