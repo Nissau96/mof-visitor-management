@@ -64,7 +64,7 @@ export function WeeklyArrivalsCard({
   return (
     <article
       aria-labelledby="weekly-arrivals-heading"
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2"
+      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 md:col-span-2"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2

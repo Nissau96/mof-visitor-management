@@ -1,16 +1,13 @@
 import {
   ArrowUpRight,
-  Building2,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  Clock,
   LoaderCircle,
   LogIn,
   LogOut,
-  Mail,
   MapPin,
   RefreshCw,
   Search,
@@ -24,7 +21,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import heroIllustration from "../assets/images/reception-hero-cutout.png";
+import heroIllustration from "../assets/images/reception-hero-cutout.webp";
 import {
   CardAssignmentCard,
   ReceptionClockCard,
@@ -72,6 +69,15 @@ const dateFormatter = new Intl.DateTimeFormat(
   "en-GB",
   {
     day: "numeric",
+    month: "short",
+    timeZone: "Africa/Accra",
+    year: "numeric",
+  },
+);
+
+const monthShortFormatter = new Intl.DateTimeFormat(
+  "en-GB",
+  {
     month: "short",
     timeZone: "Africa/Accra",
     year: "numeric",
@@ -946,6 +952,12 @@ export default function StaffHomePage() {
       referenceTime,
     );
 
+  const monthShortLabel =
+    formatWith(
+      monthShortFormatter,
+      referenceTime,
+    );
+
   const stats =
     dashboard?.stats;
 
@@ -981,9 +993,9 @@ export default function StaffHomePage() {
       */}
       <section
         aria-labelledby="dashboard-heading"
-        className="relative overflow-hidden rounded-3xl border border-[#ccfbf1] bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
+        className="relative flex flex-col overflow-hidden rounded-3xl border border-[#ccfbf1] md:block bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
       >
-        <div className="relative p-6 sm:p-8 lg:w-[46%] lg:py-10 lg:pl-10">
+        <div className="relative z-10 p-6 sm:p-8 md:w-[60%] lg:w-[46%] lg:py-10 lg:pl-10">
           <h1
             className="text-3xl font-black tracking-tight text-[#134e4a] sm:text-4xl dark:text-[#ffffff]"
             id="dashboard-heading"
@@ -1022,7 +1034,7 @@ export default function StaffHomePage() {
 
         <div
           aria-hidden="true"
-          className="pointer-events-none relative aspect-[1365/620] lg:absolute lg:inset-y-0 lg:right-0 lg:m-0 lg:aspect-auto lg:w-[56%]"
+          className="pointer-events-none relative order-first h-44 sm:h-56 md:absolute md:inset-y-0 md:right-0 md:order-none md:h-auto md:w-[56%] md:overflow-hidden md:[mask-image:linear-gradient(to_right,transparent,#000_35%)] lg:w-[56%] lg:overflow-visible lg:[mask-image:none]"
         >
           <div className="absolute inset-0 overflow-hidden lg:[mask-image:linear-gradient(to_right,transparent,#000_22%)]">
             <span className="absolute left-[12%] top-[7%] h-[150%] w-[64%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
@@ -1043,7 +1055,7 @@ export default function StaffHomePage() {
 
           <img
             alt=""
-            className="absolute inset-x-0 bottom-0 w-full [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] lg:left-auto lg:right-0 lg:h-[94%] lg:w-full lg:object-contain lg:object-[100%_100%]"
+            className="absolute inset-0 size-full object-cover object-[50%_100%] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] md:inset-auto md:bottom-0 md:right-0 md:h-[94%] md:w-auto md:max-w-none md:object-contain lg:w-full lg:max-w-full lg:object-[100%_100%]"
             src={heroIllustration}
           />
         </div>
@@ -1084,7 +1096,7 @@ export default function StaffHomePage() {
       <section
         aria-busy={loading}
         aria-label="Reception statistics"
-        className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
       >
         <MetricCard
           action={{
@@ -1172,6 +1184,12 @@ export default function StaffHomePage() {
           }}
           icon={CalendarDays}
           label="Total Visitors This Month"
+          shortLabel="Visitors This Month"
+          shortNote={`${
+            administrator
+              ? "All towers"
+              : towerHeading
+          } · ${monthShortLabel}`}
           note={`${
             administrator
               ? "All towers"
@@ -1186,7 +1204,7 @@ export default function StaffHomePage() {
 
       <section
         aria-label="Reception insights"
-        className="mt-4 grid gap-4 lg:grid-cols-4"
+        className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4"
       >
         <WeeklyArrivalsCard
           days={
@@ -1375,11 +1393,11 @@ export default function StaffHomePage() {
             </p>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex items-center gap-3 sm:flex-wrap sm:justify-end">
             {administrator ? (
               <div
                 aria-label="Tower filter"
-                className="inline-flex rounded-xl bg-slate-100 p-1"
+                className="flex flex-1 rounded-xl bg-slate-100 p-1 sm:inline-flex sm:flex-none"
                 role="group"
               >
                 {[
@@ -1396,7 +1414,7 @@ export default function StaffHomePage() {
                         tower ===
                         towerOption.value
                       }
-                      className={`min-h-9 rounded-lg px-4 text-sm font-bold transition ${
+                      className={`min-h-9 flex-1 rounded-lg px-3 text-sm font-bold transition sm:flex-none sm:px-4 ${
                         tower ===
                         towerOption.value
                           ? "bg-white text-brand-900 shadow-sm"
@@ -1427,7 +1445,7 @@ export default function StaffHomePage() {
             )}
 
             <button
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-0 sm:px-4"
               disabled={loading}
               onClick={
                 refreshDashboard
@@ -1442,7 +1460,9 @@ export default function StaffHomePage() {
                     : ""
                 }`}
               />
-              Refresh
+              <span className="max-sm:sr-only">
+                Refresh
+              </span>
             </button>
           </div>
         </div>
@@ -1687,6 +1707,8 @@ function MetricCard({
   icon: Icon,
   label,
   note,
+  shortLabel,
+  shortNote,
   tone,
   value,
 }) {
@@ -1724,7 +1746,7 @@ function MetricCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl border p-5 shadow-sm ${
+      className={`relative overflow-hidden rounded-3xl border p-4 shadow-sm sm:p-5 ${
         featured
           ? "border-brand-800 bg-brand-800 text-white"
           : "border-slate-200 bg-white"
@@ -1754,7 +1776,7 @@ function MetricCard({
         </span>
 
         <p
-          className={`flex-1 text-sm font-bold ${
+          className={`hidden flex-1 text-sm font-bold sm:block ${
             featured
               ? "text-white"
               : "text-slate-700"
@@ -1762,6 +1784,11 @@ function MetricCard({
         >
           {label}
         </p>
+
+        <span
+          aria-hidden="true"
+          className="flex-1 sm:hidden"
+        />
 
         {action?.to ? (
           <Link
@@ -1787,7 +1814,17 @@ function MetricCard({
       </div>
 
       <p
-        className={`relative mt-4 text-4xl font-black ${
+        className={`relative mt-3 text-sm font-bold sm:hidden ${
+          featured
+            ? "text-white"
+            : "text-slate-700"
+        }`}
+      >
+        {shortLabel || label}
+      </p>
+
+      <p
+        className={`relative mt-1 text-3xl font-black sm:mt-4 sm:text-4xl ${
           featured
             ? "text-white"
             : "text-slate-950"
@@ -1805,29 +1842,20 @@ function MetricCard({
             : toneClasses[tone].note
         }`}
       >
-        {note}
+        {shortNote ? (
+          <>
+            <span className="sm:hidden">
+              {shortNote}
+            </span>
+            <span className="hidden sm:inline">
+              {note}
+            </span>
+          </>
+        ) : (
+          note
+        )}
       </p>
     </article>
-  );
-}
-
-function CheckoutButton({
-  onClick,
-}) {
-  return (
-    <button
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-4 text-sm font-black text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200"
-      onClick={
-        onClick
-      }
-      type="button"
-    >
-      <LogOut
-        aria-hidden="true"
-        className="size-4"
-      />
-      Check out
-    </button>
   );
 }
 
@@ -1835,91 +1863,146 @@ function VisitorCard({
   onCheckout,
   visitor,
 }) {
+  const cardAssigned =
+    visitor.cardStatus ===
+      "assigned" &&
+    visitor.cardNumber;
+
+  const contact = [
+    visitor.phone,
+    visitor.email,
+  ].filter(Boolean);
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="wrap-break-word text-lg font-bold text-slate-950">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-black text-brand-800"
+        >
+          {getInitials(visitor.fullName)}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="wrap-break-word font-bold text-slate-950">
             {visitor.fullName}
           </h3>
-
-          <p className="mt-1 font-mono text-sm font-bold text-brand-800">
-            {visitor.reference}
-          </p>
+          {visitor.organization ? (
+            <p className="text-sm text-slate-600">
+              {visitor.organization}
+            </p>
+          ) : null}
         </div>
 
-        <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-          {getCardStatus(
-            visitor,
-          )}
+        <span className="shrink-0 rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-mono text-xs font-bold text-brand-800">
+          {visitor.reference}
         </span>
       </div>
 
-      <dl className="mt-5 grid text-sm">
-        <VisitDetail icon={Building2} label="Agency" value={visitor.agency} />
-        <dt className="mt-4 font-semibold text-slate-600">Visitor Type</dt>
-        <dd className="mt-1"><VisitorTypeBadge type={visitor.visitorType} /></dd>
-        <dt className="mt-4 font-semibold text-slate-600">Given Card</dt>
-        <dd className="mt-1">
-          <span className="inline-flex rounded-full border border-brand-100 bg-brand-50 px-3 py-1 font-bold text-brand-800">
-            {visitor.cardNumber || "Not assigned"}
-          </span>
-        </dd>
-        <VisitDetail icon={Mail} label="Contact Details" value={
-          <span className="grid gap-1">
-            {visitor.email ? <span>{visitor.email}</span> : null}
-            {visitor.phone ? <span>{visitor.phone}</span> : null}
-          </span>
-        } />
-        <VisitDetail icon={Users} label="Person / Div. Visiting" value={
-          [getVisitContact(visitor), visitor.division].filter(Boolean).join(" — ")
-        } />
-        <VisitDetail icon={Users} label="Purpose of Visit" value={visitor.purpose} />
-        <VisitDetail icon={Building2} label="Institution" value={visitor.organization || "Not provided"} />
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <div className="min-w-0">
+          <dt className="text-xs font-semibold text-slate-500">
+            Visiting
+          </dt>
+          <dd className="mt-0.5 font-semibold text-slate-950">
+            {getVisitContact(visitor)}
+          </dd>
+          {visitor.division ? (
+            <dd className="text-xs text-slate-600">
+              {visitor.division}
+            </dd>
+          ) : null}
+        </div>
 
-        <VisitDetail
-          icon={Clock}
-          label="Checked in"
-          value={formatDateTime(
-            visitor.checkedInAt,
-          )}
-        />
+        <div>
+          <dt className="text-xs font-semibold text-slate-500">
+            Check-in
+          </dt>
+          <dd className="mt-0.5 font-bold text-slate-950">
+            {formatWith(timeFormatter, visitor.checkedInAt)}
+          </dd>
+          <dd className="text-xs text-slate-600">
+            {formatWith(dateFormatter, visitor.checkedInAt)}
+          </dd>
+        </div>
+
+        <div>
+          <dt className="text-xs font-semibold text-slate-500">
+            Agency
+          </dt>
+          <dd className="mt-0.5 font-semibold text-slate-950">
+            {getAgencyShortName(visitor.agency)}
+            <span className="font-normal text-slate-600">
+              {" · "}
+              {getTowerLabel(visitor.tower)}
+            </span>
+          </dd>
+        </div>
+
+        {contact.length ? (
+          <div className="min-w-0">
+            <dt className="text-xs font-semibold text-slate-500">
+              Contact
+            </dt>
+            {contact.map((value) => (
+              <dd
+                className="mt-0.5 break-all text-slate-950"
+                key={value}
+              >
+                {value}
+              </dd>
+            ))}
+          </div>
+        ) : null}
       </dl>
 
-      <div className="mt-5 border-t border-slate-200 pt-5">
-        <CheckoutButton
-          onClick={() =>
-            onCheckout(
-              visitor,
-            )
-          }
-        />
-      </div>
-    </article>
-  );
-}
-
-function VisitDetail({
-  icon: Icon,
-  label,
-  value,
-}) {
-  return (
-    <>
-      <dt className="mt-4 flex items-start gap-3 font-semibold text-slate-600 first:mt-0">
-        <Icon
-          aria-hidden="true"
-          className="mt-0.5 size-5 shrink-0 text-brand-800"
-        />
-        <span>
-          {label}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <span className="inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+          {visitor.purpose}
         </span>
-      </dt>
 
-      <dd className="ml-8 mt-1 wrap-break-word font-bold text-slate-950">
-        {value}
-      </dd>
-    </>
+        {visitor.visitorType ? (
+          <VisitorTypeBadge type={visitor.visitorType} />
+        ) : null}
+
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold ${
+            cardAssigned
+              ? "bg-emerald-50 text-brand-800"
+              : "bg-amber-50 text-amber-800"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`size-1.5 rounded-full ${
+              cardAssigned
+                ? "bg-emerald-500"
+                : "bg-amber-500"
+            }`}
+          />
+          {cardAssigned
+            ? `Card #${visitor.cardNumber}`
+            : "Card not assigned"}
+        </span>
+      </div>
+
+      <button
+        aria-label={`Check out ${visitor.fullName}`}
+        className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-600 bg-white text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
+        onClick={() =>
+          onCheckout(
+            visitor,
+          )
+        }
+        type="button"
+      >
+        <LogOut
+          aria-hidden="true"
+          className="size-4"
+        />
+        Check out
+      </button>
+    </article>
   );
 }
 

@@ -23,6 +23,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   Link,
@@ -36,6 +37,37 @@ import {
   setTheme,
   useTheme,
 } from "../lib/theme.js";
+
+// Landscape tablets get an icon-only sidebar; the saved expand/collapse
+// preference applies on desktop only.
+const TABLET_LANDSCAPE_QUERY =
+  "(min-width: 1024px) and (max-width: 1279.98px)";
+
+function subscribeTabletLandscape(onChange) {
+  const query = window.matchMedia(
+    TABLET_LANDSCAPE_QUERY,
+  );
+
+  query.addEventListener("change", onChange);
+
+  return () => {
+    query.removeEventListener(
+      "change",
+      onChange,
+    );
+  };
+}
+
+function useTabletLandscape() {
+  return useSyncExternalStore(
+    subscribeTabletLandscape,
+    () =>
+      window.matchMedia(
+        TABLET_LANDSCAPE_QUERY,
+      ).matches,
+    () => false,
+  );
+}
 
 const COLLAPSED_STORAGE_KEY =
   "mof-staff-sidebar-collapsed";
@@ -144,7 +176,7 @@ function HistorySearch() {
 
       <input
         autoComplete="off"
-        className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-11 pr-20 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-100"
+        className="min-h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-11 pr-4 sm:pr-20 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-100"
         id="staff-global-search"
         maxLength="80"
         onChange={(event) =>
@@ -488,10 +520,19 @@ export default function StaffLayout() {
   const [signingOut, setSigningOut] =
     useState(false);
 
-  const [collapsed, setCollapsed] =
-    useState(
-      readCollapsedPreference,
-    );
+  const [
+    collapsedPreference,
+    setCollapsed,
+  ] = useState(
+    readCollapsedPreference,
+  );
+
+  const tabletLandscape =
+    useTabletLandscape();
+
+  const collapsed =
+    collapsedPreference ||
+    tabletLandscape;
 
   const [mobileOpen, setMobileOpen] =
     useState(false);
@@ -640,7 +681,8 @@ export default function StaffLayout() {
             <X aria-hidden="true" className="size-5" />
           </button>
 
-          {!collapsed ? (
+          {!collapsed &&
+          !tabletLandscape ? (
             <button
               aria-label="Collapse sidebar"
               className="hidden size-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:grid"
@@ -654,7 +696,7 @@ export default function StaffLayout() {
 
         <nav
           aria-label="Staff navigation"
-          className="flex-1 overflow-y-auto px-3 pb-6"
+          className="min-h-0 flex-1 overflow-y-auto px-3 pb-6"
         >
           <SidebarGroup
             collapsed={collapsed}
@@ -729,7 +771,8 @@ export default function StaffLayout() {
 
         {kioskCard}
 
-        {collapsed ? (
+        {collapsed &&
+        !tabletLandscape ? (
           <div className="hidden border-t border-slate-100 p-3 lg:block">
             <button
               aria-label="Expand sidebar"

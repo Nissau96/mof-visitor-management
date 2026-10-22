@@ -327,9 +327,9 @@ test.describe(
       ).toBeVisible();
 
       await expect(
-        statistics.getByText(
-          /^Tower 1 · /,
-        ),
+        statistics
+        .getByText(/^Tower 1 · /)
+        .filter({ visible: true }),
       ).toBeVisible();
 
       await expect(
