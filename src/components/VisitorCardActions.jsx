@@ -12,6 +12,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import AppSelect from "./AppSelect.jsx";
 import {
   admitVisitorWithCard,
   checkoutCardVisitor,
@@ -187,8 +188,8 @@ export function AssignVisitorCardModal({
   const [errorMessage, setErrorMessage] =
     useState("");
 
-  function updateCardType(event) {
-    setCardType(event.target.value);
+  function updateCardType(value) {
+    setCardType(value);
     setCards([]);
     setSelectedCardId("");
     setSearchCompleted(false);
@@ -346,21 +347,19 @@ export function AssignVisitorCardModal({
 
         <form className="space-y-4" onSubmit={searchCards}>
           <div className="grid gap-4 sm:grid-cols-[0.8fr_1.2fr]">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-800">
-                Card type
-              </span>
-
-              <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" disabled={busy} onChange={updateCardType} value={cardType}>
-                <option value="regular">
-                  Regular visitor
-                </option>
-
-                <option value="vip">
-                  VIP visitor
-                </option>
-              </select>
-            </label>
+            <AppSelect
+              disabled={busy}
+              id="card-action-card-type"
+              label="Card type"
+              labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+              onChange={updateCardType}
+              options={[
+                { label: "Regular visitor", value: "regular" },
+                { label: "VIP visitor", value: "vip" },
+              ]}
+              size="2xl"
+              value={cardType}
+            />
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-bold text-slate-800">
@@ -963,28 +962,22 @@ export function IncidentManagementModal({
         ) : null}
 
         {mode === "resolve" ? (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Investigation outcome
-            </span>
-
-            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" disabled={submitting} onChange={(event) => setResolution(event.target.value)} value={resolution}>
-              <option value="late_return">
-                Card returned late
-              </option>
-
-              <option value="lost">
-                Card lost
-              </option>
-
-              <option value="damaged">
-                Card damaged
-              </option>
-
-              <option value="unusable">
-                Card unusable
-              </option>
-            </select>
+          <div>
+            <AppSelect
+              disabled={submitting}
+              id="card-action-investigation-outcome"
+              label="Investigation outcome"
+              labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+              onChange={setResolution}
+              options={[
+                { label: "Card returned late", value: "late_return" },
+                { label: "Card lost", value: "lost" },
+                { label: "Card damaged", value: "damaged" },
+                { label: "Card unusable", value: "unusable" },
+              ]}
+              size="2xl"
+              value={resolution}
+            />
 
             <p className="mt-2 text-xs leading-5 text-slate-500">
               Lost, damaged and unusable
@@ -992,7 +985,7 @@ export function IncidentManagementModal({
               A replacement can then be
               registered.
             </p>
-          </label>
+          </div>
         ) : null}
 
         {mode !== "view" ? (

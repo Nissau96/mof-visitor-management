@@ -18,6 +18,7 @@ import {
   CheckoutVisitorModal,
   IncidentManagementModal,
 } from "../components/VisitorCardActions.jsx";
+import AppSelect from "../components/AppSelect.jsx";
 import { getTowerLabel } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError } from "../lib/api.js";
@@ -905,30 +906,30 @@ export default function StaffVisitorCardsPage() {
     );
   }
 
-  function updateTowerFilter(event) {
+  function updateTowerFilter(value) {
     setTowerFilter(
-      event.target.value,
+      value,
     );
     setPage(1);
   }
 
-  function updateCardStatus(event) {
+  function updateCardStatus(value) {
     setCardStatus(
-      event.target.value,
+      value,
     );
     setPage(1);
   }
 
-  function updateIncidentStatus(event) {
+  function updateIncidentStatus(value) {
     setIncidentStatus(
-      event.target.value,
+      value,
     );
     setPage(1);
   }
 
-  function updateResolution(event) {
+  function updateResolution(value) {
     setResolution(
-      event.target.value,
+      value,
     );
     setPage(1);
   }
@@ -1031,23 +1032,19 @@ export default function StaffVisitorCardsPage() {
           <div className="grid gap-4 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
             {profile?.role !==
             "receptionist" ? (
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                  Tower
-                </span>
-
-                <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" onChange={updateTowerFilter} value={towerFilter}>
-                  <option value="">
-                    All towers
-                  </option>
-                  <option value="tower_1">
-                    Tower 1
-                  </option>
-                  <option value="tower_2">
-                    Tower 2
-                  </option>
-                </select>
-              </label>
+              <AppSelect
+                id="cards-filter-tower"
+                label="Tower"
+                labelClassName="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600"
+                onChange={updateTowerFilter}
+                options={[
+                  { label: "All towers", value: "" },
+                  { label: "Tower 1", value: "tower_1" },
+                  { label: "Tower 2", value: "tower_2" },
+                ]}
+                size="2xl"
+                value={towerFilter}
+              />
             ) : (
               <div>
                 <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">
@@ -1062,71 +1059,67 @@ export default function StaffVisitorCardsPage() {
 
             {activeTab ===
             "checked-in" ? (
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                  Card status
-                </span>
-
-                <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" onChange={updateCardStatus} value={cardStatus}>
-                  <option value="all">
-                    All statuses
-                  </option>
-                  <option value="assigned">
-                    Assigned
-                  </option>
-                  <option value="not_returned">
-                    Not returned
-                  </option>
-                </select>
-              </label>
+              <AppSelect
+                id="cards-filter-card-status"
+                label="Card status"
+                labelClassName="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600"
+                onChange={updateCardStatus}
+                options={[
+                  { label: "All statuses", value: "all" },
+                  { label: "Assigned", value: "assigned" },
+                  { label: "Not returned", value: "not_returned" },
+                ]}
+                size="2xl"
+                value={cardStatus}
+              />
             ) : null}
 
             {activeTab === "incidents" ? (
               <>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                    Incident status
-                  </span>
+                <AppSelect
+                  id="cards-filter-incident-status"
+                  label="Incident status"
+                  labelClassName="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600"
+                  onChange={updateIncidentStatus}
+                  options={[
+                    { label: "All statuses", value: "all" },
+                    { label: "Open", value: "open" },
+                    { label: "Investigating", value: "investigating" },
+                    { label: "Resolved", value: "resolved" },
+                  ]}
+                  size="2xl"
+                  value={incidentStatus}
+                />
 
-                  <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" onChange={updateIncidentStatus} value={incidentStatus}>
-                    <option value="all">
-                      All statuses
-                    </option>
-                    <option value="open">
-                      Open
-                    </option>
-                    <option value="investigating">
-                      Investigating
-                    </option>
-                    <option value="resolved">
-                      Resolved
-                    </option>
-                  </select>
-                </label>
+                <AppSelect
 
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                    Resolution
-                  </span>
+                  id="cards-filter-resolution"
 
-                  <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" onChange={updateResolution} value={resolution}>
-                    <option value="all">
-                      All resolutions
-                    </option>
-                    <option value="late_return">
-                      Late return
-                    </option>
-                    <option value="lost">
-                      Lost
-                    </option>
-                    <option value="damaged">
-                      Damaged
-                    </option>
-                    <option value="unusable">
-                      Unusable
-                    </option>
-                  </select>
-                </label>
+                  label="Resolution"
+
+                  labelClassName="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.08em] text-slate-600"
+
+                  onChange={updateResolution}
+
+                  options={[
+
+                    { label: "All resolutions", value: "all" },
+
+                    { label: "Late return", value: "late_return" },
+
+                    { label: "Lost", value: "lost" },
+
+                    { label: "Damaged", value: "damaged" },
+
+                    { label: "Unusable", value: "unusable" },
+
+                  ]}
+
+                  size="2xl"
+
+                  value={resolution}
+
+                />
               </>
             ) : null}
           </div>

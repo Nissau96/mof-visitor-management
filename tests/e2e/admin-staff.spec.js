@@ -11,6 +11,7 @@ import {
   SYNTHETIC_ACCESS_TOKEN,
   SYNTHETIC_STAFF_ID,
 } from "./support/staff-authentication.js";
+import { chooseOption } from "./support/select.js";
 
 const ADMIN_STAFF_PATH =
   "/staff/admin/staff";
@@ -577,13 +578,17 @@ test.describe(
           })
           .fill("Staff 12");
 
-        await page
-          .getByLabel("Role")
-          .selectOption("admin");
+        await chooseOption(
+    page,
+    "Role",
+    "Administrator",
+  );
 
-        await page
-          .getByLabel("Status")
-          .selectOption("inactive");
+        await chooseOption(
+    page,
+    "Status",
+    "Inactive",
+  );
 
         await page
           .getByRole("button", {
@@ -684,11 +689,11 @@ test.describe(
             "NEW.STAFF@example.invalid",
           );
 
-        await dialog
-          .getByLabel(
-            /Authorised role/i,
-          )
-          .selectOption("admin");
+        await chooseOption(
+    dialog,
+    /Authorised role/i,
+    "Administrator",
+  );
 
         await dialog
           .getByRole("button", {
@@ -790,11 +795,11 @@ test.describe(
             "Synthetic Staff 01 Updated",
           );
 
-        await dialog
-          .getByLabel(
-            /Authorised role/i,
-          )
-          .selectOption("admin");
+        await chooseOption(
+    dialog,
+    /Authorised role/i,
+    "Administrator",
+  );
 
         await dialog
           .getByRole("checkbox", {

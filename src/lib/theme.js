@@ -26,6 +26,12 @@ export function setTheme(theme) {
     theme === "dark",
   );
 
+  // Plex UI components read data-theme.
+  document.documentElement.setAttribute(
+    "data-theme",
+    theme,
+  );
+
   try {
     window.localStorage.setItem(
       THEME_STORAGE_KEY,

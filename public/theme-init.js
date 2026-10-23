@@ -19,4 +19,6 @@
   }
 
   document.documentElement.classList.toggle("dark", theme === "dark");
+  // Plex UI components read data-theme.
+  document.documentElement.setAttribute("data-theme", theme);
 })();

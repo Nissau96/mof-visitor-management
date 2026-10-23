@@ -8,6 +8,7 @@ import {
 import {
   installMockVisitorAccess,
 } from "./support/visitor-access.js";
+import { chooseOption } from "./support/select.js";
 
 const MEETING_ID =
   "00000000-0000-4000-8000-000000000013";
@@ -62,13 +63,17 @@ async function fillVisitorDetails(page) {
 }
 
 async function fillNonMeetingVisit(page) {
-  await page
-    .getByLabel("Agency being visited")
-    .selectOption("IAA");
+  await chooseOption(
+    page,
+    "Agency being visited",
+    "IAA",
+  );
 
-  await page
-    .getByLabel("Purpose of visit")
-    .selectOption("Official");
+  await chooseOption(
+    page,
+    "Purpose of visit",
+    "Official",
+  );
 
   await page
     .getByLabel("Person being visited")
@@ -233,29 +238,33 @@ expect(
     await openRegistration(page);
     await fillVisitorDetails(page);
 
-    await page
-      .getByLabel("Agency being visited")
-      .selectOption(
-        "Ministry of Finance (MoF)",
-      );
+    await chooseOption(
+    page,
+    "Agency being visited",
+    "Ministry of Finance (MoF)",
+  );
 
-    await page
-      .getByLabel(
-        "Ministry of Finance division",
-      )
-      .selectOption("Budget Office");
+    await chooseOption(
+    page,
+    "Ministry of Finance division",
+    "Budget Office",
+  );
 
-    await page
-      .getByLabel("Purpose of visit")
-      .selectOption("Meeting");
+    await chooseOption(
+    page,
+    "Purpose of visit",
+    "Meeting",
+  );
 
     await expect(
       page.getByLabel("Title of meeting"),
     ).toBeVisible();
 
-    await page
-      .getByLabel("Title of meeting")
-      .selectOption(MEETING_ID);
+    await chooseOption(
+    page,
+    "Title of meeting",
+    "Stage 13 Quality Meeting",
+  );
 
     await page
       .getByLabel(PRIVACY_ACKNOWLEDGEMENT)

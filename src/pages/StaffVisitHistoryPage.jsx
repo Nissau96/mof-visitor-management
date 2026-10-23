@@ -16,16 +16,19 @@ import {
   useState,
 } from "react";
 import { useLocation } from "react-router-dom";
+import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
   MINISTRY_OF_FINANCE_AGENCY,
-  MOF_DIVISIONS,
   TOWER_OPTIONS,
-  VISIT_AGENCIES,
   VISIT_TOWER_VALUES,
   getTowerLabel,
 } from "../constants/visitorOptions.js";
+import {
+  AGENCY_FILTER_OPTIONS,
+  DIVISION_FILTER_OPTIONS,
+} from "../constants/selectOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError, apiRequest } from "../lib/api.js";
 import { visitHistorySchema } from "../validation/staffVisits.js";
@@ -47,6 +50,13 @@ const EMPTY_DRAFTS = {
   search: "",
   status: "",
 };
+
+const STATUS_FILTER_OPTIONS = [
+  { label: "All statuses", value: "" },
+  { label: "Checked in", value: "checked_in" },
+  { label: "Checked out", value: "checked_out" },
+  { label: "Cancelled", value: "cancelled" },
+];
 
 const VISIT_STATUSES = new Set([
   "checked_in",
@@ -510,8 +520,7 @@ function VisitHistory({ preset }) {
     });
   }
 
-  function changeAgency(event) {
-    const nextAgency = event.target.value;
+  function changeAgency(nextAgency) {
 
     // Division only exists for MoF; clear it so a hidden select can
     // never narrow the results.
@@ -640,7 +649,7 @@ function VisitHistory({ preset }) {
 
   return (
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
-      <header className="flex flex-col gap-4 px-1 pt-2 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col items-center gap-4 px-1 pt-2 text-center md:flex-row md:items-end md:justify-between md:text-left">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Reception records
@@ -650,7 +659,7 @@ function VisitHistory({ preset }) {
             Visit history
           </h1>
 
-          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+          <p className="mx-auto mt-3 max-w-2xl leading-7 text-slate-600 md:mx-0">
             Review authorised visit records for{" "}
             <strong className="text-slate-950">
               {towerHeading}
@@ -660,7 +669,7 @@ function VisitHistory({ preset }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 md:justify-end">
+        <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
           {history?.generatedAt ? (
             <p className="text-sm text-slate-600">
               Updated {formatDateTime(history.generatedAt)}
@@ -722,12 +731,12 @@ function VisitHistory({ preset }) {
           </div>
 
           <form
-            className="grid gap-3 md:grid-cols-2 xl:flex xl:flex-wrap xl:items-center"
+            className="grid grid-cols-2 gap-3 xl:flex xl:flex-wrap xl:items-center"
             noValidate
             onSubmit={submitSearch}
             role="search"
           >
-            <div className="relative md:col-span-2 xl:min-w-64 xl:flex-1">
+            <div className="relative col-span-2 xl:min-w-64 xl:flex-1">
               <label
                 className="sr-only"
                 htmlFor="history-search"
@@ -762,87 +771,52 @@ function VisitHistory({ preset }) {
               />
             </div>
 
-            <label
-              className="sr-only"
-              htmlFor="history-status"
-            >
-              Visit status
-            </label>
-
-            <select
-              className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-40"
+            <AppSelect
+              appearance="filter"
+              className="min-w-0 xl:w-44"
               id="history-status"
-              onChange={(event) =>
-                updateDraft(
-                  "status",
-                  event.target.value,
-                )
+              label="Visit status"
+              labelHidden
+              onChange={(value) =>
+                updateDraft("status", value)
               }
+              options={STATUS_FILTER_OPTIONS}
+              size="3xl"
               value={drafts.status}
-            >
-              <option value="">All statuses</option>
-              <option value="checked_in">Checked in</option>
-              <option value="checked_out">Checked out</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            />
 
-            <label
-              className="sr-only"
-              htmlFor="history-agency"
-            >
-              Agency
-            </label>
-
-            <select
-              className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-56"
+            <AppSelect
+              appearance="filter"
+              className="min-w-0 xl:w-56"
               id="history-agency"
+              label="Agency"
+              labelHidden
               onChange={changeAgency}
+              options={AGENCY_FILTER_OPTIONS}
+              size="3xl"
               value={drafts.agency}
-            >
-              <option value="">All agencies</option>
-
-              {VISIT_AGENCIES.map((agency) => (
-                <option key={agency} value={agency}>
-                  {agency}
-                </option>
-              ))}
-            </select>
+            />
 
             {drafts.agency ===
             MINISTRY_OF_FINANCE_AGENCY ? (
-              <>
-                <label
-                  className="sr-only"
-                  htmlFor="history-division"
-                >
-                  Ministry division
-                </label>
-
-                <select
-                  className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-56"
-                  id="history-division"
-                  onChange={(event) =>
-                    updateDraft(
-                      "division",
-                      event.target.value,
-                    )
-                  }
-                  value={drafts.division}
-                >
-                  <option value="">All divisions</option>
-
-                  {MOF_DIVISIONS.map((division) => (
-                    <option key={division} value={division}>
-                      {division}
-                    </option>
-                  ))}
-                </select>
-              </>
+              <AppSelect
+                appearance="filter"
+                className="col-span-2 min-w-0 md:col-span-1 xl:w-56"
+                id="history-division"
+                label="Ministry division"
+                labelHidden
+                onChange={(value) =>
+                  updateDraft("division", value)
+                }
+                options={DIVISION_FILTER_OPTIONS}
+                size="3xl"
+                value={drafts.division}
+              />
             ) : null}
 
             <div
               aria-label="Check-in date range"
-              className="flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 md:col-span-2 xl:col-span-1"
+              className="col-span-2 flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 xl:col-span-1"
               role="group"
             >
 
@@ -998,7 +972,7 @@ function VisitHistory({ preset }) {
               </div>
             ) : (
               <>
-                <div className="grid gap-3 p-4 md:hidden">
+                <div className="grid gap-3 p-4 md:grid-cols-2 lg:hidden">
                   {history.visits.map((visit) => (
                     <HistoryCard
                       key={visit.visitId}
@@ -1010,7 +984,7 @@ function VisitHistory({ preset }) {
                 {/* Focusable so keyboard users can scroll the wide table. */}
                 <div
                   aria-label="Visit records table"
-                  className="hidden overflow-x-auto focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-brand-200 md:block"
+                  className="hidden overflow-x-auto focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-brand-200 lg:block"
                   role="region"
                   tabIndex={0}
                 >
@@ -1036,7 +1010,7 @@ function VisitHistory({ preset }) {
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-200">
                       {history.visits.map((visit) => (
                         <HistoryRow
                           key={visit.visitId}

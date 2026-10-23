@@ -10,6 +10,7 @@ import {
   installMockStaffAuthentication,
   signInAsStaff,
 } from "./support/staff-authentication.js";
+import { chooseOption } from "./support/select.js";
 
 const PAGE_SIZE = 10;
 
@@ -415,9 +416,11 @@ test.describe(
         })
         .fill("Visitor 03");
 
-      await page
-        .getByLabel("Agency")
-        .selectOption("IAA");
+      await chooseOption(
+    page,
+    "Agency",
+    "IAA",
+  );
 
 
       await expect(

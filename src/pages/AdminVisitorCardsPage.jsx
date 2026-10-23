@@ -17,6 +17,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import useAuth from "../hooks/useAuth.js";
@@ -769,21 +770,19 @@ function CreateCardsModal({
     <ModalShell busy={submitting} description="Add a controlled range of regular or VIP visitor cards and select the tower that will issue them." onClose={onClose} title="Add visitor cards">
       <form noValidate onSubmit={submitCards}>
         <div className="space-y-5 px-5 py-5 sm:px-6">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Card type
-            </span>
-
-            <select className={inputClassName} disabled={submitting} onChange={(event) => setCardType(event.target.value)} value={cardType}>
-              <option value="regular">
-                Regular visitor card
-              </option>
-
-              <option value="vip">
-                VIP visitor card
-              </option>
-            </select>
-          </label>
+          <AppSelect
+            disabled={submitting}
+            id="inventory-card-type"
+            label="Card type"
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+            onChange={setCardType}
+            options={[
+              { label: "Regular visitor card", value: "regular" },
+              { label: "VIP visitor card", value: "vip" },
+            ]}
+            size="3xl"
+            value={cardType}
+          />
 
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="block">
@@ -809,21 +808,31 @@ function CreateCardsModal({
             be added in one request.
           </p>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Issuing tower
-            </span>
+          <AppSelect
 
-            <select className={inputClassName} disabled={submitting} onChange={(event) => setTower(event.target.value)} value={tower}>
-              <option value="tower_1">
-                Tower 1
-              </option>
+            disabled={submitting}
 
-              <option value="tower_2">
-                Tower 2
-              </option>
-            </select>
-          </label>
+            id="inventory-issuing-tower"
+
+            label="Issuing tower"
+
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+
+            onChange={setTower}
+
+            options={[
+
+              { label: "Tower 1", value: "tower_1" },
+
+              { label: "Tower 2", value: "tower_2" },
+
+            ]}
+
+            size="3xl"
+
+            value={tower}
+
+          />
 
           {errorMessage ? (
             <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">
@@ -949,21 +958,31 @@ function ChangeTowerModal({
             </p>
           </div>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              New issuing tower
-            </span>
+          <AppSelect
 
-            <select className={inputClassName} disabled={submitting} onChange={(event) => setTower(event.target.value)} value={tower}>
-              <option value="tower_1">
-                Tower 1
-              </option>
+            disabled={submitting}
 
-              <option value="tower_2">
-                Tower 2
-              </option>
-            </select>
-          </label>
+            id="inventory-new-issuing-tower"
+
+            label="New issuing tower"
+
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+
+            onChange={setTower}
+
+            options={[
+
+              { label: "Tower 1", value: "tower_1" },
+
+              { label: "Tower 2", value: "tower_2" },
+
+            ]}
+
+            size="3xl"
+
+            value={tower}
+
+          />
 
           {errorMessage ? (
             <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">
@@ -1366,77 +1385,89 @@ export default function AdminVisitorCardsPage() {
             </div>
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Card type
-            </span>
+          <AppSelect
 
-            <select className={inputClassName} onChange={(event) => setCardTypeDraft(event.target.value)} value={cardTypeDraft}>
-              <option value="all">
-                All types
-              </option>
+            id="inventory-card-type-2"
 
-              <option value="regular">
-                Regular
-              </option>
+            label="Card type"
 
-              <option value="vip">
-                VIP
-              </option>
-            </select>
-          </label>
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Tower
-            </span>
+            onChange={setCardTypeDraft}
 
-            <select className={inputClassName} onChange={(event) => setTowerDraft(event.target.value)} value={towerDraft}>
-              <option value="all">
-                All towers
-              </option>
+            options={[
 
-              <option value="tower_1">
-                Tower 1
-              </option>
+              { label: "All types", value: "all" },
 
-              <option value="tower_2">
-                Tower 2
-              </option>
-            </select>
-          </label>
+              { label: "Regular", value: "regular" },
 
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Status
-            </span>
+              { label: "VIP", value: "vip" },
 
-            <select className={inputClassName} onChange={(event) => setStatusDraft(event.target.value)} value={statusDraft}>
-              <option value="all">
-                All statuses
-              </option>
+            ]}
 
-              <option value="available">
-                Available
-              </option>
+            size="3xl"
 
-              <option value="assigned">
-                Assigned
-              </option>
+            value={cardTypeDraft}
 
-              <option value="not_returned">
-                Not returned
-              </option>
+          />
 
-              <option value="investigating">
-                Investigating
-              </option>
+          <AppSelect
 
-              <option value="deactivated">
-                Deactivated
-              </option>
-            </select>
-          </label>
+            id="inventory-tower"
+
+            label="Tower"
+
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+
+            onChange={setTowerDraft}
+
+            options={[
+
+              { label: "All towers", value: "all" },
+
+              { label: "Tower 1", value: "tower_1" },
+
+              { label: "Tower 2", value: "tower_2" },
+
+            ]}
+
+            size="3xl"
+
+            value={towerDraft}
+
+          />
+
+          <AppSelect
+
+            id="inventory-status"
+
+            label="Status"
+
+            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+
+            onChange={setStatusDraft}
+
+            options={[
+
+              { label: "All statuses", value: "all" },
+
+              { label: "Available", value: "available" },
+
+              { label: "Assigned", value: "assigned" },
+
+              { label: "Not returned", value: "not_returned" },
+
+              { label: "Investigating", value: "investigating" },
+
+              { label: "Deactivated", value: "deactivated" },
+
+            ]}
+
+            size="3xl"
+
+            value={statusDraft}
+
+          />
 
           <div className="flex items-end">
             <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} type="submit">

@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { useForm } from "react-hook-form";
+import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -559,35 +560,31 @@ export default function AdminHostsPage() {
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="host-status"
-            >
-              Status
-            </label>
+          <AppSelect
 
-            <select
-              className={inputClassName}
-              id="host-status"
-              onChange={(event) =>
-                setStatusDraft(
-                  event.target.value,
-                )
-              }
-              value={statusDraft}
-            >
-              <option value="all">
-                All hosts
-              </option>
-              <option value="active">
-                Active
-              </option>
-              <option value="inactive">
-                Inactive
-              </option>
-            </select>
-          </div>
+            className="grid gap-2"
+
+            id="host-status"
+
+            label="Status"
+
+            labelClassName="font-bold text-slate-800"
+
+            onChange={setStatusDraft}
+
+            options={[
+
+              { label: "All hosts", value: "all" },
+
+              { label: "Active", value: "active" },
+
+              { label: "Inactive", value: "inactive" },
+
+            ]}
+
+            value={statusDraft}
+
+          />
 
           <div className="flex items-end">
             <button

@@ -12,6 +12,13 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Plex UI selects show "no value" text (placeholders and "All …" filter
+   options) in a light grey that fails WCAG contrast; slate-600 passes and
+   follows the dark theme because slate is remapped there. */
+:root {
+  --input-placeholder-text-color: var(--color-slate-600);
+}
+
 @theme {
   /* Teal brand scale; #0D9488 is the primary accent (brand-600). Solid
      fills behind white text use brand-700 and darker for AA contrast. */

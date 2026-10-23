@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import { useForm } from "react-hook-form";
+import AppSelect, { ControlledAppSelect } from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -844,68 +845,59 @@ export default function AdminStaffPage() {
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="staff-role-filter"
-            >
-              Role
-            </label>
+          <AppSelect
 
-            <select
-              className={inputClassName}
-              id="staff-role-filter"
-              onChange={(event) =>
-                setRoleDraft(
-                  event.target.value,
-                )
-              }
-              value={roleDraft}
-            >
-              <option value="all">
-                All roles
-              </option>
-              <option value="receptionist">
-                Receptionist
-              </option>
-              <option value="client_service_head">
-                Client Service Head
-              </option>
-              <option value="admin">
-                Administrator
-              </option>
-            </select>
-          </div>
+            className="grid gap-2"
 
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="staff-status-filter"
-            >
-              Status
-            </label>
+            id="staff-role-filter"
 
-            <select
-              className={inputClassName}
-              id="staff-status-filter"
-              onChange={(event) =>
-                setStatusDraft(
-                  event.target.value,
-                )
-              }
-              value={statusDraft}
-            >
-              <option value="all">
-                All staff
-              </option>
-              <option value="active">
-                Active
-              </option>
-              <option value="inactive">
-                Inactive
-              </option>
-            </select>
-          </div>
+            label="Role"
+
+            labelClassName="font-bold text-slate-800"
+
+            onChange={setRoleDraft}
+
+            options={[
+
+              { label: "All roles", value: "all" },
+
+              { label: "Receptionist", value: "receptionist" },
+
+              { label: "Client Service Head", value: "client_service_head" },
+
+              { label: "Administrator", value: "admin" },
+
+            ]}
+
+            value={roleDraft}
+
+          />
+
+          <AppSelect
+
+            className="grid gap-2"
+
+            id="staff-status-filter"
+
+            label="Status"
+
+            labelClassName="font-bold text-slate-800"
+
+            onChange={setStatusDraft}
+
+            options={[
+
+              { label: "All staff", value: "all" },
+
+              { label: "Active", value: "active" },
+
+              { label: "Inactive", value: "inactive" },
+
+            ]}
+
+            value={statusDraft}
+
+          />
 
           <div className="flex items-end">
             <button
@@ -1795,6 +1787,7 @@ function InvitationDialog({
 }) {
   const {
     formState: { errors },
+    control,
     handleSubmit,
     register,
   } = useForm({
@@ -1932,28 +1925,22 @@ function InvitationDialog({
             label="Authorised role"
             required
           >
-            <select
-              aria-describedby={
-                errors.role
+            <ControlledAppSelect
+              control={control}
+              describedBy={errors.role
                   ? "invite-role-error"
-                  : undefined
-              }
-              aria-invalid={Boolean(errors.role)}
-              className={inputClassName}
+                  : undefined}
               disabled={submitting}
               id="invite-role"
-              {...register("role")}
-            >
-              <option value="receptionist">
-                Receptionist
-              </option>
-              <option value="client_service_head">
-                Client Service Head
-              </option>
-              <option value="admin">
-                Administrator
-              </option>
-            </select>
+              invalid={Boolean(errors.role)}
+              labelledBy="invite-role-label"
+              name="role"
+              options={[
+                { label: "Receptionist", value: "receptionist" },
+                { label: "Client Service Head", value: "client_service_head" },
+                { label: "Administrator", value: "admin" },
+              ]}
+            />
           </Field>
 
           <div className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -2003,6 +1990,7 @@ function StaffEditorDialog({
 }) {
   const {
     formState: { errors },
+    control,
     handleSubmit,
     register,
   } = useForm({
@@ -2106,28 +2094,22 @@ function StaffEditorDialog({
             label="Authorised role"
             required
           >
-            <select
-              aria-describedby={
-                errors.role
+            <ControlledAppSelect
+              control={control}
+              describedBy={errors.role
                   ? "edit-staff-role-error"
-                  : undefined
-              }
-              aria-invalid={Boolean(errors.role)}
-              className={inputClassName}
+                  : undefined}
               disabled={submitting}
               id="edit-staff-role"
-              {...register("role")}
-            >
-              <option value="receptionist">
-                Receptionist
-              </option>
-              <option value="client_service_head">
-                Client Service Head
-              </option>
-              <option value="admin">
-                Administrator
-              </option>
-            </select>
+              invalid={Boolean(errors.role)}
+              labelledBy="edit-staff-role-label"
+              name="role"
+              options={[
+                { label: "Receptionist", value: "receptionist" },
+                { label: "Client Service Head", value: "client_service_head" },
+                { label: "Administrator", value: "admin" },
+              ]}
+            />
           </Field>
 
           <label className="flex min-h-12 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">

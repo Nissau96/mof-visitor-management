@@ -27,14 +27,17 @@ import {
   ReceptionClockCard,
   WeeklyArrivalsCard,
 } from "../components/DashboardInsights.jsx";
+import {
+  AGENCY_FILTER_OPTIONS,
+  DIVISION_FILTER_OPTIONS,
+} from "../constants/selectOptions.js";
 import { getAccraIsoDate } from "../lib/accraDate.js";
+import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
   MINISTRY_OF_FINANCE_AGENCY,
-  MOF_DIVISIONS,
   TOWER_OPTIONS,
-  VISIT_AGENCIES,
   VISIT_TOWER_VALUES,
   getTowerLabel,
 } from "../constants/visitorOptions.js";
@@ -678,9 +681,7 @@ export default function StaffHomePage() {
     );
   }
 
-  function changeDivision(event) {
-    const nextDivision =
-      event.target.value;
+  function changeDivision(nextDivision) {
 
     setDivisionDraft(
       nextDivision,
@@ -774,9 +775,7 @@ export default function StaffHomePage() {
     });
   }
 
-  function changeAgency(event) {
-    const nextAgency =
-      event.target.value;
+  function changeAgency(nextAgency) {
 
     // The division filter only exists for MoF; clear it so a hidden
     // dropdown can never narrow the results.
@@ -1293,77 +1292,29 @@ export default function StaffHomePage() {
                 />
               </div>
 
-              <label
-                className="sr-only"
-                htmlFor="dashboard-agency"
-              >
-                Agency
-              </label>
-
-              <select
-                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 sm:w-56"
+              <AppSelect
+                appearance="filter"
+                className="sm:w-56"
                 id="dashboard-agency"
-                onChange={
-                  changeAgency
-                }
-                value={
-                  agencyDraft
-                }
-              >
-                <option value="">
-                  All agencies
-                </option>
-
-                {VISIT_AGENCIES.map(
-                  (agency) => (
-                    <option
-                      key={agency}
-                      value={agency}
-                    >
-                      {agency}
-                    </option>
-                  ),
-                )}
-              </select>
+                label="Agency"
+                labelHidden
+                onChange={changeAgency}
+                options={AGENCY_FILTER_OPTIONS}
+                value={agencyDraft}
+              />
 
               {agencyDraft ===
               MINISTRY_OF_FINANCE_AGENCY ? (
-                <>
-                  <label
-                    className="sr-only"
-                    htmlFor="dashboard-division"
-                  >
-                    Ministry division
-                  </label>
-
-                  <select
-                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 sm:w-56"
-                    id="dashboard-division"
-                    onChange={
-                      changeDivision
-                    }
-                    value={
-                      divisionDraft
-                    }
-                  >
-                    <option value="">
-                      All divisions
-                    </option>
-
-                    {MOF_DIVISIONS.map(
-                      (division) => (
-                        <option
-                          key={division}
-                          value={
-                            division
-                          }
-                        >
-                          {division}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </>
+                <AppSelect
+                  appearance="filter"
+                  className="sm:w-56"
+                  id="dashboard-division"
+                  label="Ministry division"
+                  labelHidden
+                  onChange={changeDivision}
+                  options={DIVISION_FILTER_OPTIONS}
+                  value={divisionDraft}
+                />
               ) : null}
 
               <button
@@ -1524,7 +1475,7 @@ export default function StaffHomePage() {
               </div>
             ) : (
               <>
-                <div className="grid gap-4 p-4 md:hidden">
+                <div className="grid gap-4 p-4 md:grid-cols-2 lg:hidden">
                   {dashboard.visitors.map(
                     (visitor) => (
                       <VisitorCard
@@ -1542,7 +1493,7 @@ export default function StaffHomePage() {
                   )}
                 </div>
 
-                <div className="hidden overflow-x-auto md:block">
+                <div className="hidden overflow-x-auto lg:block">
                   <table className="w-full min-w-300 border-collapse text-left">
                     <thead className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
                       <tr>
@@ -1576,7 +1527,7 @@ export default function StaffHomePage() {
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-200">
                       {dashboard.visitors.map(
                         (
                           visitor,
@@ -1874,7 +1825,7 @@ function VisitorCard({
   ].filter(Boolean);
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
@@ -1956,7 +1907,7 @@ function VisitorCard({
         ) : null}
       </dl>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mb-4 mt-4 flex flex-wrap gap-2">
         <span className="inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
           {visitor.purpose}
         </span>
@@ -1988,7 +1939,7 @@ function VisitorCard({
 
       <button
         aria-label={`Check out ${visitor.fullName}`}
-        className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-600 bg-white text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
+        className="mt-auto flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-600 bg-white text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
         onClick={() =>
           onCheckout(
             visitor,

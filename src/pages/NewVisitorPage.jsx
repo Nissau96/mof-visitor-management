@@ -10,6 +10,8 @@ import {
   useWatch,
 } from "react-hook-form";
 import { Link } from "react-router-dom";
+import { ControlledAppSelect } from "../components/AppSelect.jsx";
+import { toOptions } from "../constants/selectOptions.js";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -321,24 +323,20 @@ const selectedMeeting =
             label="Agency being visited"
             required
           >
-            <select
-              aria-describedby={describedBy(
+            <ControlledAppSelect
+              control={control}
+              describedBy={describedBy(
                 "agency",
                 true,
                 errors.agency,
               )}
-              aria-invalid={Boolean(errors.agency)}
               id="agency"
-              {...register("agency")}
-            >
-              <option value="">Select an agency</option>
-
-              {VISIT_AGENCIES.map((agency) => (
-                <option key={agency} value={agency}>
-                  {agency}
-                </option>
-              ))}
-            </select>
+              invalid={Boolean(errors.agency)}
+              labelledBy="agency-label"
+              name="agency"
+              options={toOptions(VISIT_AGENCIES)}
+              placeholder="Select an agency"
+            />
           </Field>
 
           {visitingMinistry ? (
@@ -349,24 +347,20 @@ const selectedMeeting =
               label="Ministry of Finance division"
               required
             >
-              <select
-                aria-describedby={describedBy(
+              <ControlledAppSelect
+                control={control}
+                describedBy={describedBy(
                   "division",
                   true,
                   errors.division,
                 )}
-                aria-invalid={Boolean(errors.division)}
                 id="division"
-                {...register("division")}
-              >
-                <option value="">Select a division</option>
-
-                {MOF_DIVISIONS.map((division) => (
-                  <option key={division} value={division}>
-                    {division}
-                  </option>
-                ))}
-              </select>
+                invalid={Boolean(errors.division)}
+                labelledBy="division-label"
+                name="division"
+                options={toOptions(MOF_DIVISIONS)}
+                placeholder="Select a division"
+              />
             </Field>
           ) : null}
 
@@ -377,39 +371,35 @@ const selectedMeeting =
             label="Purpose of visit"
             required
           >
-            <select
-              aria-describedby={describedBy(
+            <ControlledAppSelect
+              control={control}
+              describedBy={describedBy(
                 "purpose",
                 true,
                 errors.purpose,
               )}
-              aria-invalid={Boolean(errors.purpose)}
               id="purpose"
-              {...register("purpose", {
-                onChange: (event) => {
+              invalid={Boolean(errors.purpose)}
+              labelledBy="purpose-label"
+              name="purpose"
+              onValueChange={(value) => {
                   if (
-                    event.target.value === MEETING_PURPOSE
+                    value === MEETING_PURPOSE
                   ) {
                     setMeetingStatus("loading");
                     setMeetingRequestKey(
                       (currentKey) => currentKey + 1,
                     );
                   }
-                },
-              })}
-            >
-              <option value="">Select a purpose</option>
-
-              {VISIT_PURPOSES.map((purpose) => (
-                <option key={purpose} value={purpose}>
-                  {purpose}
-                </option>
-              ))}
-            </select>
+              }}
+              options={toOptions(VISIT_PURPOSES)}
+              placeholder="Select a purpose"
+            />
           </Field>
 
           {attendingMeeting ? (
             <MeetingSelector
+              control={control}
               errors={errors}
               meetingStatus={meetingStatus}
               meetings={meetings}
@@ -508,6 +498,7 @@ const selectedMeeting =
 }
 
 function MeetingSelector({
+  control,
   errors,
   meetingStatus,
   meetings,
@@ -579,28 +570,26 @@ function MeetingSelector({
         label="Title of meeting"
         required
       >
-        <select
-          aria-describedby={describedBy(
+        <ControlledAppSelect
+          control={control}
+          describedBy={describedBy(
             "meetingId",
             true,
             errors.meetingId,
           )}
-          aria-invalid={Boolean(errors.meetingId)}
           id="meetingId"
-          {...register("meetingId")}
-        >
-          <option value="">Select a meeting</option>
-
-          {meetings.map((meeting) => (
-            <option key={meeting.id} value={meeting.id}>
-              {meeting.title}
-            </option>
-          ))}
-
-          <option value={CUSTOM_MEETING_OPTION}>
-            Meeting not listed
-          </option>
-        </select>
+          invalid={Boolean(errors.meetingId)}
+          labelledBy="meetingId-label"
+          name="meetingId"
+          options={[
+            ...meetings.map((meeting) => ({
+              label: meeting.title,
+              value: meeting.id,
+            })),
+            { label: "Meeting not listed", value: CUSTOM_MEETING_OPTION },
+          ]}
+          placeholder="Select a meeting"
+        />
       </Field>
 
       {selectedMeeting === CUSTOM_MEETING_OPTION ? (

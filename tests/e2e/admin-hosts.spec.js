@@ -10,6 +10,7 @@ import {
   signInAsStaff,
   SYNTHETIC_ACCESS_TOKEN,
 } from "./support/staff-authentication.js";
+import { chooseOption } from "./support/select.js";
 
 const ADMIN_HOSTS_PATH =
   "/staff/admin/hosts";
@@ -383,9 +384,11 @@ test.describe(
           })
           .fill("Host 12");
 
-        await page
-          .getByLabel("Status")
-          .selectOption("inactive");
+        await chooseOption(
+    page,
+    "Status",
+    "Inactive",
+  );
 
         await page
           .getByRole("button", {

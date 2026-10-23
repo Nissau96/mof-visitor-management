@@ -8,6 +8,7 @@ import {
 import {
   installMockVisitorAccess,
 } from "./support/visitor-access.js";
+import { chooseOption } from "./support/select.js";
 
 const LOOKUP_TOKEN =
   "lookup-token-for-synthetic-e2e-visitor";
@@ -150,13 +151,17 @@ async function reachVerifiedVisitor(page) {
 }
 
 async function fillReturningVisit(page) {
-  await page
-    .getByLabel("Agency being visited")
-    .selectOption("IAA");
+  await chooseOption(
+    page,
+    "Agency being visited",
+    "IAA",
+  );
 
-  await page
-    .getByLabel("Purpose of visit")
-    .selectOption("Official");
+  await chooseOption(
+    page,
+    "Purpose of visit",
+    "Official",
+  );
 
   await page
     .getByLabel("Person being visited")
