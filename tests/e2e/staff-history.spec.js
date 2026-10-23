@@ -319,11 +319,6 @@ test.describe(
         .getByLabel("Check-in date to")
         .fill("2026-08-31");
 
-      await page
-        .getByRole("button", {
-          name: "Apply filters",
-        })
-        .click();
 
       await expect(
         page
@@ -394,15 +389,14 @@ test.describe(
         .getByLabel("Check-in date from")
         .fill("2026-08-20");
 
+      await expect
+        .poll(() => history.requests.length)
+        .toBe(2);
+
       await page
         .getByLabel("Check-in date to")
         .fill("2026-08-10");
 
-      await page
-        .getByRole("button", {
-          name: "Apply filters",
-        })
-        .click();
 
       await expect(
         page.getByRole("alert"),
@@ -411,7 +405,7 @@ test.describe(
       );
 
       expect(history.requests).toHaveLength(
-        1,
+        2,
       );
     });
   },

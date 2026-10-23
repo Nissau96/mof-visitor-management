@@ -9,6 +9,7 @@ import {
   readJsonBody,
 } from "../_lib/http.js";
 import { getAdminClient } from "../_lib/supabase.js";
+import { addVisitorDetails } from "../_lib/visitDetails.js";
 import { visitHistorySchema } from "../../src/validation/staffVisits.js";
 
 function normalizePagination(pagination) {
@@ -93,8 +94,10 @@ export default {
           filters.tower,
         );
 
+      const client = getAdminClient();
+
       const { data, error } =
-        await getAdminClient().rpc(
+        await client.rpc(
           "get_visit_history",
           {
             p_actor_id: profile.userId,
@@ -114,6 +117,23 @@ export default {
         throw getHistoryDatabaseError(error);
       }
 
+      // Returned and unreturned cards still identify the visit, so history
+      // shows them; only cards never issued read as "Not assigned".
+      const visits = await addVisitorDetails(
+        client,
+        Array.isArray(data?.visits)
+          ? data.visits
+          : [],
+        {
+          cardStatuses: [
+            "assigned",
+            "returned",
+            "not_returned",
+            "deactivated",
+          ],
+        },
+      );
+
       return json(
         {
           generatedAt:
@@ -127,9 +147,7 @@ export default {
             data?.towerScope ??
             towerScope ??
             null,
-          visits: Array.isArray(data?.visits)
-            ? data.visits
-            : [],
+          visits,
         },
         200,
       );

@@ -1397,7 +1397,7 @@ export default function StaffHomePage() {
             {administrator ? (
               <div
                 aria-label="Tower filter"
-                className="flex flex-1 rounded-xl bg-slate-100 p-1 sm:inline-flex sm:flex-none"
+                className="flex flex-1 gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 sm:inline-flex sm:flex-none"
                 role="group"
               >
                 {[
@@ -1414,11 +1414,11 @@ export default function StaffHomePage() {
                         tower ===
                         towerOption.value
                       }
-                      className={`min-h-9 flex-1 rounded-lg px-3 text-sm font-bold transition sm:flex-none sm:px-4 ${
+                      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm transition sm:flex-none sm:px-5 ${
                         tower ===
                         towerOption.value
-                          ? "bg-white text-brand-900 shadow-sm"
-                          : "text-slate-600 hover:text-slate-900"
+                          ? "bg-[#ffffff] font-bold text-[#0f766e] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
+                          : "font-semibold text-slate-600 hover:text-slate-900"
                       }`}
                       key={
                         towerOption.value ||

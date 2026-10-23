@@ -1,18 +1,20 @@
 import {
-  Building2,
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Clock,
   History,
   MapPin,
   Phone,
   RefreshCw,
   Search,
-  Users,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
 import { useLocation } from "react-router-dom";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -52,11 +54,71 @@ const VISIT_STATUSES = new Set([
   "cancelled",
 ]);
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-GH", {
-  dateStyle: "medium",
-  timeStyle: "short",
+// "16 Aug 2026, 2:27 pm"
+const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  hour: "numeric",
+  hour12: true,
+  minute: "2-digit",
+  month: "short",
   timeZone: "Africa/Accra",
+  year: "numeric",
 });
+
+const isoDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+  year: "numeric",
+});
+
+function formatIsoDate(isoDate) {
+  return isoDateFormatter.format(
+    new Date(`${isoDate}T00:00:00Z`),
+  );
+}
+
+// "5d 0h 24m", "1h 5m" or "8m".
+function formatDuration(checkedInAt, checkedOutAt) {
+  if (!checkedOutAt) {
+    return "";
+  }
+
+  const minutes = Math.floor(
+    (new Date(checkedOutAt).getTime() -
+      new Date(checkedInAt).getTime()) /
+      60_000,
+  );
+
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return "";
+  }
+
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+
+  if (days) {
+    return `${days}d ${hours}h ${rest}m`;
+  }
+
+  return hours ? `${hours}h ${rest}m` : `${rest}m`;
+}
+
+function getInitials(fullName) {
+  return fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+// "Ministry of Finance (MoF)" -> "MoF"
+function getAgencyShortName(agency) {
+  return agency.match(/\(([^)]+)\)\s*$/)?.[1] || agency;
+}
 
 function formatDateTime(value) {
   if (!value) {
@@ -92,9 +154,9 @@ function getStatusLabel(status) {
 
 function getStatusClasses(status) {
   const classes = {
-    cancelled: "bg-red-100 text-red-800",
-    checked_in: "bg-emerald-100 text-emerald-800",
-    checked_out: "bg-slate-200 text-slate-800",
+    cancelled: "bg-red-50 text-red-800",
+    checked_in: "bg-emerald-50 text-emerald-800",
+    checked_out: "bg-slate-100 text-slate-700",
   };
 
   return (
@@ -362,57 +424,17 @@ function VisitHistory({ preset }) {
     tower,
   ]);
 
-  function updateDraft(field, value) {
-    setDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      [field]: value,
-    }));
-  }
-
-  function changeAgency(event) {
-    const nextAgency = event.target.value;
-
-    setDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      agency: nextAgency,
-      division:
-        nextAgency ===
-        MINISTRY_OF_FINANCE_AGENCY
-          ? currentDrafts.division
-          : "",
-    }));
-  }
-
-  function changeTower(event) {
-    if (!administrator) {
-      return;
-    }
-
-    try {
-      setTowerScope(event.target.value);
-      setHistory(null);
-      setRequestError("");
-      setFilterError("");
-      setStatus("loading");
-      setPage(1);
-    } catch (error) {
-      setRequestError(
-        error instanceof Error && error.message
-          ? error.message
-          : "The tower filter could not be changed.",
-      );
-
-      setStatus("error");
-    }
-  }
-
-  function submitFilters(event) {
-    event.preventDefault();
+  // Filters apply as soon as they change (search after a short pause).
+  // Results stay on screen, dimmed, while the next page loads.
+  function applyFilters(
+    nextDrafts,
+    { forceRefresh = false } = {},
+  ) {
     setFilterError("");
 
     const parsed =
       visitHistorySchema.safeParse({
-        ...drafts,
+        ...nextDrafts,
         page: 1,
         pageSize: 10,
         tower,
@@ -440,7 +462,10 @@ function VisitHistory({ preset }) {
       page === 1 &&
       sameFilters(filters, nextFilters);
 
-    setHistory(null);
+    if (unchanged && !forceRefresh) {
+      return;
+    }
+
     setRequestError("");
     setStatus("loading");
     setPage(1);
@@ -453,17 +478,103 @@ function VisitHistory({ preset }) {
     }
   }
 
+  function updateDraft(field, value) {
+    const nextDrafts = {
+      ...drafts,
+      [field]: value,
+    };
+
+    setDrafts(nextDrafts);
+    applyFilters(nextDrafts);
+  }
+
+  const applySearchDraft = useEffectEvent(() => {
+    applyFilters(drafts);
+  });
+
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      applySearchDraft,
+      400,
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [drafts.search]);
+
+  function submitSearch(event) {
+    event.preventDefault();
+    applyFilters(drafts, {
+      forceRefresh: true,
+    });
+  }
+
+  function changeAgency(event) {
+    const nextAgency = event.target.value;
+
+    // Division only exists for MoF; clear it so a hidden select can
+    // never narrow the results.
+    const nextDrafts = {
+      ...drafts,
+      agency: nextAgency,
+      division:
+        nextAgency ===
+        MINISTRY_OF_FINANCE_AGENCY
+          ? drafts.division
+          : "",
+    };
+
+    setDrafts(nextDrafts);
+    applyFilters(nextDrafts);
+  }
+
+  function removeFilter(fields) {
+    const nextDrafts = { ...drafts };
+
+    for (const field of fields) {
+      nextDrafts[field] = "";
+    }
+
+    if (fields.includes("agency")) {
+      nextDrafts.division = "";
+    }
+
+    setDrafts(nextDrafts);
+    applyFilters(nextDrafts);
+  }
+
+  function changeTower(nextTower) {
+    if (
+      !administrator ||
+      nextTower === tower
+    ) {
+      return;
+    }
+
+    try {
+      setTowerScope(nextTower);
+      setHistory(null);
+      setRequestError("");
+      setFilterError("");
+      setStatus("loading");
+      setPage(1);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error && error.message
+          ? error.message
+          : "The tower filter could not be changed.",
+      );
+
+      setStatus("error");
+    }
+  }
+
   function clearFilters() {
     setDrafts(EMPTY_DRAFTS);
-    setFilters(EMPTY_FILTERS);
-    setFilterError("");
-    setRequestError("");
-    setHistory(null);
-    setStatus("loading");
-    setPage(1);
-    setRefreshKey(
-      (currentKey) => currentKey + 1,
-    );
+    applyFilters(EMPTY_DRAFTS, {
+      forceRefresh: true,
+    });
   }
 
   function refreshHistory() {
@@ -484,26 +595,22 @@ function VisitHistory({ preset }) {
       return;
     }
 
-    setHistory(null);
     setRequestError("");
     setStatus("loading");
     setPage(nextPage);
 
-    window.scrollTo({
-      behavior: "smooth",
-      top: 0,
-    });
+    document
+      .getElementById("visit-history-heading")
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
   }
 
   const loading = status === "loading";
 
-  const filtersApplied = Boolean(
-    filters.agency ||
-      filters.dateFrom ||
-      filters.dateTo ||
-      filters.division ||
-      filters.search ||
-      filters.status,
+  const activeFilters = describeActiveFilters(
+    filters,
   );
 
   const visiblePages = getVisiblePages(
@@ -515,11 +622,27 @@ function VisitHistory({ preset }) {
     ? getTowerLabel(tower)
     : "All towers";
 
+  const totalCount =
+    history?.pagination.totalCount ?? 0;
+
+  const pageSize =
+    history?.pagination.pageSize || 10;
+
+  const firstShown = totalCount
+    ? (page - 1) * pageSize + 1
+    : 0;
+
+  const lastShown = totalCount
+    ? firstShown +
+      (history?.visits.length || 0) -
+      1
+    : 0;
+
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
+      <header className="flex flex-col gap-4 px-1 pt-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-800">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Reception records
           </p>
 
@@ -527,115 +650,155 @@ function VisitHistory({ preset }) {
             Visit history
           </h1>
 
-          <p className="mt-4 max-w-2xl leading-7 text-slate-600">
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
             Review authorised visit records for{" "}
-            <strong>{towerHeading}</strong> using status,
-            destination and Ghana-date filters.
+            <strong className="text-slate-950">
+              {towerHeading}
+            </strong>{" "}
+            using status, destination and Ghana-date
+            filters.
           </p>
         </div>
 
-        <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} onClick={refreshHistory} type="button">
-          <RefreshCw aria-hidden="true" className={`size-5 ${loading ? "animate-spin" : ""}`} />
-          Refresh history
-        </button>
+        <div className="flex flex-wrap items-center gap-3 md:justify-end">
+          {history?.generatedAt ? (
+            <p className="text-sm text-slate-600">
+              Updated {formatDateTime(history.generatedAt)}
+            </p>
+          ) : null}
+
+          <button
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={loading}
+            onClick={refreshHistory}
+            type="button"
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={`size-4 ${loading ? "animate-spin" : ""}`}
+            />
+            Refresh history
+          </button>
+        </div>
       </header>
 
-      <section aria-labelledby="history-tower-heading" className="mt-6 rounded-3xl border border-brand-100 bg-brand-50 p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-800 text-white">
-              <MapPin aria-hidden="true" className="size-5" />
-            </span>
-
-            <div>
-              <h2 className="font-black text-brand-950" id="history-tower-heading">
-                Reception tower
+      <section
+        aria-busy={loading}
+        aria-labelledby="visit-history-heading"
+        className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+      >
+        <div className="grid gap-4 border-b border-slate-200 p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2
+                className="text-xl font-black text-slate-950"
+                id="visit-history-heading"
+              >
+                Visit records
               </h2>
 
-              <p className="mt-1 text-sm leading-6 text-brand-900">
-                {administrator
-                  ? "Administrators may review all towers or filter the history to one tower."
-                  : "Your visit history is restricted to the tower selected when you signed in."}
-              </p>
+              {history ? (
+                <p
+                  aria-live="polite"
+                  className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800"
+                >
+                  {`${totalCount} ${
+                    totalCount === 1
+                      ? "matching visit"
+                      : "matching visits"
+                  } in ${towerHeading}`}
+                </p>
+              ) : null}
             </div>
+
+            {administrator ? (
+              <TowerTabs
+                onChange={changeTower}
+                tower={tower}
+              />
+            ) : (
+              <TowerBadge tower={tower} />
+            )}
           </div>
 
-          {administrator ? (
-            <div className="grid w-full gap-2 sm:w-64">
-              <label className="font-bold text-brand-950" htmlFor="history-tower">
-                Tower filter
+          <form
+            className="grid gap-3 md:grid-cols-2 xl:flex xl:flex-wrap xl:items-center"
+            noValidate
+            onSubmit={submitSearch}
+            role="search"
+          >
+            <div className="relative md:col-span-2 xl:min-w-64 xl:flex-1">
+              <label
+                className="sr-only"
+                htmlFor="history-search"
+              >
+                Name or reference
               </label>
 
-              <select className="min-h-12 w-full rounded-xl border border-brand-200 bg-white px-4 text-base font-bold text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="history-tower" onChange={changeTower} value={tower}>
-                <option value="">All towers</option>
-
-                {TOWER_OPTIONS.map((towerOption) => (
-                  <option key={towerOption.value} value={towerOption.value}>
-                    {towerOption.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <TowerBadge tower={tower} />
-          )}
-        </div>
-      </section>
-
-      <section aria-labelledby="history-filters-heading" className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <div>
-          <h2 className="text-xl font-black text-slate-950" id="history-filters-heading">
-            Search and filter
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Search values are submitted in the request body
-            and are not added to the browser URL.
-          </p>
-        </div>
-
-        <form className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3" noValidate onSubmit={submitFilters}>
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-search">
-              Name or reference
-            </label>
-
-            <div className="relative">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500"
+              />
 
               <input
-                aria-describedby={filterError ? "history-filter-error" : undefined}
+                aria-describedby={
+                  filterError
+                    ? "history-filter-error"
+                    : undefined
+                }
                 autoComplete="off"
-                className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pl-12 text-base text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
+                className="min-h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-950 shadow-none outline-none placeholder:text-slate-500 focus:border-brand-600 focus:ring-4 focus:ring-brand-100"
                 id="history-search"
                 maxLength="80"
-                onChange={(event) => updateDraft("search", event.target.value)}
-                placeholder="Name or VIS-reference"
+                onChange={(event) =>
+                  setDrafts((current) => ({
+                    ...current,
+                    search: event.target.value,
+                  }))
+                }
+                placeholder="Name or VIS reference"
                 type="search"
                 value={drafts.search}
               />
             </div>
-          </div>
 
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-status">
+            <label
+              className="sr-only"
+              htmlFor="history-status"
+            >
               Visit status
             </label>
 
-            <select className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="history-status" onChange={(event) => updateDraft("status", event.target.value)} value={drafts.status}>
+            <select
+              className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-40"
+              id="history-status"
+              onChange={(event) =>
+                updateDraft(
+                  "status",
+                  event.target.value,
+                )
+              }
+              value={drafts.status}
+            >
               <option value="">All statuses</option>
               <option value="checked_in">Checked in</option>
               <option value="checked_out">Checked out</option>
               <option value="cancelled">Cancelled</option>
             </select>
-          </div>
 
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-agency">
+            <label
+              className="sr-only"
+              htmlFor="history-agency"
+            >
               Agency
             </label>
 
-            <select className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="history-agency" onChange={changeAgency} value={drafts.agency}>
+            <select
+              className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-56"
+              id="history-agency"
+              onChange={changeAgency}
+              value={drafts.agency}
+            >
               <option value="">All agencies</option>
 
               {VISIT_AGENCIES.map((agency) => (
@@ -644,181 +807,349 @@ function VisitHistory({ preset }) {
                 </option>
               ))}
             </select>
-          </div>
 
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-division">
-              Ministry division
-            </label>
+            {drafts.agency ===
+            MINISTRY_OF_FINANCE_AGENCY ? (
+              <>
+                <label
+                  className="sr-only"
+                  htmlFor="history-division"
+                >
+                  Ministry division
+                </label>
 
-            <select
-              className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-              disabled={drafts.agency !== MINISTRY_OF_FINANCE_AGENCY}
-              id="history-division"
-              onChange={(event) => updateDraft("division", event.target.value)}
-              value={drafts.division}
+                <select
+                  className="min-h-12 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-none outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-100 xl:w-56"
+                  id="history-division"
+                  onChange={(event) =>
+                    updateDraft(
+                      "division",
+                      event.target.value,
+                    )
+                  }
+                  value={drafts.division}
+                >
+                  <option value="">All divisions</option>
+
+                  {MOF_DIVISIONS.map((division) => (
+                    <option key={division} value={division}>
+                      {division}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : null}
+
+            <div
+              aria-label="Check-in date range"
+              className="flex min-h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 md:col-span-2 xl:col-span-1"
+              role="group"
             >
-              <option value="">All Ministry divisions</option>
 
-              {MOF_DIVISIONS.map((division) => (
-                <option key={division} value={division}>
-                  {division}
-                </option>
-              ))}
-            </select>
-          </div>
+              <CalendarDays
+                aria-hidden="true"
+                className="size-4 shrink-0 text-slate-500"
+              />
 
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-date-from">
-              Check-in date from
-            </label>
+              <label
+                className="sr-only"
+                htmlFor="history-date-from"
+              >
+                Check-in date from
+              </label>
 
-            <div className="relative">
-              <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+              <input
+                className="min-h-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm text-slate-950 shadow-none outline-none focus:ring-0 xl:w-36"
+                id="history-date-from"
+                onChange={(event) =>
+                  updateDraft(
+                    "dateFrom",
+                    event.target.value,
+                  )
+                }
+                type="date"
+                value={drafts.dateFrom}
+              />
 
-              <input className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pl-12 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="history-date-from" onChange={(event) => updateDraft("dateFrom", event.target.value)} type="date" value={drafts.dateFrom} />
+              <span
+                aria-hidden="true"
+                className="text-sm text-slate-500"
+              >
+                to
+              </span>
+
+              <label
+                className="sr-only"
+                htmlFor="history-date-to"
+              >
+                Check-in date to
+              </label>
+
+              <input
+                className="min-h-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm text-slate-950 shadow-none outline-none focus:ring-0 xl:w-36"
+                id="history-date-to"
+                onChange={(event) =>
+                  updateDraft(
+                    "dateTo",
+                    event.target.value,
+                  )
+                }
+                type="date"
+                value={drafts.dateTo}
+              />
             </div>
-          </div>
+          </form>
 
-          <div className="grid gap-2">
-            <label className="font-bold text-slate-800" htmlFor="history-date-to">
-              Check-in date to
-            </label>
+          {filterError ? (
+            <p
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+              id="history-filter-error"
+              role="alert"
+            >
+              {filterError}
+            </p>
+          ) : null}
 
-            <div className="relative">
-              <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold text-slate-700">
+              Active filters:
+            </span>
 
-              <input className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pl-12 text-base text-slate-950 shadow-sm outline-none focus:border-brand-700 focus:ring-4 focus:ring-brand-100" id="history-date-to" onChange={(event) => updateDraft("dateTo", event.target.value)} type="date" value={drafts.dateTo} />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 md:col-span-2 lg:col-span-3">
-            <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} type="submit">
-              <Search aria-hidden="true" className="size-5" />
-              Apply filters
-            </button>
-
-            {filtersApplied ? (
-              <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} onClick={clearFilters} type="button">
-                <X aria-hidden="true" className="size-5" />
-                Clear filters
-              </button>
-            ) : null}
-          </div>
-        </form>
-
-        {filterError ? (
-          <p className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" id="history-filter-error" role="alert">
-            {filterError}
-          </p>
-        ) : null}
-      </section>
-
-      {loading && !history ? (
-        <div className="mt-6">
-          <LoadingState message={`Loading visit history for ${towerHeading}…`} />
-        </div>
-      ) : null}
-
-      {status === "error" ? (
-        <div className="mt-6">
-          <ErrorMessage message={requestError} onRetry={refreshHistory} title="Visit history unavailable" />
-        </div>
-      ) : null}
-
-      {history && status !== "error" ? (
-        <section aria-busy={loading} aria-labelledby="visit-history-heading" className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div>
-              <h2 className="text-xl font-black text-slate-950" id="visit-history-heading">
-                Visit records
-              </h2>
-
-              <p aria-live="polite" className="mt-2 text-sm text-slate-600">
-                {history.pagination.totalCount}{" "}
-                {history.pagination.totalCount === 1
-                  ? "matching visit"
-                  : "matching visits"}{" "}
-                in {towerHeading}
-              </p>
-            </div>
-
-            {history.generatedAt ? (
-              <p className="text-sm text-slate-500">
-                Updated {formatDateTime(history.generatedAt)}
-              </p>
-            ) : null}
-          </div>
-
-          {history.visits.length === 0 ? (
-            <div className="p-5 sm:p-8">
-              <div className="rounded-2xl bg-slate-50 p-6 text-center">
-                <History aria-hidden="true" className="mx-auto size-10 text-slate-400" />
-
-                <h3 className="mt-4 font-black text-slate-950">
-                  No visit records found
-                </h3>
-
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  No visit matches the current tower, search
-                  and filters.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-4 p-4 lg:hidden">
-                {history.visits.map((visit) => (
-                  <HistoryCard key={visit.visitId} visit={visit} />
+            {activeFilters.length === 0 ? (
+              <span className="text-slate-600">
+                None. Showing every visit.
+              </span>
+            ) : (
+              <>
+                {activeFilters.map((filter) => (
+                  <button
+                    aria-label={`Remove filter: ${filter.label}`}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-brand-50 px-3 text-xs font-bold text-brand-800 transition hover:bg-brand-100"
+                    key={filter.key}
+                    onClick={() =>
+                      removeFilter(filter.fields)
+                    }
+                    type="button"
+                  >
+                    {filter.label}
+                    <X
+                      aria-hidden="true"
+                      className="size-3.5"
+                    />
+                  </button>
                 ))}
+
+                <button
+                  className="min-h-8 rounded-full px-2 text-xs font-bold text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
+                  onClick={clearFilters}
+                  type="button"
+                >
+                  Clear all
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {loading && !history ? (
+          <div className="p-4 sm:p-6">
+            <LoadingState
+              message={`Loading visit history for ${towerHeading}…`}
+            />
+          </div>
+        ) : null}
+
+        {status === "error" ? (
+          <div className="p-4 sm:p-6">
+            <ErrorMessage
+              message={requestError}
+              onRetry={refreshHistory}
+              title="Visit history unavailable"
+            />
+          </div>
+        ) : null}
+
+        {history && status !== "error" ? (
+          <div
+            className={
+              loading
+                ? "pointer-events-none opacity-60 transition"
+                : "transition"
+            }
+          >
+            {history.visits.length === 0 ? (
+              <div className="p-4 sm:p-8">
+                <div className="rounded-2xl bg-slate-50 p-6 text-center">
+                  <History
+                    aria-hidden="true"
+                    className="mx-auto size-10 text-slate-400"
+                  />
+
+                  <h3 className="mt-4 font-black text-slate-950">
+                    No visit records found
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    No visit matches the current tower,
+                    search and filters. Remove a filter to
+                    widen the results.
+                  </p>
+                </div>
               </div>
+            ) : (
+              <>
+                <div className="grid gap-3 p-4 md:hidden">
+                  {history.visits.map((visit) => (
+                    <HistoryCard
+                      key={visit.visitId}
+                      visit={visit}
+                    />
+                  ))}
+                </div>
 
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full border-collapse text-left">
-                  <thead className="bg-slate-50 text-sm text-slate-700">
-                    <tr>
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Visitor
-                      </th>
+                {/* Focusable so keyboard users can scroll the wide table. */}
+                <div
+                  aria-label="Visit records table"
+                  className="hidden overflow-x-auto focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-brand-200 md:block"
+                  role="region"
+                  tabIndex={0}
+                >
+                  <table className="w-full min-w-275 border-collapse xl:min-w-0">
+                    <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-600">
+                      <tr>
+                        {[
+                          "Visitor",
+                          "Contact details",
+                          "Status and time",
+                          "Visit",
+                          "Destination",
+                          "Card assigned",
+                        ].map((label) => (
+                          <th
+                            className="whitespace-nowrap px-4 py-4 text-center font-bold"
+                            key={label}
+                            scope="col"
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
 
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Status and time
-                      </th>
+                    <tbody className="divide-y divide-slate-100">
+                      {history.visits.map((visit) => (
+                        <HistoryRow
+                          key={visit.visitId}
+                          visit={visit}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Visit
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Destination
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Tower
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-200">
-                    {history.visits.map((visit) => (
-                      <HistoryRow key={visit.visitId} visit={visit} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {history.pagination.totalPages > 1 ? (
             <Pagination
               currentPage={page}
               goToPage={goToPage}
+              summary={`Showing ${firstShown} to ${lastShown} of ${totalCount} ${
+                totalCount === 1 ? "visit" : "visits"
+              } · Page ${page} of ${Math.max(
+                history.pagination.totalPages,
+                1,
+              )}`}
               totalPages={history.pagination.totalPages}
               visiblePages={visiblePages}
             />
-          ) : null}
-        </section>
-      ) : null}
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function describeActiveFilters(filters) {
+  const active = [];
+
+  if (filters.search) {
+    active.push({
+      fields: ["search"],
+      key: "search",
+      label: `“${filters.search}”`,
+    });
+  }
+
+  if (filters.status) {
+    active.push({
+      fields: ["status"],
+      key: "status",
+      label: getStatusLabel(filters.status),
+    });
+  }
+
+  if (filters.agency) {
+    active.push({
+      fields: ["agency"],
+      key: "agency",
+      label: getAgencyShortName(filters.agency),
+    });
+  }
+
+  if (filters.division) {
+    active.push({
+      fields: ["division"],
+      key: "division",
+      label: filters.division,
+    });
+  }
+
+  if (filters.dateFrom || filters.dateTo) {
+    active.push({
+      fields: ["dateFrom", "dateTo"],
+      key: "dates",
+      label: `${
+        filters.dateFrom
+          ? formatIsoDate(filters.dateFrom)
+          : "Any date"
+      } – ${
+        filters.dateTo
+          ? formatIsoDate(filters.dateTo)
+          : "today"
+      }`,
+    });
+  }
+
+  return active;
+}
+
+function TowerTabs({ onChange, tower }) {
+  return (
+    <div
+      aria-label="Tower filter"
+      className="flex gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 sm:inline-flex"
+      role="group"
+    >
+      {[
+        {
+          label: "All Towers",
+          value: "",
+        },
+        ...TOWER_OPTIONS,
+      ].map((towerOption) => (
+        <button
+          aria-pressed={tower === towerOption.value}
+          className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm transition sm:flex-none sm:px-5 ${
+            tower === towerOption.value
+              ? "bg-[#ffffff] font-bold text-[#0f766e] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
+              : "font-semibold text-slate-600 hover:text-slate-900"
+          }`}
+          key={towerOption.value || "all"}
+          onClick={() => onChange(towerOption.value)}
+          type="button"
+        >
+          {towerOption.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -827,147 +1158,272 @@ function TowerBadge({ tower }) {
   const towerOne = tower === "tower_1";
 
   return (
-    <span className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1 text-xs font-black ${towerOne ? "bg-sky-100 text-sky-900" : "bg-violet-100 text-violet-900"}`}>
+    <span className={`inline-flex min-h-9 items-center gap-2 self-start rounded-full px-3 py-1 text-xs font-black sm:self-auto ${towerOne ? "bg-sky-100 text-sky-900" : "bg-violet-100 text-violet-900"}`}>
       <MapPin aria-hidden="true" className="size-4" />
       {getTowerLabel(tower)}
     </span>
   );
 }
 
-function StatusBadge({ status }) {
+function StatusChip({ status }) {
+  const Icon =
+    status === "checked_out"
+      ? Check
+      : status === "cancelled"
+        ? X
+        : null;
+
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${getStatusClasses(status)}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${getStatusClasses(status)}`}>
+      {Icon ? (
+        <Icon aria-hidden="true" className="size-3.5" />
+      ) : (
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
+      )}
       {getStatusLabel(status)}
     </span>
   );
 }
 
+function VisitorTypeBadge({ type }) {
+  if (type !== "vip" && type !== "regular") {
+    return null;
+  }
+
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold ${
+        type === "vip"
+          ? "border-rose-200 bg-rose-50 text-rose-700"
+          : "border-brand-100 bg-brand-50 text-brand-800"
+      }`}
+    >
+      {type === "vip" ? "VIP" : "Regular"}
+    </span>
+  );
+}
+
+function CardChip({ visit }) {
+  if (visit.cardNumber) {
+    return (
+      <span className="inline-flex rounded-md border border-dashed border-slate-300 px-2 py-1 font-mono text-xs font-bold text-slate-700">
+        {visit.cardNumber}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-1 text-xs font-bold ${
+        visit.status === "checked_in"
+          ? "bg-amber-50 text-amber-800"
+          : "bg-slate-100 text-slate-600"
+      }`}
+    >
+      Not assigned
+    </span>
+  );
+}
+
+function VisitTimes({ visit }) {
+  const duration = formatDuration(
+    visit.checkedInAt,
+    visit.checkedOutAt,
+  );
+
+  return (
+    <>
+      <p>
+        In: {formatDateTime(visit.checkedInAt)}
+      </p>
+
+      {visit.checkedOutAt ? (
+        <p>
+          Out: {formatDateTime(visit.checkedOutAt)}
+        </p>
+      ) : null}
+
+      {visit.status === "checked_in" ? (
+        <p className="font-bold text-brand-700">
+          Still in the building
+        </p>
+      ) : duration ? (
+        <p className="font-semibold text-slate-700">
+          Duration {duration}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 function HistoryCard({ visit }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="wrap-break-word text-lg font-black text-slate-950">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-black text-brand-800"
+        >
+          {getInitials(visit.fullName)}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <h3 className="wrap-break-word font-bold text-slate-950">
             {visit.fullName}
           </h3>
 
-          <p className="mt-1 font-mono text-sm font-bold text-brand-800">
-            {visit.reference}
+          <p className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md border border-brand-100 bg-brand-50 px-1.5 py-0.5 font-mono text-xs font-bold text-brand-800">
+              {visit.reference}
+            </span>
+            <VisitorTypeBadge type={visit.visitorType} />
           </p>
         </div>
 
-        <StatusBadge status={visit.status} />
+        <StatusChip status={visit.status} />
       </div>
 
-      <div className="mt-4">
-        <TowerBadge tower={visit.tower} />
-      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <div className="col-span-2 text-slate-700">
+          <dt className="text-xs font-semibold text-slate-500">
+            Time
+          </dt>
+          <dd className="mt-0.5 grid gap-0.5">
+            <VisitTimes visit={visit} />
+          </dd>
+        </div>
 
-      <dl className="mt-5 grid text-sm">
-        <HistoryDetail icon={Phone} label="Phone" value={visit.phone || "Not provided"} />
+        <div className="min-w-0">
+          <dt className="text-xs font-semibold text-slate-500">
+            Visit
+          </dt>
+          <dd className="mt-0.5 font-semibold text-slate-950">
+            {visit.purpose}
+          </dd>
+          <dd className="text-xs text-slate-600">
+            {getVisitContact(visit)}
+          </dd>
+        </div>
 
-        <HistoryDetail
-          icon={Building2}
-          label="Destination"
-          value={[
-            visit.agency,
-            visit.division,
-          ]
-            .filter(Boolean)
-            .join(" — ")}
-        />
+        <div className="min-w-0">
+          <dt className="text-xs font-semibold text-slate-500">
+            Destination
+          </dt>
+          <dd className="mt-0.5 font-semibold text-slate-950">
+            {getAgencyShortName(visit.agency)}
+            <span className="font-normal text-slate-600">
+              {" · "}
+              {getTowerLabel(visit.tower)}
+            </span>
+          </dd>
+          {visit.division ? (
+            <dd className="text-xs text-slate-600">
+              {visit.division}
+            </dd>
+          ) : null}
+        </div>
 
-        <HistoryDetail icon={Users} label="Purpose" value={`${visit.purpose} — ${getVisitContact(visit)}`} />
-        <HistoryDetail icon={Clock} label="Checked in" value={formatDateTime(visit.checkedInAt)} />
-
-        {visit.status === "checked_out" ? (
-          <HistoryDetail icon={Clock} label="Checked out" value={formatDateTime(visit.checkedOutAt)} />
+        {visit.organization || visit.phone ? (
+          <div className="min-w-0">
+            <dt className="text-xs font-semibold text-slate-500">
+              Contact
+            </dt>
+            {visit.organization ? (
+              <dd className="mt-0.5 text-slate-950">
+                {visit.organization}
+              </dd>
+            ) : null}
+            {visit.phone ? (
+              <dd className="text-slate-700">
+                {visit.phone}
+              </dd>
+            ) : null}
+          </div>
         ) : null}
+
+        <div>
+          <dt className="text-xs font-semibold text-slate-500">
+            Card
+          </dt>
+          <dd className="mt-1">
+            <CardChip visit={visit} />
+          </dd>
+        </div>
       </dl>
     </article>
   );
 }
 
-function HistoryDetail({
-  icon: Icon,
-  label,
-  value,
-}) {
-  return (
-    <>
-      <dt className="mt-4 flex items-start gap-3 font-semibold text-slate-600 first:mt-0">
-        <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-brand-800" />
-        <span>{label}</span>
-      </dt>
-
-      <dd className="ml-8 mt-1 wrap-break-word font-bold text-slate-950">
-        {value}
-      </dd>
-    </>
-  );
-}
-
 function HistoryRow({ visit }) {
   return (
-    <tr className="align-top hover:bg-slate-50">
-      <td className="px-6 py-5">
-        <p className="font-black text-slate-950">
-          {visit.fullName}
-        </p>
+    <tr className="text-center align-middle transition hover:bg-slate-50">
+      <td className="px-4 py-4">
+        <div className="flex items-center justify-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-brand-800"
+          >
+            {getInitials(visit.fullName)}
+          </span>
 
-        <p className="mt-1 font-mono text-sm font-bold text-brand-800">
-          {visit.reference}
-        </p>
+          <div className="grid justify-items-center gap-1">
+            <p className="font-bold text-slate-950">
+              {visit.fullName}
+            </p>
+            <span className="rounded-md border border-brand-100 bg-brand-50 px-1.5 py-0.5 font-mono text-xs font-bold text-brand-800">
+              {visit.reference}
+            </span>
+            <VisitorTypeBadge type={visit.visitorType} />
+          </div>
+        </div>
+      </td>
 
-        <p className="mt-2 text-sm text-slate-600">
-          {visit.phone || "No phone provided"}
-        </p>
-
+      <td className="px-4 py-4 text-sm">
         {visit.organization ? (
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="font-semibold text-slate-950">
             {visit.organization}
           </p>
         ) : null}
-      </td>
-
-      <td className="px-6 py-5">
-        <StatusBadge status={visit.status} />
-
-        <p className="mt-3 whitespace-nowrap text-sm text-slate-700">
-          In: {formatDateTime(visit.checkedInAt)}
-        </p>
-
-        {visit.checkedOutAt ? (
-          <p className="mt-1 whitespace-nowrap text-sm text-slate-700">
-            Out: {formatDateTime(visit.checkedOutAt)}
+        {visit.phone ? (
+          <p className="mt-0.5 inline-flex items-center gap-1.5 whitespace-nowrap text-slate-700">
+            <Phone aria-hidden="true" className="size-3.5 text-slate-500" />
+            {visit.phone}
           </p>
         ) : null}
       </td>
 
-      <td className="px-6 py-5">
-        <p className="font-bold text-slate-950">
-          {visit.purpose}
-        </p>
+      <td className="min-w-52 px-4 py-4 text-sm text-slate-700">
+        <StatusChip status={visit.status} />
+        <div className="mt-1.5 grid gap-0.5">
+          <VisitTimes visit={visit} />
+        </div>
+      </td>
 
-        <p className="mt-2 max-w-xs text-sm leading-6 text-slate-600">
+      <td className="min-w-48 px-4 py-4 text-sm">
+        <span className="inline-flex rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+          {visit.purpose}
+        </span>
+        <p className="mt-1 text-slate-700">
           {getVisitContact(visit)}
         </p>
       </td>
 
-      <td className="px-6 py-5">
+      <td className="min-w-48 px-4 py-4 text-sm">
         <p className="font-bold text-slate-950">
           {visit.agency}
         </p>
-
         {visit.division ? (
-          <p className="mt-2 max-w-xs text-sm leading-6 text-slate-600">
+          <span className="mt-1 inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
             {visit.division}
-          </p>
+          </span>
         ) : null}
+        <p className="mt-1 text-xs text-slate-500">
+          {getTowerLabel(visit.tower)}
+        </p>
       </td>
 
-      <td className="px-6 py-5">
-        <TowerBadge tower={visit.tower} />
+      <td className="whitespace-nowrap px-4 py-4">
+        <CardChip visit={visit} />
       </td>
     </tr>
   );
@@ -976,43 +1432,68 @@ function HistoryRow({ visit }) {
 function Pagination({
   currentPage,
   goToPage,
+  summary,
   totalPages,
   visiblePages,
 }) {
   return (
-    <nav aria-label="Visit history pages" className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-      <p aria-live="polite" className="text-center text-sm font-semibold text-slate-600 sm:text-left">
-        Page {currentPage} of {totalPages}
+    <nav
+      aria-label="Visit history pages"
+      className="flex flex-col gap-4 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+    >
+      <p
+        aria-live="polite"
+        className="text-center text-sm text-slate-600 sm:text-left"
+      >
+        {summary}
       </p>
 
-      <div className="flex items-center justify-center gap-2">
-        <button aria-label="Previous page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)} type="button">
-          <ChevronLeft aria-hidden="true" className="size-5" />
-        </button>
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            aria-label="Previous page"
+            className="grid size-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={currentPage <= 1}
+            onClick={() => goToPage(currentPage - 1)}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="size-5" />
+          </button>
 
-        <div className="hidden items-center gap-2 sm:flex">
-          {visiblePages.map((pageNumber) => (
-            <button
-              aria-current={pageNumber === currentPage ? "page" : undefined}
-              aria-label={`Page ${pageNumber}`}
-              className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
-                pageNumber === currentPage
-                  ? "border-brand-800 bg-brand-800 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              key={pageNumber}
-              onClick={() => goToPage(pageNumber)}
-              type="button"
-            >
-              {pageNumber}
-            </button>
-          ))}
+          <div className="hidden items-center gap-2 sm:flex">
+            {visiblePages.map((pageNumber) => (
+              <button
+                aria-current={
+                  pageNumber === currentPage
+                    ? "page"
+                    : undefined
+                }
+                aria-label={`Page ${pageNumber}`}
+                className={`grid size-11 place-items-center rounded-full border text-sm font-black ${
+                  pageNumber === currentPage
+                    ? "border-brand-800 bg-brand-800 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+                key={pageNumber}
+                onClick={() => goToPage(pageNumber)}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            ))}
+          </div>
+
+          <button
+            aria-label="Next page"
+            className="grid size-11 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={currentPage >= totalPages}
+            onClick={() => goToPage(currentPage + 1)}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="size-5" />
+          </button>
         </div>
-
-        <button aria-label="Next page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)} type="button">
-          <ChevronRight aria-hidden="true" className="size-5" />
-        </button>
-      </div>
+      ) : null}
     </nav>
   );
 }
