@@ -12,6 +12,7 @@ import {
   RateLimitExceededError,
   enforceRateLimit,
 } from "../_lib/rateLimit.js";
+import { addVisitorDetails } from "../_lib/visitDetails.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { staffVisitCheckoutSchema } from "../../src/validation/staffVisits.js";
 import {
@@ -684,6 +685,56 @@ function createRpcArguments(
   }
 }
 
+const LIST_RESULT_KEYS = Object.freeze({
+  "checked-in-list": "visitors",
+  "incident-list": "incidents",
+  "pending-list": "admissions",
+});
+
+// Adds visitorType ("vip" | "regular" | null) to list rows from the card
+// issued for each visit. The type is only a display hint, so a failed
+// lookup leaves the rows exactly as the RPC returned them.
+async function addVisitorTypes(
+  client,
+  operation,
+  data,
+) {
+  const key = LIST_RESULT_KEYS[operation];
+
+  if (!key || !Array.isArray(data?.[key])) {
+    return data;
+  }
+
+  try {
+    const detailed = await addVisitorDetails(
+      client,
+      data[key],
+      {
+        cardStatuses: [
+          "assigned",
+          "returned",
+          "not_returned",
+          "deactivated",
+        ],
+      },
+    );
+
+    return {
+      ...data,
+      [key]: data[key].map(
+        (row, index) => ({
+          ...row,
+          visitorType:
+            detailed[index]?.visitorType ||
+            null,
+        }),
+      ),
+    };
+  } catch {
+    return data;
+  }
+}
+
 function createSuccessResponse(
   operation,
   data,
@@ -810,8 +861,11 @@ export function createCheckoutHandler({
             towerScope,
           );
 
+        const client =
+          getAdminClientForRequest();
+
         const { data, error } =
-          await getAdminClientForRequest().rpc(
+          await client.rpc(
             configuration.rpcName,
             rpcArguments,
           );
@@ -839,7 +893,11 @@ export function createCheckoutHandler({
 
         return createSuccessResponse(
           operation,
-          data,
+          await addVisitorTypes(
+            client,
+            operation,
+            data,
+          ),
         );
       } catch (error) {
         if (

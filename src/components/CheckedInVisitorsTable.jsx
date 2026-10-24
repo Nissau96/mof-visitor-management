@@ -143,9 +143,16 @@ export function ContactDetails({ email, organization, phone }) {
       ) : null}
 
       {email ? (
-        <p className="inline-flex min-w-0 items-center gap-1.5 break-all text-slate-700">
+        <p className="inline-flex min-w-0 items-center gap-1.5 text-slate-700 [overflow-wrap:anywhere]">
           <Mail aria-hidden="true" className="size-3.5 shrink-0 text-slate-500" />
-          {email}
+          <span>
+            {email.split("@")[0]}
+            {email.includes("@") ? (
+              <>
+                <wbr />@{email.slice(email.indexOf("@") + 1)}
+              </>
+            ) : null}
+          </span>
         </p>
       ) : null}
     </div>
@@ -225,7 +232,7 @@ function CardStatusPill({ row }) {
   );
 }
 
-function CheckedInTime({ value }) {
+export function TimeStack({ value }) {
   return (
     <div className="whitespace-nowrap">
       <p className="font-bold text-slate-950">
@@ -262,7 +269,7 @@ function CheckoutButton({ fullWidth = false, onCheckout, row }) {
   );
 }
 
-function VisitorName({ row }) {
+export function VisitorName({ row }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span className="font-bold text-slate-950">{row.fullName}</span>
@@ -271,7 +278,7 @@ function VisitorName({ row }) {
   );
 }
 
-function ReferencePill({ reference }) {
+export function ReferencePill({ reference }) {
   return (
     <span className="inline-flex rounded-full bg-brand-50 px-2.5 py-1 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-100">
       {reference}
@@ -318,7 +325,7 @@ function CheckedInCard({ onCheckout, row }) {
         <div>
           <dt className="text-xs font-semibold text-slate-500">Checked in</dt>
           <dd className="mt-0.5">
-            <CheckedInTime value={row.checkedInAt} />
+            <TimeStack value={row.checkedInAt} />
           </dd>
         </div>
 
@@ -411,7 +418,7 @@ export default function CheckedInVisitorsTable({ onCheckout, rows }) {
                 <td className="whitespace-nowrap px-4 py-4">
                   <VisitorName row={row} />
                 </td>
-                <td className="min-w-52 px-4 py-4">
+                <td className="min-w-60 px-4 py-4">
                   <ContactDetails
                     email={row.email}
                     organization={row.organization}
@@ -431,7 +438,7 @@ export default function CheckedInVisitorsTable({ onCheckout, rows }) {
                   />
                 </td>
                 <td className="px-4 py-4">
-                  <CheckedInTime value={row.checkedInAt} />
+                  <TimeStack value={row.checkedInAt} />
                 </td>
                 <td className="px-4 py-4">
                   <CardStatusPill row={row} />
@@ -445,5 +452,17 @@ export default function CheckedInVisitorsTable({ onCheckout, rows }) {
         </table>
       </div>
     </>
+  );
+}
+
+// Initials avatar used by the mobile visitor cards.
+export function InitialsAvatar({ fullName }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-black text-brand-800"
+    >
+      {getInitials(fullName)}
+    </span>
   );
 }
