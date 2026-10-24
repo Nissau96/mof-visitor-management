@@ -654,7 +654,9 @@ export default function StaffLayout() {
           }`}
         >
           <Link
-            className="inline-flex min-w-0 flex-1 items-center gap-3 rounded-xl"
+            className={`inline-flex min-w-0 flex-1 items-center gap-3 rounded-xl ${
+              collapsed ? "lg:flex-none" : ""
+            }`}
             onClick={closeMobile}
             to={homePath}
           >

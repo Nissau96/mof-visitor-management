@@ -19,6 +19,19 @@
   --input-placeholder-text-color: var(--color-slate-600);
 }
 
+/* The weekly QR reception poster prints on one A4 portrait sheet. */
+@page {
+  margin: 10mm;
+  size: A4 portrait;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff;
+  }
+}
+
 @theme {
   /* Teal brand scale; #0D9488 is the primary accent (brand-600). Solid
      fills behind white text use brand-700 and darker for AA contrast. */
