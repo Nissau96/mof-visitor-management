@@ -52,7 +52,6 @@ export async function renderPosterPng({
   peerSrc,
   qrSrc,
   sealSrc,
-  validityLabel,
 }) {
   const [seal, qr, peer] = await Promise.all([
     loadImage(sealSrc),
@@ -73,17 +72,34 @@ export async function renderPosterPng({
   context.fillStyle = TEAL;
   context.fillRect(0, 0, WIDTH, HEIGHT);
 
-  context.drawImage(seal, (WIDTH - SEAL_SIZE) / 2, 50, SEAL_SIZE, SEAL_SIZE);
+  // Concentric rings in the top-left corner, matching the on-screen poster.
+  context.save();
+  context.beginPath();
+  context.rect(0, 0, WIDTH, QR_TOP);
+  context.clip();
+  [
+    { alpha: 0.08, radius: 230, width: 38 },
+    { alpha: 0.07, radius: 155, width: 28 },
+    { alpha: 0.06, radius: 90, width: 18 },
+  ].forEach(({ alpha, radius, width }) => {
+    context.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    context.lineWidth = width;
+    context.beginPath();
+    context.arc(60, 60, radius, 0, Math.PI * 2);
+    context.stroke();
+  });
+  context.restore();
 
-  centredText(context, "Visitor Registration", 300, `800 76px ${FONT}`, "#ffffff");
+  context.drawImage(seal, (WIDTH - SEAL_SIZE) / 2, 75, SEAL_SIZE, SEAL_SIZE);
+
+  centredText(context, "Visitor Registration", 325, `800 76px ${FONT}`, "#ffffff");
   centredText(
     context,
     "Scan to access the visitor management application.",
-    355,
+    380,
     `500 32px ${FONT}`,
     MINT,
   );
-  centredText(context, validityLabel, 400, `600 24px ${FONT}`, MINT);
 
   // QR section
   context.fillStyle = TEAL_DEEP;

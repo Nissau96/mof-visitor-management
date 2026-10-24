@@ -331,7 +331,6 @@ export default function StaffWeeklyQrPage() {
         peerSrc: peerValues,
         qrSrc: qrDataUrl,
         sealSrc: ministrySeal,
-        validityLabel: `Valid ${formatWeekRange(weeklyQr)}`,
       });
 
       const link = document.createElement("a");
@@ -373,7 +372,7 @@ export default function StaffWeeklyQrPage() {
   return (
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 print:max-w-none print:p-0 sm:px-6 lg:px-0 lg:py-0">
       <header className="flex flex-col gap-4 px-1 pt-2 print:hidden xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
+        <div className="min-w-0 text-center sm:text-left">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Reception access
           </p>
@@ -382,14 +381,14 @@ export default function StaffWeeklyQrPage() {
             Weekly visitor QR code
           </h1>
 
-          <p className="mt-3 max-w-xl leading-7 text-slate-600">
+          <p className="mx-auto mt-3 max-w-xl leading-7 sm:mx-0 text-slate-600">
             Display this code on the reception screen or
             print it for the current Monday-to-Sunday
             access period.
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-3 xl:flex-nowrap">
+        <div className="flex shrink-0 flex-wrap justify-center gap-3 sm:justify-start xl:flex-nowrap">
           <button
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={status === "loading"}
@@ -451,10 +450,10 @@ export default function StaffWeeklyQrPage() {
       ) : null}
 
       {ready ? (
-        <div className="mt-6 grid gap-4 print:mt-0 print:block lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        <div className="mt-6 grid min-w-0 grid-cols-1 gap-4 print:mt-0 print:block lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
           <section
             aria-labelledby="reception-poster-heading"
-            className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm print:border-0 print:p-0 print:shadow-none sm:p-5"
+            className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm print:border-0 print:p-0 print:shadow-none sm:p-5"
           >
             <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
               <h2
@@ -476,7 +475,8 @@ export default function StaffWeeklyQrPage() {
             />
           </section>
 
-          <div className="grid content-start gap-4 print:hidden">
+          {/* Stretches to the poster's height; the week card takes the slack. */}
+          <div className="flex min-w-0 flex-col gap-4 print:hidden">
             <ValidityCard weeklyQr={weeklyQr} />
             <WeekCard weeklyQr={weeklyQr} />
             <ScanCard
@@ -513,7 +513,15 @@ export default function StaffWeeklyQrPage() {
 function ReceptionPoster({ qrDataUrl, weeklyQr }) {
   return (
     <div className="overflow-hidden rounded-3xl bg-[#134e4a] text-[#ffffff] [print-color-adjust:exact] print:mx-auto print:max-w-[170mm] print:break-inside-avoid">
-      <div className="px-6 pb-6 pt-7 text-center print:pb-4 print:pt-5">
+      <div className="relative isolate overflow-hidden px-6 pb-6 pt-7 text-center print:pb-4 print:pt-5">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-24 -top-24 -z-10 size-72 rounded-full border-[16px] border-[#ffffff14]"
+        >
+          <span className="absolute inset-8 rounded-full border-[12px] border-[#ffffff12]" />
+          <span className="absolute inset-[4.5rem] rounded-full border-[8px] border-[#ffffff0f]" />
+        </span>
+
         <img
           alt="Ministry of Finance, Republic of Ghana seal"
           className="mx-auto size-24 sm:size-28 print:size-20"
@@ -526,10 +534,6 @@ function ReceptionPoster({ qrDataUrl, weeklyQr }) {
 
         <p className="mt-2 text-[#ccfbf1] sm:text-lg">
           Scan to access the visitor management application.
-        </p>
-
-        <p className="mt-2 text-sm font-semibold text-[#ccfbf1]">
-          Valid {formatWeekRange(weeklyQr)}
         </p>
       </div>
 
@@ -620,11 +624,20 @@ function WeekCard({ weeklyQr }) {
   const todayIndex = days.findIndex(
     (day) => day.iso === today,
   );
+  const daysPassed = days.filter(
+    (day) => day.iso < today,
+  ).length;
+  const daysRemaining = days.filter(
+    (day) => day.iso > today,
+  ).length;
+  const weekProgress = Math.round(
+    ((daysPassed + (todayIndex >= 0 ? 1 : 0)) / 7) * 100,
+  );
 
   return (
     <section
       aria-labelledby="this-week-heading"
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      className="flex flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
     >
       <div className="flex items-center justify-between gap-3">
         <h2
@@ -641,7 +654,7 @@ function WeekCard({ weeklyQr }) {
         ) : null}
       </div>
 
-      <ol className="mt-4 grid grid-cols-7 gap-1.5 sm:gap-2">
+      <ol className="my-auto grid grid-cols-7 gap-1.5 py-5 sm:gap-2">
         {days.map((day) => {
           const state =
             day.iso < today
@@ -660,7 +673,7 @@ function WeekCard({ weeklyQr }) {
               </span>
               <span
                 aria-hidden="true"
-                className={`grid h-14 w-full max-w-12 place-items-center rounded-full text-sm font-black ${
+                className={`grid h-14 w-full max-w-12 place-items-center rounded-full text-sm font-black lg:h-20 lg:max-w-14 lg:text-base ${
                   state === "passed"
                     ? "bg-brand-700 text-[#ffffff]"
                     : state === "today"
@@ -684,6 +697,47 @@ function WeekCard({ weeklyQr }) {
           );
         })}
       </ol>
+
+      <div className="grid grid-cols-2 gap-3">
+        <p className="rounded-2xl bg-slate-50 px-4 py-3">
+          <span className="block text-2xl font-black text-slate-950">
+            {daysPassed}
+          </span>
+          <span className="text-xs font-semibold text-slate-600">
+            {daysPassed === 1 ? "day passed" : "days passed"}
+          </span>
+        </p>
+        <p className="rounded-2xl bg-slate-50 px-4 py-3">
+          <span className="block text-2xl font-black text-slate-950">
+            {daysRemaining}
+          </span>
+          <span className="text-xs font-semibold text-slate-600">
+            {daysRemaining === 1
+              ? "day after today"
+              : "days after today"}
+          </span>
+        </p>
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+          <span id="week-progress-label">Week progress</span>
+          <span>{weekProgress}%</span>
+        </div>
+        <div
+          aria-labelledby="week-progress-label"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={weekProgress}
+          className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+        >
+          <div
+            className="h-full rounded-full bg-brand-600"
+            style={{ width: `${weekProgress}%` }}
+          />
+        </div>
+      </div>
 
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
         <li className="flex items-center gap-1.5">
