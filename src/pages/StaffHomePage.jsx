@@ -33,6 +33,7 @@ import {
 } from "../constants/selectOptions.js";
 import { getAccraIsoDate } from "../lib/accraDate.js";
 import AppSelect from "../components/AppSelect.jsx";
+import CheckedInVisitorsTable from "../components/CheckedInVisitorsTable.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -55,14 +56,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat(
   "en-GH",
   {
     dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Africa/Accra",
-  },
-);
-
-const timeFormatter = new Intl.DateTimeFormat(
-  "en-GH",
-  {
     timeStyle: "short",
     timeZone: "Africa/Accra",
   },
@@ -113,66 +106,42 @@ function formatDateTime(value) {
   );
 }
 
-// One colour per agency so rows can be scanned by agency at a glance.
-const AGENCY_PILL_CLASSES = {
-  [MINISTRY_OF_FINANCE_AGENCY]:
-    "border-brand-200 bg-brand-50 text-brand-800",
-  IAA: "border-blue-200 bg-blue-50 text-blue-800",
-  ITAB: "border-violet-200 bg-violet-50 text-violet-800",
-  GIPC: "border-amber-200 bg-amber-50 text-amber-800",
-  GCX: "border-cyan-200 bg-cyan-50 text-cyan-800",
-  GIFMIS: "border-rose-200 bg-rose-50 text-rose-800",
-  GIIF: "border-sky-200 bg-sky-50 text-sky-800",
-  MIIF: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  PPA: "border-indigo-200 bg-indigo-50 text-indigo-800",
-};
-
-// "Ministry of Finance (MoF)" -> "MoF"; agencies without an abbreviation
-// are shown in full.
-function getAgencyShortName(agency) {
-  return agency.match(/\(([^)]+)\)\s*$/)?.[1] || agency;
-}
-
-function getInitials(fullName) {
-  return fullName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function getVisitContact(visitor) {
   if (visitor.purpose === "Meeting") {
     return visitor.meetingTitle || "Meeting";
   }
 
-  return visitor.personVisiting || "Not provided";
+  return visitor.personVisiting || "";
 }
 
-function getCardStatus(visitor) {
-  return visitor.cardStatus === "assigned"
-    ? "Assigned"
-    : "Checked in";
-}
+// Maps a dashboard visitor to the shared checked-in table row.
+function toCheckedInRow(visitor) {
+  const notReturned =
+    visitor.cardStatus === "not_returned";
 
-function VisitorTypeBadge({ type }) {
-  if (type !== "vip" && type !== "regular") {
-    return <span className="text-sm text-slate-500">—</span>;
-  }
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${
-        type === "vip"
-          ? "border-amber-300 bg-amber-100 text-amber-900"
-          : "border-blue-200 bg-blue-50 text-blue-700"
-      }`}
-    >
-      {type === "vip" ? "VIP" : "Regular"}
-    </span>
-  );
+  return {
+    canCheckout: !notReturned,
+    cardNumber: visitor.cardNumber || null,
+    cardStatus: visitor.cardStatus || null,
+    checkedInAt: visitor.checkedInAt,
+    checkoutBlockedReason: notReturned
+      ? `${visitor.cardNumber || "This card"} requires incident action`
+      : "",
+    destinationAgency: visitor.agency,
+    destinationDetail:
+      visitor.division ||
+      getVisitContact(visitor),
+    email: visitor.email || "",
+    fullName: visitor.fullName,
+    id: visitor.visitId,
+    organization: visitor.organization || "",
+    phone: visitor.phone || "",
+    purpose: visitor.purpose || "",
+    reference: visitor.reference,
+    source: visitor,
+    tower: visitor.tower,
+    visitorType: visitor.visitorType || null,
+  };
 }
 
 function normalizeDashboardResult(result) {
@@ -1474,81 +1443,10 @@ export default function StaffHomePage() {
                 </div>
               </div>
             ) : (
-              <>
-                <div className="grid gap-4 p-4 md:grid-cols-2 lg:hidden">
-                  {dashboard.visitors.map(
-                    (visitor) => (
-                      <VisitorCard
-                        key={
-                          visitor.visitId
-                        }
-                        onCheckout={
-                          openCheckout
-                        }
-                        visitor={
-                          visitor
-                        }
-                      />
-                    ),
-                  )}
-                </div>
-
-                <div className="hidden overflow-x-auto lg:block">
-                  <table className="w-full min-w-300 border-collapse text-left">
-                    <thead className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                      <tr>
-                        {[
-                          "Reference",
-                          "Agency",
-                          "Visitor",
-                          "Contact",
-                          "Purpose of Visit",
-                          "Person / Division Visiting",
-                          "Card",
-                          "Check-In",
-                          "Action",
-                        ].map(
-                          (
-                            label,
-                          ) => (
-                            <th
-                              className="whitespace-nowrap px-4 py-3 text-center font-bold"
-                              key={
-                                label
-                              }
-                              scope="col"
-                            >
-                              {
-                                label
-                              }
-                            </th>
-                          ),
-                        )}
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-200">
-                      {dashboard.visitors.map(
-                        (
-                          visitor,
-                        ) => (
-                          <VisitorRow
-                            key={
-                              visitor.visitId
-                            }
-                            onCheckout={
-                              openCheckout
-                            }
-                            visitor={
-                              visitor
-                            }
-                          />
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+              <CheckedInVisitorsTable
+                onCheckout={openCheckout}
+                rows={dashboard.visitors.map(toCheckedInRow)}
+              />
             )}
 
             <div className="flex flex-col gap-1 border-t border-slate-200 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
@@ -1807,294 +1705,6 @@ function MetricCard({
         )}
       </p>
     </article>
-  );
-}
-
-function VisitorCard({
-  onCheckout,
-  visitor,
-}) {
-  const cardAssigned =
-    visitor.cardStatus ===
-      "assigned" &&
-    visitor.cardNumber;
-
-  const contact = [
-    visitor.phone,
-    visitor.email,
-  ].filter(Boolean);
-
-  return (
-    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-black text-brand-800"
-        >
-          {getInitials(visitor.fullName)}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h3 className="wrap-break-word font-bold text-slate-950">
-            {visitor.fullName}
-          </h3>
-          {visitor.organization ? (
-            <p className="text-sm text-slate-600">
-              {visitor.organization}
-            </p>
-          ) : null}
-        </div>
-
-        <span className="shrink-0 rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-mono text-xs font-bold text-brand-800">
-          {visitor.reference}
-        </span>
-      </div>
-
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <div className="min-w-0">
-          <dt className="text-xs font-semibold text-slate-500">
-            Visiting
-          </dt>
-          <dd className="mt-0.5 font-semibold text-slate-950">
-            {getVisitContact(visitor)}
-          </dd>
-          {visitor.division ? (
-            <dd className="text-xs text-slate-600">
-              {visitor.division}
-            </dd>
-          ) : null}
-        </div>
-
-        <div>
-          <dt className="text-xs font-semibold text-slate-500">
-            Check-in
-          </dt>
-          <dd className="mt-0.5 font-bold text-slate-950">
-            {formatWith(timeFormatter, visitor.checkedInAt)}
-          </dd>
-          <dd className="text-xs text-slate-600">
-            {formatWith(dateFormatter, visitor.checkedInAt)}
-          </dd>
-        </div>
-
-        <div>
-          <dt className="text-xs font-semibold text-slate-500">
-            Agency
-          </dt>
-          <dd className="mt-0.5 font-semibold text-slate-950">
-            {getAgencyShortName(visitor.agency)}
-            <span className="font-normal text-slate-600">
-              {" · "}
-              {getTowerLabel(visitor.tower)}
-            </span>
-          </dd>
-        </div>
-
-        {contact.length ? (
-          <div className="min-w-0">
-            <dt className="text-xs font-semibold text-slate-500">
-              Contact
-            </dt>
-            {contact.map((value) => (
-              <dd
-                className="mt-0.5 break-all text-slate-950"
-                key={value}
-              >
-                {value}
-              </dd>
-            ))}
-          </div>
-        ) : null}
-      </dl>
-
-      <div className="mb-4 mt-4 flex flex-wrap gap-2">
-        <span className="inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
-          {visitor.purpose}
-        </span>
-
-        {visitor.visitorType ? (
-          <VisitorTypeBadge type={visitor.visitorType} />
-        ) : null}
-
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold ${
-            cardAssigned
-              ? "bg-emerald-50 text-brand-800"
-              : "bg-amber-50 text-amber-800"
-          }`}
-        >
-          <span
-            aria-hidden="true"
-            className={`size-1.5 rounded-full ${
-              cardAssigned
-                ? "bg-emerald-500"
-                : "bg-amber-500"
-            }`}
-          />
-          {cardAssigned
-            ? `Card #${visitor.cardNumber}`
-            : "Card not assigned"}
-        </span>
-      </div>
-
-      <button
-        aria-label={`Check out ${visitor.fullName}`}
-        className="mt-auto flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-brand-600 bg-white text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
-        onClick={() =>
-          onCheckout(
-            visitor,
-          )
-        }
-        type="button"
-      >
-        <LogOut
-          aria-hidden="true"
-          className="size-4"
-        />
-        Check out
-      </button>
-    </article>
-  );
-}
-
-function VisitorRow({
-  onCheckout,
-  visitor,
-}) {
-  const cardAssigned =
-    visitor.cardStatus ===
-      "assigned" &&
-    visitor.cardNumber;
-
-  return (
-    <tr className="text-center align-middle transition hover:bg-slate-50">
-      <td className="whitespace-nowrap px-4 py-3">
-        <span className="inline-flex rounded-md border border-brand-100 bg-brand-50 px-2 py-1 font-mono text-xs font-bold text-brand-800">
-          {visitor.reference}
-        </span>
-      </td>
-
-      <td className="px-4 py-3 text-sm">
-        <span
-          className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold ${
-            AGENCY_PILL_CLASSES[visitor.agency] ||
-            "border-slate-200 bg-slate-100 text-slate-700"
-          }`}
-          title={visitor.agency}
-        >
-          {getAgencyShortName(visitor.agency)}
-        </span>
-        <p className="mt-1 text-xs text-slate-500">
-          {getTowerLabel(visitor.tower)}
-        </p>
-      </td>
-
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-black text-brand-800"
-          >
-            {getInitials(visitor.fullName)}
-          </span>
-
-          <div className="min-w-0 text-left">
-            <p className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-950">
-              {visitor.fullName}
-              {visitor.visitorType ? (
-                <VisitorTypeBadge type={visitor.visitorType} />
-              ) : null}
-            </p>
-            <p className="text-xs text-slate-500">
-              {visitor.organization || "No institution provided"}
-            </p>
-          </div>
-        </div>
-      </td>
-
-      <td className="min-w-48 px-4 py-3 text-sm">
-        {visitor.phone ? (
-          <p className="font-medium text-slate-800">
-            {visitor.phone}
-          </p>
-        ) : null}
-        {visitor.email ? (
-          <p className="break-all text-xs text-slate-500">
-            {visitor.email}
-          </p>
-        ) : null}
-      </td>
-
-      <td className="px-4 py-3">
-        <span className="inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
-          {visitor.purpose}
-        </span>
-      </td>
-
-      <td className="min-w-56 px-4 py-3 text-sm">
-        {visitor.division ? (
-          <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-            {visitor.division}
-          </span>
-        ) : null}
-        <p className="mt-1 font-semibold text-slate-800">
-          {getVisitContact(visitor)}
-        </p>
-      </td>
-
-      <td className="whitespace-nowrap px-4 py-3">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-bold ${
-            cardAssigned
-              ? "bg-emerald-50 text-brand-800"
-              : "bg-amber-50 text-amber-800"
-          }`}
-        >
-          <span
-            aria-hidden="true"
-            className={`size-1.5 rounded-full ${
-              cardAssigned
-                ? "bg-emerald-500"
-                : "bg-amber-500"
-            }`}
-          />
-          {cardAssigned
-            ? `Card #${visitor.cardNumber}`
-            : "Not assigned"}
-        </span>
-        <p className="mt-1 text-xs text-slate-500">
-          {getCardStatus(visitor)}
-        </p>
-      </td>
-
-      <td className="whitespace-nowrap px-4 py-3 text-sm">
-        <p className="font-bold text-slate-900">
-          {formatWith(timeFormatter, visitor.checkedInAt)}
-        </p>
-        <p className="text-xs text-slate-500">
-          {formatWith(dateFormatter, visitor.checkedInAt)}
-        </p>
-      </td>
-
-      <td className="px-4 py-3">
-        <button
-          aria-label={`Check out ${visitor.fullName}`}
-          title={`Check out ${visitor.fullName}`}
-          className="inline-grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800 focus-visible:ring-4 focus-visible:ring-brand-200"
-          onClick={() =>
-            onCheckout(
-              visitor,
-            )
-          }
-          type="button"
-        >
-          <LogOut
-            aria-hidden="true"
-            className="size-4"
-          />
-        </button>
-      </td>
-    </tr>
   );
 }
 

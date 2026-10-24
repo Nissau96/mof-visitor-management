@@ -371,9 +371,17 @@ export default {
         weeklyArrivals,
         assignedCards,
       ] = await Promise.all([
+        // Unreturned cards still identify the visit, so the checked-in
+        // table can name the card that needs incident action.
         addVisitorDetails(
           client,
           data.visitors,
+          {
+            cardStatuses: [
+              "assigned",
+              "not_returned",
+            ],
+          },
         ),
         countVisitsThisMonth(
           client,
