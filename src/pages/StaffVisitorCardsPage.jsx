@@ -40,6 +40,7 @@ import useAuth from "../hooks/useAuth.js";
 import { ApiError, apiRequest } from "../lib/api.js";
 import {
   getCheckedInCardVisitors,
+  getCheckedInVisitorCount,
   getPendingAdmissions,
   getVisitorCardIncidents,
 } from "../lib/visitorCardApi.js";
@@ -51,14 +52,17 @@ const RECEPTION_TABS = Object.freeze([
   Object.freeze({
     id: "pending",
     label: "Pending admissions",
+    shortLabel: "Pending",
   }),
   Object.freeze({
     id: "checked-in",
     label: "Checked-in visitors",
+    shortLabel: "Checked-in",
   }),
   Object.freeze({
     id: "incidents",
     label: "Card incidents",
+    shortLabel: "Incidents",
   }),
 ]);
 
@@ -68,6 +72,7 @@ const INCIDENT_TABS = Object.freeze([
   Object.freeze({
     id: "incidents",
     label: "Card incidents",
+    shortLabel: "Incidents",
   }),
 ]);
 
@@ -194,10 +199,16 @@ function toCheckedInRow(record) {
     ...toVisitorRow(record),
     canCheckout: record.canCheckout === true,
     cardNumber: record.cardNumber || null,
+    // "unassigned" rows have no card, so the shared table shows "Awaiting card".
     cardStatus:
-      record.assignmentStatus || null,
+      record.assignmentStatus === "unassigned"
+        ? null
+        : record.assignmentStatus || null,
     checkedInAt: record.checkedInAt,
-    checkoutBlockedReason: `${record.cardNumber || "This card"} requires incident action`,
+    checkoutBlockedReason:
+      record.assignmentStatus === "unassigned"
+        ? "No card was issued. Check this visitor out from the dashboard."
+        : `${record.cardNumber || "This card"} requires incident action`,
     destinationAgency:
       record.destinationAgency || "",
     destinationDetail:
@@ -860,6 +871,9 @@ function Pagination({
   );
 }
 
+// Below md the card is compact (icon + arrow, number, short label, no
+// note) so the cards sit side by side on phones. tone="alert" tints the
+// card red when there is something to act on.
 function StatCard({
   count,
   featured = false,
@@ -867,22 +881,28 @@ function StatCard({
   note,
   noteTone = "neutral",
   onOpen,
+  shortTitle,
   title,
+  tone,
 }) {
+  const alert = tone === "alert";
+
   const noteClasses = featured
     ? "bg-[#ffffff26] text-[#ffffff]"
     : {
         amber: "bg-amber-50 text-amber-800",
         neutral: "bg-slate-100 text-slate-700",
-        red: "bg-red-50 text-red-700",
+        red: "bg-red-100 text-red-800",
       }[noteTone];
 
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl p-5 shadow-sm sm:p-6 ${
+      className={`relative overflow-hidden rounded-2xl p-3 shadow-sm sm:p-4 md:rounded-3xl md:p-6 ${
         featured
           ? "bg-brand-800 text-[#ffffff]"
-          : "border border-slate-200 bg-white text-slate-950"
+          : alert
+            ? "border border-red-200 bg-red-50 text-slate-950"
+            : "border border-slate-200 bg-white text-slate-950"
       }`}
     >
       {featured ? (
@@ -896,41 +916,59 @@ function StatCard({
 
       <div className="relative flex items-center gap-3">
         <span
-          className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+          className={`grid size-8 shrink-0 place-items-center rounded-lg md:size-10 md:rounded-xl ${
             featured
               ? "bg-[#ffffff26]"
-              : noteTone === "red"
-                ? "bg-red-50 text-red-700"
+              : alert || noteTone === "red"
+                ? "bg-red-100 text-red-700"
                 : "bg-brand-50 text-brand-800"
           }`}
         >
-          <Icon aria-hidden="true" className="size-5" />
+          <Icon aria-hidden="true" className="size-4 md:size-5" />
         </span>
 
-        <h2 className="flex-1 font-bold">
+        <h2 className="flex-1 font-bold max-md:sr-only">
           {title}
         </h2>
 
-        <button
-          aria-label={`Show ${title.toLowerCase()}`}
-          className={`grid size-10 shrink-0 place-items-center rounded-full transition focus-visible:ring-4 focus-visible:ring-brand-200 ${
-            featured
-              ? "bg-[#ffffff] text-[#115e59] hover:bg-[#f0fdfa]"
-              : "border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50"
-          }`}
-          onClick={onOpen}
-          type="button"
-        >
-          <ArrowUpRight aria-hidden="true" className="size-4" />
-        </button>
+        <span
+          aria-hidden="true"
+          className="flex-1 md:hidden"
+        />
+
+        {onOpen ? (
+          <button
+            aria-label={`Show ${title.toLowerCase()}`}
+            className={`grid size-8 shrink-0 place-items-center rounded-full transition focus-visible:ring-4 focus-visible:ring-brand-200 md:size-10 ${
+              featured
+                ? "bg-[#ffffff] text-[#115e59] hover:bg-[#f0fdfa]"
+                : alert
+                  ? "border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                  : "border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:bg-brand-50"
+            }`}
+            onClick={onOpen}
+            type="button"
+          >
+            <ArrowUpRight aria-hidden="true" className="size-4" />
+          </button>
+        ) : null}
       </div>
 
-      <p className="relative mt-5 text-5xl font-black">
+      <p className="relative mt-3 text-3xl font-black md:mt-5 md:text-5xl">
         {count ?? "—"}
       </p>
 
       <p
-        className={`relative mt-4 inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${noteClasses}`}
+        aria-hidden="true"
+        className={`relative mt-1 truncate text-xs font-bold md:hidden ${
+          featured ? "text-[#ffffff]" : "text-slate-800"
+        }`}
+      >
+        {shortTitle || title}
+      </p>
+
+      <p
+        className={`relative mt-4 hidden rounded-md px-2.5 py-1 text-xs font-bold md:inline-flex ${noteClasses}`}
       >
         {note}
       </p>
@@ -941,12 +979,13 @@ function StatCard({
 function SegmentedButton({
   active,
   children,
+  className = "",
   onClick,
   ...props
 }) {
   return (
     <button
-      className={`inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm transition ${
+      className={`inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm transition ${className} ${
         active
           ? "bg-[#ffffff] font-bold text-[#0f766e] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
           : "font-semibold text-slate-600 hover:text-slate-900"
@@ -1113,7 +1152,13 @@ export default function StaffVisitorCardsPage() {
                 tower: requestTower,
               }),
             )
-          : null,
+          : settle(
+              getCheckedInVisitorCount({
+                accessToken,
+                signal,
+                tower: requestTower,
+              }),
+            ),
         canManageIncidents
           ? settle(
               getVisitorCardIncidents({
@@ -1165,9 +1210,15 @@ export default function StaffVisitorCardsPage() {
         )
           ? notAssigned
           : null,
-        checkedIn: checkedInResult
-          ? getTotalCount(checkedInResult)
-          : null,
+        checkedIn: !checkedInResult
+          ? null
+          : showsReception
+            ? getTotalCount(checkedInResult)
+            : Number.isInteger(
+                  Number(checkedInResult.checkedIn),
+                )
+              ? Number(checkedInResult.checkedIn)
+              : null,
         firstOpenCard:
           incidentResult?.incidents?.[0]
             ?.cardNumber || "",
@@ -1406,6 +1457,7 @@ export default function StaffVisitorCardsPage() {
           icon: UserPlus,
           id: "pending",
           note: "Waiting at reception",
+          shortTitle: "Pending",
           title: "Pending admissions",
         }
       : null,
@@ -1424,9 +1476,21 @@ export default function StaffVisitorCardsPage() {
             summary.awaitingCard > 0
               ? "amber"
               : "neutral",
+          shortTitle: "Checked-in",
           title: "Checked-in visitors",
         }
-      : null,
+      : clientServiceHead
+        ? {
+            // Count only: there is no checked-in tab to open.
+            count: summary.checkedIn,
+            icon: UserCheck,
+            id: "checked-in",
+            note: "In the building",
+            readOnly: true,
+            shortTitle: "Checked-in",
+            title: "Checked-in visitors",
+          }
+        : null,
     canManageIncidents
       ? {
           count: summary.openIncidents,
@@ -1443,7 +1507,12 @@ export default function StaffVisitorCardsPage() {
             summary.openIncidents > 0
               ? "red"
               : "neutral",
+          shortTitle: "Incidents",
           title: "Open card incidents",
+          tone:
+            summary.openIncidents > 0
+              ? "alert"
+              : undefined,
         }
       : null,
   ].filter(Boolean);
@@ -1495,11 +1564,14 @@ export default function StaffVisitorCardsPage() {
         </div>
       </header>
 
-      <div
-        className={`mt-6 grid gap-4 ${
-          statCards.length > 1
-            ? "md:grid-cols-2 xl:grid-cols-3"
-            : ""
+      <section
+        aria-label="Visitor-card statistics"
+        className={`mt-6 grid gap-2 sm:gap-4 ${
+          {
+            1: "grid-cols-1",
+            2: "grid-cols-2",
+            3: "grid-cols-3 md:grid-cols-2 xl:grid-cols-3",
+          }[statCards.length] || ""
         }`}
       >
         {statCards.map((card, index) => (
@@ -1510,11 +1582,17 @@ export default function StaffVisitorCardsPage() {
             key={card.id}
             note={card.note}
             noteTone={card.noteTone}
-            onOpen={() => changeTab(card.id)}
+            onOpen={
+              card.readOnly
+                ? undefined
+                : () => changeTab(card.id)
+            }
+            shortTitle={card.shortTitle}
             title={card.title}
+            tone={card.tone}
           />
         ))}
-      </div>
+      </section>
 
       <section
         aria-label="Visitor-card records"
@@ -1524,7 +1602,7 @@ export default function StaffVisitorCardsPage() {
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div
               aria-label="Visitor-card views"
-              className="flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-1"
+              className="flex w-full max-w-full gap-1 self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-1 sm:w-auto"
               role="tablist"
             >
               {tabs.map((tab) => {
@@ -1542,18 +1620,28 @@ export default function StaffVisitorCardsPage() {
                   <SegmentedButton
                     active={active}
                     aria-selected={active}
+                    className="max-sm:flex-1 max-sm:justify-center max-sm:gap-1.5 max-sm:px-2"
                     key={tab.id}
                     onClick={() =>
                       changeTab(tab.id)
                     }
                     role="tab"
                   >
-                    {tab.label}
+                    {/* Phones show the short name; screen readers always get the full one. */}
+                    <span
+                      aria-hidden="true"
+                      className="sm:hidden"
+                    >
+                      {tab.shortLabel}
+                    </span>
+                    <span className="max-sm:sr-only">
+                      {tab.label}
+                    </span>
 
                     {count !== null &&
                     count !== undefined ? (
                       <span
-                        className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-black ${
+                        className={`inline-flex min-w-5 items-center justify-center rounded-full px-1 py-0.5 text-xs font-black sm:min-w-6 sm:px-1.5 ${
                           alert
                             ? "bg-red-600 text-[#ffffff]"
                             : active
@@ -1658,6 +1746,7 @@ export default function StaffVisitorCardsPage() {
                     { label: "All card statuses", value: "all" },
                     { label: "Assigned", value: "assigned" },
                     { label: "Not returned", value: "not_returned" },
+                    { label: "Not assigned", value: "unassigned" },
                   ]}
                   size="2xl"
                   value={cardStatus}

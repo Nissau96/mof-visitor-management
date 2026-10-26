@@ -1234,7 +1234,7 @@ export default function StaffHomePage() {
 
                 <Search
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                  className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500"
                 />
 
                 <input
@@ -1244,7 +1244,7 @@ export default function StaffHomePage() {
                       : undefined
                   }
                   autoComplete="off"
-                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pl-9 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100"
+                  className="h-11 min-h-11 w-full rounded-full border border-slate-200 bg-white py-0 pl-10 pr-4 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:ring-4 focus:ring-brand-100"
                   id="dashboard-query"
                   maxLength="80"
                   onChange={(

@@ -138,6 +138,14 @@ async function installMockCardsApi(browserPage) {
   );
 
   await browserPage.route(
+    "**/api/staff/cards/checked-in-count",
+    fulfil({
+      checkedIn: CHECKED_IN.length,
+      scope: { role: "client_service_head", tower: null },
+    }),
+  );
+
+  await browserPage.route(
     "**/api/staff/dashboard",
     fulfil({
       cardAssignment: {
@@ -186,15 +194,30 @@ test.describe("visitor cards page", () => {
       }),
     ).toBeVisible();
 
-    await expect(
-      browserPage.getByText("Waiting at reception"),
-    ).toBeVisible();
-    await expect(
-      browserPage.getByText("1 awaiting a card"),
-    ).toBeVisible();
-    await expect(
-      browserPage.getByText("MOF-V102 overdue"),
-    ).toBeVisible();
+    // Phones show compact cards (short label, no note); wider screens
+    // show the full cards with notes.
+    const phone =
+      (browserPage.viewportSize()?.width ?? 1280) < 768;
+
+    if (phone) {
+      for (const label of ["Pending", "Checked-in", "Incidents"]) {
+        await expect(
+          browserPage
+            .getByLabel("Visitor-card statistics")
+            .getByText(label, { exact: true }),
+        ).toBeVisible();
+      }
+    } else {
+      await expect(
+        browserPage.getByText("Waiting at reception"),
+      ).toBeVisible();
+      await expect(
+        browserPage.getByText("1 awaiting a card"),
+      ).toBeVisible();
+      await expect(
+        browserPage.getByText("MOF-V102 overdue"),
+      ).toBeVisible();
+    }
 
     const visible = (text) =>
       browserPage
@@ -249,6 +272,107 @@ test.describe("visitor cards page", () => {
     ).toBeEnabled();
     await expect(
       visible("2 days overdue"),
+    ).toBeVisible();
+
+    await expectNoWcagViolations(browserPage);
+    await expectNoHorizontalOverflow(browserPage);
+  });
+
+  test("lists checked-in visitors who have no card", async ({
+    page: browserPage,
+  }) => {
+    await installMockStaffAuthentication(browserPage, {
+      fullName: "Synthetic Administrator",
+      role: "admin",
+    });
+    await installMockCardsApi(browserPage);
+
+    // Registered last, so it overrides the default checked-in mock.
+    await browserPage.route(
+      "**/api/staff/cards/checked-in",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            pagination: page(1),
+            visitors: [
+              {
+                assignmentStatus: "unassigned",
+                canCheckout: false,
+                cardNumber: null,
+                checkedInAt: iso(-200),
+                destinationAgency: "Ministry of Finance (MoF)",
+                destinationDivision: "Finance Division",
+                fullName: "Synthetic Cardless Visitor",
+                phone: "+233200000009",
+                purpose: "Official",
+                referenceCode: "VIS-CARD01",
+                tower: "tower_2",
+                visitId: "00000000-0000-4000-8000-000000000209",
+                visitorType: null,
+              },
+            ],
+          },
+          status: 200,
+        });
+      },
+    );
+
+    await signInAsStaff(browserPage, {
+      destination: "/staff/cards",
+    });
+
+    await browserPage
+      .getByRole("tab", { name: /Checked-in visitors/ })
+      .click();
+
+    await expect(
+      browserPage
+        .getByText("Synthetic Cardless Visitor", { exact: true })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+
+    await expect(
+      browserPage
+        .getByRole("button", {
+          name: "No card was issued. Check this visitor out from the dashboard.",
+        })
+        .filter({ visible: true }),
+    ).toBeDisabled();
+  });
+
+  test("gives client service heads a read-only checked-in count", async ({
+    page: browserPage,
+  }) => {
+    await installMockStaffAuthentication(browserPage, {
+      fullName: "Synthetic Client Service Head",
+      role: "client_service_head",
+    });
+    await installMockCardsApi(browserPage);
+
+    await signInAsStaff(browserPage, {
+      destination: "/staff/cards",
+    });
+
+    const stats = browserPage.getByLabel(
+      "Visitor-card statistics",
+    );
+
+    await expect(
+      stats.getByText(String(CHECKED_IN.length), { exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      browserPage.getByRole("button", {
+        name: "Show checked-in visitors",
+      }),
+    ).toHaveCount(0);
+
+    await expect(
+      browserPage.getByRole("button", {
+        name: "Show open card incidents",
+      }),
     ).toBeVisible();
 
     await expectNoWcagViolations(browserPage);

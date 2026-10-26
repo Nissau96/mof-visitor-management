@@ -26,6 +26,7 @@ import {
   visitorCardInvestigationSchema,
   visitorCardNotReturnedSchema,
   visitorCardReprintSchema,
+  checkedInVisitorCountSchema,
 } from "../../src/validation/visitorCards.js";
 
 const RECEPTION_OPERATION_ROLES = Object.freeze([
@@ -64,6 +65,10 @@ const OPERATION_BY_PATH = new Map([
   [
     "/api/staff/cards/checked-in",
     "checked-in-list",
+  ],
+  [
+    "/api/staff/cards/checked-in-count",
+    "checked-in-count",
   ],
   [
     "/api/staff/checkout",
@@ -200,6 +205,13 @@ const OPERATION_MESSAGES = Object.freeze({
       "The checked-in visitor filters are invalid.",
     unexpected:
       "Checked-in visitors could not be loaded. Please try again.",
+  }),
+
+  "checked-in-count": Object.freeze({
+    invalid:
+      "The checked-in count request is invalid.",
+    unexpected:
+      "The checked-in count could not be loaded. Please try again.",
   }),
 
   checkout: Object.freeze({
@@ -391,6 +403,14 @@ function validateResult(
         data.status === "cancelled"
       );
 
+    case "checked-in-count":
+      return (
+        Number.isInteger(
+          Number(data.checkedIn),
+        ) &&
+        isObjectResult(data.scope)
+      );
+
     case "checked-in-list":
       return (
         Array.isArray(data.visitors) &&
@@ -496,6 +516,18 @@ function getOperationConfiguration(operation) {
           "cancel_pending_visitor_admission",
         schema:
           pendingAdmissionCancellationSchema,
+      };
+
+    // Count only: Client Service Heads may see how many visitors are in
+    // without access to the visitor list.
+    case "checked-in-count":
+      return {
+        allowedRoles:
+          INCIDENT_VIEW_ROLES,
+        rpcName:
+          "get_checked_in_visitor_count",
+        schema:
+          checkedInVisitorCountSchema,
       };
 
     case "checked-in-list":
@@ -611,6 +643,12 @@ function createRpcArguments(
         p_reason: values.reason,
         p_tower: towerScope,
         p_visit_id: values.visitId,
+      };
+
+    case "checked-in-count":
+      return {
+        p_actor_id: actorId,
+        p_tower: towerScope,
       };
 
     case "checked-in-list":

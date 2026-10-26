@@ -160,6 +160,7 @@ export const checkedInCardVisitorListSchema =
           "all",
           "assigned",
           "not_returned",
+          "unassigned",
         ])
         .default("all"),
 
@@ -274,6 +275,13 @@ export const visitorCardReprintSchema = z
       "Reprint notes cannot exceed 1,000 characters.",
     ),
 
+    tower: optionalTowerSchema,
+  })
+  .strict();
+
+// Checked-in count for the stat card (all staff roles, tower-scoped).
+export const checkedInVisitorCountSchema = z
+  .object({
     tower: optionalTowerSchema,
   })
   .strict();

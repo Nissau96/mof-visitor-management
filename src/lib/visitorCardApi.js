@@ -16,6 +16,8 @@ export const VISITOR_CARD_ENDPOINTS =
       "/api/staff/cards/cancel",
     checkedIn:
       "/api/staff/cards/checked-in",
+    checkedInCount:
+      "/api/staff/cards/checked-in-count",
     checkout:
       "/api/staff/checkout",
     incidentList:
@@ -153,6 +155,19 @@ export function getCheckedInCardVisitors({
       search,
       tower,
     },
+    signal,
+  );
+}
+
+export function getCheckedInVisitorCount({
+  accessToken,
+  signal,
+  tower = "",
+}) {
+  return authorizedPost(
+    VISITOR_CARD_ENDPOINTS.checkedInCount,
+    accessToken,
+    { tower },
     signal,
   );
 }

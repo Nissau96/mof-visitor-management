@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import ministrySeal from "../assets/images/mof-seal.webp";
-import peerValues from "../assets/images/peer-values.webp";
+import peerValues from "../assets/images/peerwhite.png";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import useAuth from "../hooks/useAuth.js";

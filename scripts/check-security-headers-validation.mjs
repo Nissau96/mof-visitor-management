@@ -128,6 +128,12 @@ const EXPECTED_REWRITES = [
   },
   {
     source:
+      "/api/staff/cards/checked-in-count",
+    destination:
+      "/api/staff/checkout?operation=checked-in-count",
+  },
+  {
+    source:
       "/api/staff/cards/report-not-returned",
     destination:
       "/api/staff/checkout?operation=report-not-returned",
