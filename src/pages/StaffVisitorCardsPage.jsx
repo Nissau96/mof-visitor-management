@@ -875,6 +875,7 @@ function Pagination({
 // note) so the cards sit side by side on phones. tone="alert" tints the
 // card red when there is something to act on.
 function StatCard({
+  className = "",
   count,
   featured = false,
   icon: Icon,
@@ -897,7 +898,7 @@ function StatCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-2xl p-3 shadow-sm sm:p-4 md:rounded-3xl md:p-6 ${
+      className={`relative overflow-hidden rounded-2xl p-3 shadow-sm sm:p-4 md:rounded-3xl md:p-6 lg:p-5 xl:p-6 ${className} ${
         featured
           ? "bg-brand-800 text-[#ffffff]"
           : alert
@@ -927,7 +928,7 @@ function StatCard({
           <Icon aria-hidden="true" className="size-4 md:size-5" />
         </span>
 
-        <h2 className="flex-1 font-bold max-md:sr-only">
+        <h2 className="flex-1 font-bold max-md:sr-only lg:text-sm xl:text-base">
           {title}
         </h2>
 
@@ -1570,12 +1571,19 @@ export default function StaffVisitorCardsPage() {
           {
             1: "grid-cols-1",
             2: "grid-cols-2",
-            3: "grid-cols-3 md:grid-cols-2 xl:grid-cols-3",
+            3: "grid-cols-3 md:grid-cols-2 lg:grid-cols-3",
           }[statCards.length] || ""
         }`}
       >
         {statCards.map((card, index) => (
           <StatCard
+            // Two columns leave the third card alone on its row, so it
+            // spans the full width there.
+            className={
+              statCards.length === 3 && index === 2
+                ? "md:col-span-2 lg:col-span-1"
+                : ""
+            }
             count={card.count}
             featured={index === 0}
             icon={card.icon}
