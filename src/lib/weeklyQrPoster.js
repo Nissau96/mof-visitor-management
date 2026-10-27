@@ -16,6 +16,7 @@ const QR_TOP = 440;
 const FRAME_SIZE = 560;
 const QR_SIZE = 490;
 const PEER_TOP = 1150;
+const PEER_MARGIN = 48;
 
 // Crop of the PEER artwork that drops its empty margins.
 const PEER_CROP = { height: 717, width: 1472, x: 100, y: 90 };
@@ -122,8 +123,11 @@ export async function renderPosterPng({
   );
   context.imageSmoothingEnabled = true;
 
-  // PEER values artwork on its own white band (its background is white).
-  context.fillStyle = "#fefefe";
+  // PEER values artwork (transparent, white lettering) on a teal band,
+  // inset so its lettering does not touch the poster edge.
+  const peerWidth = WIDTH - PEER_MARGIN * 2;
+  const peerHeight = (peerWidth / PEER_CROP.width) * PEER_CROP.height;
+  context.fillStyle = TEAL;
   context.fillRect(0, PEER_TOP, WIDTH, HEIGHT - PEER_TOP);
   context.drawImage(
     peer,
@@ -131,10 +135,10 @@ export async function renderPosterPng({
     PEER_CROP.y,
     PEER_CROP.width,
     PEER_CROP.height,
-    0,
-    PEER_TOP,
-    WIDTH,
-    HEIGHT - PEER_TOP,
+    PEER_MARGIN,
+    PEER_TOP + (HEIGHT - PEER_TOP - peerHeight) / 2,
+    peerWidth,
+    peerHeight,
   );
 
   return canvas.toDataURL("image/png");

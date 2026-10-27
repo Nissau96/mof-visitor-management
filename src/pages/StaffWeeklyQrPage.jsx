@@ -552,7 +552,8 @@ function ReceptionPoster({ qrDataUrl, weeklyQr }) {
         </div>
       </div>
 
-      <div className="bg-[#fefefe]">
+      {/* The PEER artwork is transparent with white lettering, so it sits on teal. */}
+      <div className="bg-[#134e4a]">
         <img
           alt="PEER: Professional, Ethical, Efficient, Responsive"
           className="mx-auto aspect-[2/1] w-full max-w-2xl object-cover print:max-w-[150mm]"
