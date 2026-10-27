@@ -18,6 +18,16 @@ const pageSizeSchema = z.coerce
   .max(PAGE_SIZE_MAXIMUM)
   .default(10);
 
+// The inventory shows cards as a grid of tiles, so it takes larger pages.
+const INVENTORY_PAGE_SIZE_MAXIMUM = 24;
+
+const inventoryPageSizeSchema = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(INVENTORY_PAGE_SIZE_MAXIMUM)
+  .default(INVENTORY_PAGE_SIZE_MAXIMUM);
+
 const searchSchema = z
   .string()
   .trim()
@@ -293,7 +303,7 @@ export const adminVisitorCardInventorySchema =
         cardTypeFilterSchema,
 
       page: pageSchema,
-      pageSize: pageSizeSchema,
+      pageSize: inventoryPageSizeSchema,
       search: searchSchema,
 
       status: z

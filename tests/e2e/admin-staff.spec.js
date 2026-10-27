@@ -108,6 +108,16 @@ function filterStaff(
         staffMember.active
       ) ||
       (
+        status === "setup_pending" &&
+        staffMember.passwordChangeRequired &&
+        Date.parse(staffMember.temporaryPasswordExpiresAt) > Date.now()
+      ) ||
+      (
+        status === "setup_expired" &&
+        staffMember.passwordChangeRequired &&
+        Date.parse(staffMember.temporaryPasswordExpiresAt) <= Date.now()
+      ) ||
+      (
         status === "inactive" &&
         !staffMember.active
       );
@@ -118,6 +128,35 @@ function filterStaff(
       matchesStatus
     );
   });
+}
+
+function summarizeStaff(staff) {
+  const count = (test) =>
+    staff.filter(test).length;
+
+  const pending = (member) =>
+    member.passwordChangeRequired;
+
+  const expired = (member) =>
+    pending(member) &&
+    Date.parse(member.temporaryPasswordExpiresAt) <= Date.now();
+
+  return {
+    activeCount: count((member) => member.active),
+    adminCount: count((member) => member.role === "admin"),
+    clientServiceHeadCount: count(
+      (member) => member.role === "client_service_head",
+    ),
+    deactivatedCount: count((member) => !member.active),
+    receptionistCount: count(
+      (member) => member.role === "receptionist",
+    ),
+    setupExpiredCount: count(expired),
+    setupPendingCount: count(
+      (member) => pending(member) && !expired(member),
+    ),
+    totalCount: staff.length,
+  };
 }
 
 async function expectNoHorizontalOverflow(
@@ -214,6 +253,7 @@ async function installMockStaffAdministration(
             ),
           },
           staff,
+          summary: summarizeStaff(state.staff),
         },
         status: 200,
       });
@@ -584,15 +624,12 @@ test.describe(
     "Administrator",
   );
 
-        await chooseOption(
-    page,
-    "Status",
-    "Inactive",
-  );
-
         await page
+          .getByRole("group", {
+            name: "Account status",
+          })
           .getByRole("button", {
-            name: "Apply",
+            name: "Deactivated",
           })
           .click();
 
@@ -653,6 +690,21 @@ test.describe(
 
         await expect(dialog).toBeVisible();
 
+        // Sending stays disabled until both fields have text.
+        await expect(
+          dialog.getByRole("button", {
+            name: "Send invitation",
+          }),
+        ).toBeDisabled();
+
+        await dialog
+          .getByLabel(/^Full name/i)
+          .fill("A");
+
+        await dialog
+          .getByLabel(/^Email address/i)
+          .fill("not-an-email");
+
         await dialog
           .getByRole("button", {
             name: "Send invitation",
@@ -689,11 +741,10 @@ test.describe(
             "NEW.STAFF@example.invalid",
           );
 
-        await chooseOption(
-    dialog,
-    /Authorised role/i,
-    "Administrator",
-  );
+        await dialog
+          .locator("label")
+          .filter({ hasText: /^Administrator$/ })
+          .click();
 
         await dialog
           .getByRole("button", {
@@ -771,7 +822,7 @@ test.describe(
 
         await staffRecord
           .getByRole("button", {
-            name: "Edit",
+            name: /^Edit/,
           })
           .click();
 
@@ -795,18 +846,15 @@ test.describe(
             "Synthetic Staff 01 Updated",
           );
 
-        await chooseOption(
-    dialog,
-    /Authorised role/i,
-    "Administrator",
-  );
+        await dialog
+          .locator("label")
+          .filter({ hasText: /^Administrator$/ })
+          .click();
 
         await dialog
-          .getByRole("checkbox", {
-            name:
-              /Active staff access/i,
-          })
-          .uncheck();
+          .locator("label")
+          .filter({ hasText: /^Inactive$/ })
+          .click();
 
         await dialog
           .getByRole("button", {
@@ -861,7 +909,7 @@ test.describe(
 
         await expect(
           updatedRecord.getByText(
-            "Inactive",
+            "Deactivated",
             {
               exact: true,
             },
@@ -889,7 +937,7 @@ test.describe(
 
         await expect(
           staffRecord.getByText(
-            "Password setup pending",
+            "Setup pending",
             {
               exact: true,
             },
@@ -1066,12 +1114,6 @@ test.describe(
               "Staff name or email",
           })
           .fill("Staff 13");
-
-        await page
-          .getByRole("button", {
-            name: "Apply",
-          })
-          .click();
 
         const ownRecord = page
           .locator(

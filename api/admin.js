@@ -485,6 +485,13 @@ async function handleHostList(request) {
         totalCount: 0,
         totalPages: 0,
       },
+      // Whole-table counts; null until the summary migration is applied.
+      summary:
+        data?.summary &&
+        typeof data.summary === "object" &&
+        !Array.isArray(data.summary)
+          ? data.summary
+          : null,
     },
     200,
   );
@@ -603,6 +610,13 @@ async function handleStaffList(request) {
       staff: Array.isArray(data?.staff)
         ? data.staff
         : [],
+      // Whole-table counts; null until the summary migration is applied.
+      summary:
+        data?.summary &&
+        typeof data.summary === "object" &&
+        !Array.isArray(data.summary)
+          ? data.summary
+          : null,
     },
     200,
   );

@@ -122,7 +122,15 @@ export const adminStaffListSchema = z
         "Staff search cannot exceed 120 characters.",
       )
       .default(""),
-    status: statusFilterSchema.default("all"),
+    status: z
+      .enum([
+        "all",
+        "active",
+        "inactive",
+        "setup_pending",
+        "setup_expired",
+      ])
+      .default("all"),
   })
   .strict();
 

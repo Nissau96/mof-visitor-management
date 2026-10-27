@@ -1,25 +1,47 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Building2,
-  ChevronLeft,
-  ChevronRight,
+  Ban,
+  Check,
   CirclePlus,
+  Landmark,
   LoaderCircle,
   Pencil,
   RefreshCw,
-  Search,
   Users,
-  X,
 } from "lucide-react";
 import {
   useEffect,
+  useEffectEvent,
   useState,
 } from "react";
-import { useForm } from "react-hook-form";
-import AppSelect from "../components/AppSelect.jsx";
+import {
+  Controller,
+  useForm,
+  useWatch,
+} from "react-hook-form";
+import AdminDialog, {
+  DIALOG_CANCEL_BUTTON,
+  DIALOG_INPUT,
+  DIALOG_PRIMARY_BUTTON,
+  DialogBody,
+  DialogFooter,
+} from "../components/AdminDialog.jsx";
+import {
+  FILLED_BUTTON,
+  InitialsAvatar,
+  OUTLINE_BUTTON,
+  SearchPill,
+  StateChip,
+  SuccessBanner,
+  TABLE_HEAD_CELL,
+} from "../components/AdminRecords.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
+import ListPagination from "../components/ListPagination.jsx";
 import LoadingState from "../components/LoadingState.jsx";
+import SegmentedButton from "../components/SegmentedButton.jsx";
+import SegmentedChoice from "../components/SegmentedChoice.jsx";
+import StatCard from "../components/StatCard.jsx";
 import useAuth from "../hooks/useAuth.js";
 import {
   ApiError,
@@ -30,10 +52,12 @@ import {
   adminHostSaveSchema,
 } from "../validation/adminManagement.js";
 
-const EMPTY_FILTERS = {
+const PAGE_SIZE = 10;
+
+const INITIAL_FILTERS = Object.freeze({
   search: "",
   status: "all",
-};
+});
 
 const dateFormatter = new Intl.DateTimeFormat(
   "en-GH",
@@ -42,9 +66,6 @@ const dateFormatter = new Intl.DateTimeFormat(
     timeZone: "Africa/Accra",
   },
 );
-
-const inputClassName =
-  "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100";
 
 function formatDate(value) {
   const date = new Date(value);
@@ -109,38 +130,68 @@ function normalizeHostList(result) {
   return {
     hosts: result.hosts,
     pagination,
+    summary: normalizeHostSummary(
+      result.summary,
+    ),
   };
 }
 
-function getVisiblePages(currentPage, totalPages) {
-  if (totalPages <= 0) {
-    return [];
+// Whole-table counts and the department list. Null until the summary
+// migration is applied, in which case the stat cards are hidden.
+function normalizeHostSummary(summary) {
+  if (
+    !summary ||
+    typeof summary !== "object" ||
+    !Array.isArray(summary.departments)
+  ) {
+    return null;
   }
 
-  if (totalPages <= 5) {
-    return Array.from(
-      { length: totalPages },
-      (_, index) => index + 1,
-    );
+  const counts = {
+    activeCount: Number(summary.activeCount),
+    departmentCount: Number(
+      summary.departmentCount,
+    ),
+    inactiveCount: Number(summary.inactiveCount),
+    totalCount: Number(summary.totalCount),
+  };
+
+  if (
+    !Object.values(counts).every(
+      (value) =>
+        Number.isInteger(value) && value >= 0,
+    )
+  ) {
+    return null;
   }
 
-  const start = Math.min(
-    Math.max(currentPage - 2, 1),
-    totalPages - 4,
-  );
-
-  return Array.from(
-    { length: 5 },
-    (_, index) => start + index,
-  );
+  return {
+    ...counts,
+    departments: summary.departments.filter(
+      (department) =>
+        typeof department === "string",
+    ),
+  };
 }
 
-function sameFilters(first, second) {
-  return (
-    first.search === second.search &&
-    first.status === second.status
-  );
+const RECORDS_ID = "host-records";
+
+function scrollToRecords(options) {
+  document
+    .getElementById(RECORDS_ID)
+    ?.scrollIntoView(options);
 }
+
+const STATUS_FILTERS = Object.freeze([
+  Object.freeze({ label: "All", value: "all" }),
+  Object.freeze({ label: "Active", value: "active" }),
+  Object.freeze({ label: "Inactive", value: "inactive" }),
+]);
+
+const STATUS_CHOICES = Object.freeze([
+  Object.freeze({ label: "Active", value: true }),
+  Object.freeze({ label: "Inactive", value: false }),
+]);
 
 export default function AdminHostsPage() {
   const { session, signOut } = useAuth();
@@ -154,20 +205,17 @@ export default function AdminHostsPage() {
   const [requestError, setRequestError] =
     useState("");
 
-  const [filterError, setFilterError] =
+  const [searchError, setSearchError] =
     useState("");
 
   const [successMessage, setSuccessMessage] =
     useState("");
 
   const [filters, setFilters] =
-    useState(EMPTY_FILTERS);
+    useState(INITIAL_FILTERS);
 
   const [searchDraft, setSearchDraft] =
     useState("");
-
-  const [statusDraft, setStatusDraft] =
-    useState("all");
 
   const [page, setPage] = useState(1);
 
@@ -192,7 +240,7 @@ export default function AdminHostsPage() {
     apiRequest("/api/admin/hosts/list", {
       body: JSON.stringify({
         page,
-        pageSize: 10,
+        pageSize: PAGE_SIZE,
         search: filters.search,
         status: filters.status,
       }),
@@ -251,60 +299,59 @@ export default function AdminHostsPage() {
     signOut,
   ]);
 
-  function submitFilters(event) {
-    event.preventDefault();
-    setFilterError("");
-
-    const parsed =
-      adminHostListSchema.safeParse({
-        page: 1,
-        pageSize: 10,
-        search: searchDraft,
-        status: statusDraft,
-      });
-
-    if (!parsed.success) {
-      setFilterError(
-        parsed.error.issues[0]?.message ||
-          "Check the host filters and try again.",
-      );
-      return;
-    }
-
-    const nextFilters = {
-      search: parsed.data.search,
-      status: parsed.data.status,
-    };
-
-    const unchanged =
-      page === 1 &&
-      sameFilters(filters, nextFilters);
-
-    setHostList(null);
-    setRequestError("");
-    setRequestStatus("loading");
+  function updateFilters(changes) {
+    setFilters((current) => ({
+      ...current,
+      ...changes,
+    }));
     setPage(1);
-    setFilters(nextFilters);
-
-    if (unchanged) {
-      setRefreshKey(
-        (currentKey) => currentKey + 1,
-      );
-    }
+    setRequestStatus("loading");
   }
 
-  function clearFilters() {
-    setSearchDraft("");
-    setStatusDraft("all");
-    setFilterError("");
-    setFilters(EMPTY_FILTERS);
-    setHostList(null);
-    setRequestError("");
-    setRequestStatus("loading");
-    setPage(1);
-    setRefreshKey(
-      (currentKey) => currentKey + 1,
-    );
+  const applySearch = useEffectEvent(
+    (value) => {
+      if (filters.search !== value) {
+        updateFilters({ search: value });
+      }
+    },
+  );
+
+  // Search runs shortly after typing stops.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const parsed =
+        adminHostListSchema.shape.search.safeParse(
+          searchDraft,
+        );
+
+      if (!parsed.success) {
+        setSearchError(
+          parsed.error.issues[0]?.message ||
+            "Check the search and try again.",
+        );
+        return;
+      }
+
+      setSearchError("");
+      applySearch(parsed.data);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [searchDraft]);
+
+  function showInPanel(changes) {
+    updateFilters(changes);
+
+    scrollToRecords({
+      behavior: window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
   }
 
   function refreshHosts() {
@@ -326,14 +373,11 @@ export default function AdminHostsPage() {
       return;
     }
 
-    setHostList(null);
-    setRequestError("");
     setRequestStatus("loading");
     setPage(nextPage);
 
-    window.scrollTo({
-      behavior: "smooth",
-      top: 0,
+    scrollToRecords({
+      block: "start",
     });
   }
 
@@ -399,7 +443,6 @@ export default function AdminHostsPage() {
           : `${result.host.fullName} was updated successfully.`,
       );
 
-      setHostList(null);
       setRequestError("");
       setRequestStatus("loading");
       setPage(1);
@@ -429,21 +472,53 @@ export default function AdminHostsPage() {
   const loading =
     requestStatus === "loading";
 
-  const filtersApplied = Boolean(
-    filters.search ||
-      filters.status !== "all",
-  );
+  const summary = hostList?.summary || null;
 
-  const visiblePages = getVisiblePages(
-    page,
-    hostList?.pagination.totalPages || 0,
-  );
+  const statCards = summary
+    ? [
+        {
+          count: summary.totalCount.toLocaleString(),
+          icon: Landmark,
+          id: "total",
+          note: `${summary.departmentCount.toLocaleString()} ${
+            summary.departmentCount === 1
+              ? "department"
+              : "departments"
+          }`,
+          onOpen: () =>
+            showInPanel({ status: "all" }),
+          shortTitle: "Total",
+          title: "Total hosts",
+        },
+        {
+          count: summary.activeCount.toLocaleString(),
+          icon: Check,
+          id: "active",
+          note: "Shown to visitors",
+          noteTone: "brand",
+          onOpen: () =>
+            showInPanel({ status: "active" }),
+          shortTitle: "Active",
+          title: "Active hosts",
+        },
+        {
+          count: summary.inactiveCount.toLocaleString(),
+          icon: Ban,
+          id: "inactive",
+          note: "Hidden from visitor workflows",
+          onOpen: () =>
+            showInPanel({ status: "inactive" }),
+          shortTitle: "Inactive",
+          title: "Inactive hosts",
+        },
+      ]
+    : [];
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-800">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
+      <header className="flex flex-col gap-4 px-1 pt-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Administration
           </p>
 
@@ -451,23 +526,23 @@ export default function AdminHostsPage() {
             Hosts
           </h1>
 
-          <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-            Add and maintain people or offices that can
-            receive visitors. Deactivate records that should
-            no longer appear in visitor workflows.
+          <p className="mt-3 max-w-3xl leading-7 text-slate-600">
+            Add and maintain the people and offices
+            that receive visitors. Inactive hosts no
+            longer appear in visitor workflows.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className={OUTLINE_BUTTON}
             disabled={loading}
             onClick={refreshHosts}
             type="button"
           >
             <RefreshCw
               aria-hidden="true"
-              className={`size-5 ${
+              className={`size-4 ${
                 loading ? "animate-spin" : ""
               }`}
             />
@@ -475,156 +550,51 @@ export default function AdminHostsPage() {
           </button>
 
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900"
+            className={FILLED_BUTTON}
             onClick={openCreateHost}
             type="button"
           >
             <CirclePlus
               aria-hidden="true"
-              className="size-5"
+              className="size-4"
             />
             Add host
           </button>
         </div>
       </header>
 
-      {successMessage ? (
-        <div
-          className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"
-          role="status"
-        >
-          <p className="flex-1">
-            {successMessage}
-          </p>
+      <SuccessBanner
+        message={successMessage}
+        onDismiss={() => setSuccessMessage("")}
+      />
 
-          <button
-            aria-label="Dismiss confirmation"
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
-            onClick={() =>
-              setSuccessMessage("")
-            }
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
+      {statCards.length ? (
+        <section
+          aria-label="Host statistics"
+          className="mt-6 grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-3"
+        >
+          {statCards.map((card, index) => (
+            <StatCard
+              // Two columns leave the third card alone on its row, so it
+              // spans the full width there.
+              className={
+                index === 2
+                  ? "md:col-span-2 lg:col-span-1"
+                  : ""
+              }
+              count={card.count}
+              featured={index === 0}
+              icon={card.icon}
+              key={card.id}
+              note={card.note}
+              noteTone={card.noteTone}
+              onOpen={card.onOpen}
+              shortTitle={card.shortTitle}
+              title={card.title}
             />
-          </button>
-        </div>
+          ))}
+        </section>
       ) : null}
-
-      <section
-        aria-labelledby="host-filters-heading"
-        className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
-      >
-        <h2
-          className="text-xl font-black text-slate-950"
-          id="host-filters-heading"
-        >
-          Search and filter
-        </h2>
-
-        <form
-          className="mt-6 grid gap-5 md:grid-cols-[1fr_0.7fr_auto]"
-          noValidate
-          onSubmit={submitFilters}
-        >
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="host-search"
-            >
-              Host name or department
-            </label>
-
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                autoComplete="off"
-                className={`${inputClassName} pl-12`}
-                id="host-search"
-                maxLength="80"
-                onChange={(event) =>
-                  setSearchDraft(
-                    event.target.value,
-                  )
-                }
-                placeholder="Search hosts"
-                type="search"
-                value={searchDraft}
-              />
-            </div>
-          </div>
-
-          <AppSelect
-
-            className="grid gap-2"
-
-            id="host-status"
-
-            label="Status"
-
-            labelClassName="font-bold text-slate-800"
-
-            onChange={setStatusDraft}
-
-            options={[
-
-              { label: "All hosts", value: "all" },
-
-              { label: "Active", value: "active" },
-
-              { label: "Inactive", value: "inactive" },
-
-            ]}
-
-            value={statusDraft}
-
-          />
-
-          <div className="flex items-end">
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading}
-              type="submit"
-            >
-              <Search
-                aria-hidden="true"
-                className="size-5"
-              />
-              Apply
-            </button>
-          </div>
-        </form>
-
-        {filterError ? (
-          <p
-            className="mt-4 text-sm font-semibold text-red-700"
-            role="alert"
-          >
-            {filterError}
-          </p>
-        ) : null}
-
-        {filtersApplied ? (
-          <button
-            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-            disabled={loading}
-            onClick={clearFilters}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
-            />
-            Clear filters
-          </button>
-        ) : null}
-      </section>
 
       {loading && !hostList ? (
         <div className="mt-6">
@@ -647,31 +617,90 @@ export default function AdminHostsPage() {
         <section
           aria-busy={loading}
           aria-labelledby="host-records-heading"
-          className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          className="mt-4 scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          id={RECORDS_ID}
         >
-          <div className="border-b border-slate-200 p-5 sm:p-7">
-            <h2
-              className="text-xl font-black text-slate-950"
-              id="host-records-heading"
-            >
-              Host records
-            </h2>
+          <div className="flex flex-col gap-4 p-4 sm:p-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2
+                className="text-xl font-black text-slate-950"
+                id="host-records-heading"
+              >
+                Host records
+              </h2>
 
-            <p className="mt-2 text-sm text-slate-600">
-              {hostList.pagination.totalCount}{" "}
-              {hostList.pagination.totalCount ===
-              1
-                ? "matching host"
-                : "matching hosts"}
-            </p>
+              <p
+                aria-live="polite"
+                className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800"
+              >
+                {hostList.pagination.totalCount.toLocaleString()}{" "}
+                {hostList.pagination.totalCount ===
+                1
+                  ? "matching host"
+                  : "matching hosts"}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <SearchPill
+                describedBy={
+                  searchError
+                    ? "host-search-error"
+                    : undefined
+                }
+                id="host-search"
+                label="Host name or department"
+                maxLength="80"
+                onChange={setSearchDraft}
+                placeholder="Host name or department"
+                value={searchDraft}
+              />
+
+              <div
+                aria-label="Host status"
+                className="flex max-w-full gap-1 self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-1 lg:self-auto"
+                role="group"
+              >
+                {STATUS_FILTERS.map((option) => {
+                  const active =
+                    filters.status ===
+                    option.value;
+
+                  return (
+                    <SegmentedButton
+                      active={active}
+                      aria-pressed={active}
+                      key={option.value}
+                      onClick={() =>
+                        updateFilters({
+                          status: option.value,
+                        })
+                      }
+                    >
+                      {option.label}
+                    </SegmentedButton>
+                  );
+                })}
+              </div>
+            </div>
+
+            {searchError ? (
+              <p
+                className="text-sm font-semibold text-red-700"
+                id="host-search-error"
+                role="alert"
+              >
+                {searchError}
+              </p>
+            ) : null}
           </div>
 
           {hostList.hosts.length === 0 ? (
-            <div className="p-5 sm:p-8">
+            <div className="px-4 pb-6 sm:px-6">
               <div className="rounded-2xl bg-slate-50 p-6 text-center">
                 <Users
                   aria-hidden="true"
-                  className="mx-auto size-10 text-slate-400"
+                  className="mx-auto size-10 text-slate-500"
                 />
 
                 <h3 className="mt-4 font-black text-slate-950">
@@ -679,14 +708,15 @@ export default function AdminHostsPage() {
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  No host matches the current search and
-                  status filter.
+                  No host matches this search and
+                  status. Try another filter or add a
+                  host.
                 </p>
               </div>
             </div>
           ) : (
-            <>
-              <div className="grid gap-4 p-4 md:hidden">
+            <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"}>
+              <div className="grid gap-3 px-4 pb-4 md:hidden">
                 {hostList.hosts.map((host) => (
                   <HostCard
                     host={host}
@@ -698,34 +728,34 @@ export default function AdminHostsPage() {
 
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full border-collapse text-left">
-                  <thead className="bg-slate-50 text-sm text-slate-700">
+                  <thead className="border-y border-slate-200 bg-slate-50">
                     <tr>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} pl-6`}
                         scope="col"
                       >
                         Host
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Department
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Status
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Added
                       </th>
                       <th
-                        className="px-6 py-4 text-right font-bold"
+                        className={`${TABLE_HEAD_CELL} pr-6 text-center`}
                         scope="col"
                       >
                         Action
@@ -744,25 +774,24 @@ export default function AdminHostsPage() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </div>
           )}
 
-          {hostList.pagination.totalPages >
-          1 ? (
-            <Pagination
-              currentPage={page}
-              goToPage={goToPage}
-              totalPages={
-                hostList.pagination.totalPages
-              }
-              visiblePages={visiblePages}
-            />
-          ) : null}
+          <ListPagination
+            goToPage={goToPage}
+            label="Host administration pages"
+            noun="hosts"
+            nounSingular="host"
+            pagination={hostList.pagination}
+          />
         </section>
       ) : null}
 
       {editor ? (
         <HostEditor
+          departments={
+            summary?.departments || []
+          }
           editor={editor}
           error={editorError}
           key={
@@ -779,14 +808,18 @@ export default function AdminHostsPage() {
 
 function HostStatus({ active }) {
   return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${
-        active
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-slate-200 text-slate-700"
-      }`}
-    >
+    <StateChip on={active}>
       {active ? "Active" : "Inactive"}
+    </StateChip>
+  );
+}
+
+function DepartmentChip({ department }) {
+  return (
+    <span className="inline-flex max-w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-800">
+      <span className="truncate">
+        {department}
+      </span>
     </span>
   );
 }
@@ -794,7 +827,8 @@ function HostStatus({ active }) {
 function EditButton({ host, onEdit }) {
   return (
     <button
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
+      aria-label={`Edit ${host.fullName}`}
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
       onClick={() => onEdit(host)}
       type="button"
     >
@@ -809,26 +843,28 @@ function EditButton({ host, onEdit }) {
 
 function HostCard({ host, onEdit }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="wrap-break-word text-lg font-black text-slate-950">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start gap-3">
+        <InitialsAvatar name={host.fullName} />
+
+        <div className="min-w-0 flex-1">
+          <h3 className="wrap-break-word font-black text-slate-950">
             {host.fullName}
           </h3>
 
-          <p className="mt-2 wrap-break-word text-sm text-slate-600">
-            {host.department}
+          <p className="mt-0.5 text-xs text-slate-600">
+            Added {formatDate(host.createdAt)}
           </p>
         </div>
 
         <HostStatus active={host.active} />
       </div>
 
-      <p className="mt-5 text-sm text-slate-500">
-        Added {formatDate(host.createdAt)}
-      </p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <DepartmentChip department={host.department} />
+        </div>
 
-      <div className="mt-5 border-t border-slate-200 pt-5">
         <EditButton
           host={host}
           onEdit={onEdit}
@@ -840,24 +876,30 @@ function HostCard({ host, onEdit }) {
 
 function HostRow({ host, onEdit }) {
   return (
-    <tr className="align-top hover:bg-slate-50">
-      <td className="px-6 py-5 font-black text-slate-950">
-        {host.fullName}
+    <tr className="hover:bg-slate-50">
+      <td className="py-4 pl-6 pr-5">
+        <div className="flex items-center gap-3">
+          <InitialsAvatar name={host.fullName} />
+
+          <span className="font-bold text-slate-950">
+            {host.fullName}
+          </span>
+        </div>
       </td>
 
-      <td className="px-6 py-5 text-slate-700">
-        {host.department}
+      <td className="max-w-xs px-5 py-4 text-center">
+        <DepartmentChip department={host.department} />
       </td>
 
-      <td className="px-6 py-5">
+      <td className="px-5 py-4 text-center">
         <HostStatus active={host.active} />
       </td>
 
-      <td className="whitespace-nowrap px-6 py-5 text-sm text-slate-600">
+      <td className="whitespace-nowrap px-5 py-4 text-center text-sm text-slate-700">
         {formatDate(host.createdAt)}
       </td>
 
-      <td className="px-6 py-5 text-right">
+      <td className="py-4 pl-5 pr-6 text-center">
         <EditButton
           host={host}
           onEdit={onEdit}
@@ -868,6 +910,7 @@ function HostRow({ host, onEdit }) {
 }
 
 function HostEditor({
+  departments,
   editor,
   error,
   onCancel,
@@ -875,7 +918,8 @@ function HostEditor({
   saving,
 }) {
   const {
-    formState: { errors },
+    control,
+    formState: { errors, isDirty },
     handleSubmit,
     register,
   } = useForm({
@@ -895,99 +939,72 @@ function HostEditor({
 
   const creating = editor.mode === "create";
 
+  // Adding needs both fields; saving needs a change.
+  const [fullName, department] = useWatch({
+    control,
+    name: ["fullName", "department"],
+  });
+
+  const ready = creating
+    ? Boolean(
+        fullName.trim() &&
+          department.trim(),
+      )
+    : isDirty;
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
-      role="presentation"
+    <AdminDialog
+      busy={saving}
+      closeLabel="Close host editor"
+      eyebrow="Host administration"
+      onClose={onCancel}
+      title={creating ? "Add host" : "Edit host"}
     >
-      <section
-        aria-labelledby="host-editor-heading"
-        aria-modal="true"
-        className="w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
-        role="dialog"
+      <form
+        noValidate
+        onSubmit={handleSubmit(onSave)}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-brand-800">
-              Host administration
-            </p>
-
-            <h2
-              className="mt-2 text-2xl font-black text-slate-950"
-              id="host-editor-heading"
-            >
-              {creating
-                ? "Add host"
-                : "Edit host"}
-            </h2>
-          </div>
-
-          <button
-            aria-label="Close host editor"
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            disabled={saving}
-            onClick={onCancel}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-5"
-            />
-          </button>
-        </div>
-
-        {error ? (
-          <div className="mt-5">
+        <DialogBody>
+          {error ? (
             <ErrorMessage
               message={error}
               title="Host could not be saved"
             />
-          </div>
-        ) : null}
+          ) : null}
 
-        <form
-          className="mt-6 grid gap-5"
-          noValidate
-          onSubmit={handleSubmit(onSave)}
-        >
           <Field
             error={errors.fullName?.message}
             id="host-full-name"
-            label="Host full name"
+            label="Host name"
             required
           >
-            <div className="relative">
-              <Building2
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                aria-describedby={
-                  errors.fullName
-                    ? "host-full-name-error"
-                    : undefined
-                }
-                aria-invalid={Boolean(
-                  errors.fullName,
-                )}
-                autoComplete="off"
-                autoFocus
-                className={`${inputClassName} pl-12`}
-                disabled={saving}
-                id="host-full-name"
-                maxLength="120"
-                {...register("fullName")}
-              />
-            </div>
+            <input
+              aria-describedby={
+                errors.fullName
+                  ? "host-full-name-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(
+                errors.fullName,
+              )}
+              autoComplete="off"
+              autoFocus
+              className={DIALOG_INPUT}
+              disabled={saving}
+              id="host-full-name"
+              maxLength="120"
+              placeholder="Person or office name"
+              {...register("fullName")}
+            />
           </Field>
 
           <Field
             error={errors.department?.message}
             id="host-department"
-            label="Department or office"
+            label="Department"
             required
           >
+            {/* Suggests existing departments; a new one can still be typed. */}
             <input
               aria-describedby={
                 errors.department
@@ -998,153 +1015,76 @@ function HostEditor({
                 errors.department,
               )}
               autoComplete="off"
-              className={inputClassName}
+              className={DIALOG_INPUT}
               disabled={saving}
               id="host-department"
+              list="host-department-options"
               maxLength="120"
+              placeholder="Start typing a department"
               {...register("department")}
             />
+
+            <datalist id="host-department-options">
+              {departments.map((department) => (
+                <option
+                  key={department}
+                  value={department}
+                />
+              ))}
+            </datalist>
           </Field>
 
-          <label className="flex min-h-12 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <input
-              className="mt-1 size-5 rounded border-slate-300 text-brand-800 focus:ring-brand-600"
-              disabled={saving}
-              type="checkbox"
-              {...register("active")}
-            />
-
-            <span>
-              <span className="block font-black text-slate-950">
-                Active host
-              </span>
-              <span className="mt-1 block text-sm leading-6 text-slate-600">
-                Active hosts can appear in visitor
-                workflows. Clear this option to retain the
-                record without making it available.
-              </span>
-            </span>
-          </label>
-
-          <div className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              disabled={saving}
-              onClick={onCancel}
-              type="button"
-            >
-              Cancel
-            </button>
-
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving}
-              type="submit"
-            >
-              {saving ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-5 animate-spin"
-                />
-              ) : creating ? (
-                <CirclePlus
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              ) : (
-                <Pencil
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              )}
-
-              {saving
-                ? "Saving…"
-                : creating
-                  ? "Add host"
-                  : "Save changes"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-function Pagination({
-  currentPage,
-  goToPage,
-  totalPages,
-  visiblePages,
-}) {
-  return (
-    <nav
-      aria-label="Host administration pages"
-      className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
-    >
-      <p
-        aria-live="polite"
-        className="text-center text-sm font-semibold text-slate-600 sm:text-left"
-      >
-        Page {currentPage} of {totalPages}
-      </p>
-
-      <div className="flex items-center justify-center gap-2">
-        <button
-          aria-label="Previous page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={currentPage <= 1}
-          onClick={() =>
-            goToPage(currentPage - 1)
-          }
-          type="button"
-        >
-          <ChevronLeft
-            aria-hidden="true"
-            className="size-5"
+          <Controller
+            control={control}
+            name="active"
+            render={({ field }) => (
+              <SegmentedChoice
+                description={
+                  field.value
+                    ? "Visitors and reception can select this host."
+                    : "This host stays on record but no longer appears in visitor workflows."
+                }
+                disabled={saving}
+                legend="Status"
+                name="host-status"
+                onChange={field.onChange}
+                options={STATUS_CHOICES}
+                value={field.value}
+              />
+            )}
           />
-        </button>
+        </DialogBody>
 
-        <div className="hidden items-center gap-2 sm:flex">
-          {visiblePages.map((pageNumber) => (
-            <button
-              aria-current={
-                pageNumber === currentPage
-                  ? "page"
-                  : undefined
-              }
-              aria-label={`Page ${pageNumber}`}
-              className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
-                pageNumber === currentPage
-                  ? "border-brand-800 bg-brand-800 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              key={pageNumber}
-              onClick={() =>
-                goToPage(pageNumber)
-              }
-              type="button"
-            >
-              {pageNumber}
-            </button>
-          ))}
-        </div>
+        <DialogFooter>
+          <button
+            className={DIALOG_CANCEL_BUTTON}
+            disabled={saving}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
 
-        <button
-          aria-label="Next page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={currentPage >= totalPages}
-          onClick={() =>
-            goToPage(currentPage + 1)
-          }
-          type="button"
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className="size-5"
-          />
-        </button>
-      </div>
-    </nav>
+          <button
+            className={DIALOG_PRIMARY_BUTTON}
+            disabled={saving || !ready}
+            type="submit"
+          >
+            {saving ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-4 animate-spin"
+              />
+            ) : null}
+
+            {saving
+              ? "Saving…"
+              : creating
+                ? "Add host"
+                : "Save changes"}
+          </button>
+        </DialogFooter>
+      </form>
+    </AdminDialog>
   );
 }

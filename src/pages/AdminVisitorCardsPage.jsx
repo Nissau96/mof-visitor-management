@@ -1,12 +1,14 @@
 import {
   AlertTriangle,
+  Archive,
   ArrowRightLeft,
-  Boxes,
-  ChevronLeft,
-  ChevronRight,
+  ArrowUpRight,
+  Building2,
+  Check,
   CirclePlus,
   CreditCard,
   LoaderCircle,
+  MapPin,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -15,11 +17,16 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useEffectEvent,
+  useRef,
   useState,
 } from "react";
 import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
+import ListPagination from "../components/ListPagination.jsx";
 import LoadingState from "../components/LoadingState.jsx";
+import SegmentedButton from "../components/SegmentedButton.jsx";
+import StatCard from "../components/StatCard.jsx";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError } from "../lib/api.js";
 import {
@@ -33,14 +40,15 @@ import {
   adminVisitorCardTowerSchema,
 } from "../validation/visitorCards.js";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 24;
 
-const EMPTY_FILTERS = {
-  cardType: "all",
+// The page always shows one card type, Regular first.
+const INITIAL_FILTERS = Object.freeze({
+  cardType: "regular",
   search: "",
   status: "all",
   tower: "all",
-};
+});
 
 const inputClassName =
   "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100";
@@ -308,69 +316,13 @@ function normalizeInventory(result) {
   return {
     cards: result.cards,
     pagination,
-    summary,
-  };
-}
-
-function getVisiblePages(
-  currentPage,
-  totalPages,
-) {
-  if (totalPages <= 0) {
-    return [];
-  }
-
-  if (totalPages <= 5) {
-    return Array.from(
-      {
-        length: totalPages,
-      },
-      (_, index) => index + 1,
-    );
-  }
-
-  const start = Math.min(
-    Math.max(currentPage - 2, 1),
-    totalPages - 4,
-  );
-
-  return Array.from(
-    {
-      length: 5,
+    summary: {
+      ...summary,
+      towerCountsByType:
+        result.summary.towerCountsByType ||
+        null,
     },
-    (_, index) => start + index,
-  );
-}
-
-function sameFilters(first, second) {
-  return (
-    first.cardType === second.cardType &&
-    first.search === second.search &&
-    first.status === second.status &&
-    first.tower === second.tower
-  );
-}
-
-function SummaryCard({
-  description,
-  label,
-  value,
-}) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-bold text-slate-600">
-        {label}
-      </p>
-
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-        {value.toLocaleString()}
-      </p>
-
-      <p className="mt-2 text-xs leading-5 text-slate-500">
-        {description}
-      </p>
-    </article>
-  );
+  };
 }
 
 function CardLineage({ card }) {
@@ -471,175 +423,6 @@ function IncidentDetails({ incident }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function InventoryCard({
-  card,
-  onChangeTower,
-}) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-black text-brand-900">
-            {card.cardNumber}
-          </p>
-
-          <p className="mt-1 text-sm text-slate-600">
-            {formatCardType(
-              card.cardType,
-            )}{" "}
-            visitor card
-          </p>
-        </div>
-
-        <StatusBadge
-          status={card.status}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-4 border-y border-slate-200 py-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
-            Tower
-          </p>
-
-          <p className="mt-1 font-semibold text-slate-900">
-            {formatTower(card.tower)}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
-            Sequence
-          </p>
-
-          <p className="mt-1 font-semibold text-slate-900">
-            {card.replacementSequence >
-            0
-              ? `R${card.replacementSequence}`
-              : "Original"}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <CardLineage card={card} />
-      </div>
-
-      <div className="mt-4">
-        <AssignmentDetails
-          assignment={
-            card.activeAssignment
-          }
-        />
-      </div>
-
-      <IncidentDetails
-        incident={card.activeIncident}
-      />
-
-      {card.status ===
-      "deactivated" ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-          <p className="font-bold">
-            {formatStatus(
-              card.deactivationReason,
-            ) || "Deactivated"}
-          </p>
-
-          {card.deactivationNotes ? (
-            <p className="mt-1 text-xs leading-5">
-              {card.deactivationNotes}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      <button className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={!card.canChangeTower} onClick={() => onChangeTower(card)} type="button">
-        <ArrowRightLeft aria-hidden="true" className="size-4" />
-        {card.canChangeTower
-          ? "Change tower"
-          : "Tower locked"}
-      </button>
-    </article>
-  );
-}
-
-function InventoryRow({
-  card,
-  onChangeTower,
-}) {
-  return (
-    <tr>
-      <td className="px-6 py-5 align-top">
-        <p className="font-black text-brand-900">
-          {card.cardNumber}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          Base{" "}
-          {String(
-            card.baseNumber,
-          ).padStart(3, "0")}
-        </p>
-
-        <div className="mt-2">
-          <CardLineage card={card} />
-        </div>
-      </td>
-
-      <td className="px-6 py-5 align-top">
-        <p className="font-semibold text-slate-900">
-          {formatCardType(
-            card.cardType,
-          )}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          {card.replacementSequence >
-          0
-            ? `Replacement R${card.replacementSequence}`
-            : "Original card"}
-        </p>
-      </td>
-
-      <td className="px-6 py-5 align-top">
-        <p className="font-semibold text-slate-900">
-          {formatTower(card.tower)}
-        </p>
-      </td>
-
-      <td className="px-6 py-5 align-top">
-        <StatusBadge
-          status={card.status}
-        />
-
-        <IncidentDetails
-          incident={
-            card.activeIncident
-          }
-        />
-      </td>
-
-      <td className="px-6 py-5 align-top">
-        <AssignmentDetails
-          assignment={
-            card.activeAssignment
-          }
-        />
-      </td>
-
-      <td className="px-6 py-5 text-right align-top">
-        <button aria-label={`Change tower for ${card.cardNumber}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={!card.canChangeTower} onClick={() => onChangeTower(card)} title={card.canChangeTower ? "Change issuing tower" : "Only available cards can change tower"} type="button">
-          <ArrowRightLeft aria-hidden="true" className="size-4" />
-          <span className="hidden xl:inline">
-            Change tower
-          </span>
-        </button>
-      </td>
-    </tr>
   );
 }
 
@@ -1014,35 +797,293 @@ function ChangeTowerModal({
   );
 }
 
-function Pagination({
-  currentPage,
-  goToPage,
-  totalPages,
-}) {
-  const visiblePages =
-    getVisiblePages(
-      currentPage,
-      totalPages,
-    );
+// Physical-card colours. Explicit hex values keep the tiles the same in
+// light and dark mode, like the printed cards they stand for.
+const CARD_TYPE_STYLES = Object.freeze({
+  regular: Object.freeze({
+    dot: "bg-[#0f766e]",
+    tile: "bg-[#115e59]",
+    text: "text-[#115e59]",
+  }),
+  vip: Object.freeze({
+    dot: "bg-[#881337]",
+    tile: "bg-[#881337]",
+    text: "text-[#881337]",
+  }),
+});
+
+const TILE_STATUS_STYLES = Object.freeze({
+  assigned: "text-[#1d4ed8]",
+  available: "text-[#047857]",
+  deactivated: "text-[#475569]",
+  investigating: "text-[#6d28d9]",
+  not_returned: "text-[#b91c1c]",
+});
+
+const TYPE_FILTERS = Object.freeze([
+  Object.freeze({
+    countKey: "regularCount",
+    label: "Regular",
+    value: "regular",
+  }),
+  Object.freeze({
+    countKey: "vipCount",
+    label: "VIP",
+    value: "vip",
+  }),
+]);
+
+const TOWER_FILTERS = Object.freeze([
+  Object.freeze({
+    label: "Tower 1",
+    value: "tower_1",
+  }),
+  Object.freeze({
+    label: "Tower 2",
+    value: "tower_2",
+  }),
+]);
+
+// Investigating and Deactivated only appear when some card has that status.
+const STATUS_FILTERS = Object.freeze([
+  Object.freeze({
+    label: "All",
+    value: "all",
+  }),
+  Object.freeze({
+    label: "Available",
+    value: "available",
+  }),
+  Object.freeze({
+    label: "Assigned",
+    value: "assigned",
+  }),
+  Object.freeze({
+    label: "Not returned",
+    value: "not_returned",
+  }),
+  Object.freeze({
+    countKey: "investigatingCount",
+    label: "Investigating",
+    value: "investigating",
+  }),
+  Object.freeze({
+    countKey: "deactivatedCount",
+    label: "Deactivated",
+    value: "deactivated",
+  }),
+]);
+
+const PILL_BUTTON =
+  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-bold transition focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed";
+
+function formatBaseNumber(card) {
+  const base = `Base ${String(
+    card.baseNumber,
+  ).padStart(3, "0")}`;
+
+  return card.replacementSequence > 0
+    ? `${base} · R${card.replacementSequence}`
+    : base;
+}
+
+// Tower counts for one card type. Null until the database returns them,
+// in which case both tower tabs show without counts.
+function getTowerCounts(
+  summary,
+  cardType,
+) {
+  const counts =
+    summary.towerCountsByType?.[
+      cardType
+    ];
+
+  return counts &&
+    Number.isInteger(
+      Number(counts.tower_1),
+    ) &&
+    Number.isInteger(
+      Number(counts.tower_2),
+    )
+    ? {
+        tower_1: Number(counts.tower_1),
+        tower_2: Number(counts.tower_2),
+      }
+    : null;
+}
+
+function TileStatus({ status }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-[#ffffff] px-2 py-0.5 text-[0.6875rem] font-black ${
+        TILE_STATUS_STYLES[status] ||
+        "text-[#475569]"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className="size-1.5 rounded-full bg-current"
+      />
+      {formatStatus(status)}
+    </span>
+  );
+}
+
+function CardTile({ card, onOpen }) {
+  const styles =
+    CARD_TYPE_STYLES[card.cardType];
 
   return (
-    <nav aria-label="Visitor-card inventory pages" className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-200 px-4 py-5">
-      <button aria-label="Previous page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)} type="button">
-        <ChevronLeft aria-hidden="true" className="size-5" />
-      </button>
+    <article
+      className={`relative isolate flex min-h-40 flex-col overflow-hidden rounded-2xl p-3.5 text-[#ffffff] shadow-sm ${styles.tile}`}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-14 -right-12 -z-10 size-36 rounded-full border-[12px] border-[#ffffff14]"
+      >
+        <span className="absolute inset-5 rounded-full border-8 border-[#ffffff12]" />
+      </span>
 
-      {visiblePages.map(
-        (pageNumber) => (
-          <button aria-current={pageNumber === currentPage ? "page" : undefined} className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${pageNumber === currentPage ? "border-brand-800 bg-brand-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`} key={pageNumber} onClick={() => goToPage(pageNumber)} type="button">
-            {pageNumber}
-          </button>
-        ),
-      )}
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <h3 className="text-base font-black leading-tight tracking-tight">
+          {card.cardNumber}
+        </h3>
 
-      <button aria-label="Next page" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)} type="button">
-        <ChevronRight aria-hidden="true" className="size-5" />
-      </button>
-    </nav>
+        <TileStatus status={card.status} />
+      </div>
+
+      <p className="mt-1 text-xs font-semibold text-[#ffffffd9]">
+        {formatBaseNumber(card)}
+      </p>
+
+      <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-black">
+            <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+            {formatTower(card.tower)}
+          </p>
+
+          <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-[#ffffffd9]">
+            {card.activeAssignment
+              ? card.activeAssignment.fullName
+              : "No active assignment"}
+          </p>
+        </div>
+
+        <button
+          aria-label={`View ${card.cardNumber} details`}
+          className={`grid size-9 shrink-0 place-items-center rounded-full bg-[#ffffff] transition hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ffffff80] ${styles.text}`}
+          onClick={() => onOpen(card)}
+          type="button"
+        >
+          <ArrowUpRight aria-hidden="true" className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function DetailItem({ children, label }) {
+  return (
+    <div>
+      <dt className="text-xs font-bold text-slate-500">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm font-semibold text-slate-900">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+function CardDetailsModal({
+  card,
+  onChangeTower,
+  onClose,
+}) {
+  return (
+    <ModalShell busy={false} description={`${formatCardType(card.cardType)} visitor card issued from ${formatTower(card.tower)}.`} onClose={onClose} title={card.cardNumber}>
+      <div className="space-y-5 px-5 py-5 sm:px-6">
+        <dl className="grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <DetailItem label="Status">
+            <StatusBadge status={card.status} />
+          </DetailItem>
+
+          <DetailItem label="Number">
+            {formatBaseNumber(card)}
+          </DetailItem>
+
+          <DetailItem label="Type">
+            {formatCardType(card.cardType)}
+          </DetailItem>
+
+          <DetailItem label="Tower">
+            {formatTower(card.tower)}
+          </DetailItem>
+        </dl>
+
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">
+            Active assignment
+          </h3>
+          <div className="mt-2">
+            <AssignmentDetails
+              assignment={
+                card.activeAssignment
+              }
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">
+            Card history
+          </h3>
+          <div className="mt-2">
+            <CardLineage card={card} />
+          </div>
+        </div>
+
+        <IncidentDetails
+          incident={card.activeIncident}
+        />
+
+        {card.status === "deactivated" ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <p className="font-bold">
+              {formatStatus(
+                card.deactivationReason,
+              ) || "Deactivated"}
+            </p>
+
+            {card.deactivationNotes ? (
+              <p className="mt-1 text-xs leading-5">
+                {card.deactivationNotes}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {card.canChangeTower ? null : (
+          <p className="text-sm leading-6 text-slate-600">
+            Only an available card without an
+            open assignment can move to another
+            tower.
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <button className={`${PILL_BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`} onClick={onClose} type="button">
+          Close
+        </button>
+
+        <button className={`${PILL_BUTTON} bg-brand-800 text-white hover:bg-brand-900 disabled:bg-slate-200 disabled:text-slate-500`} disabled={!card.canChangeTower} onClick={() => onChangeTower(card)} type="button">
+          <ArrowRightLeft aria-hidden="true" className="size-4" />
+          Change tower
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -1062,21 +1103,12 @@ export default function AdminVisitorCardsPage() {
     useState("");
 
   const [filters, setFilters] =
-    useState(EMPTY_FILTERS);
+    useState(INITIAL_FILTERS);
 
   const [searchDraft, setSearchDraft] =
     useState("");
 
-  const [cardTypeDraft, setCardTypeDraft] =
-    useState("all");
-
-  const [towerDraft, setTowerDraft] =
-    useState("all");
-
-  const [statusDraft, setStatusDraft] =
-    useState("all");
-
-  const [filterError, setFilterError] =
+  const [searchError, setSearchError] =
     useState("");
 
   const [page, setPage] =
@@ -1087,6 +1119,8 @@ export default function AdminVisitorCardsPage() {
 
   const [action, setAction] =
     useState(null);
+
+  const panelRef = useRef(null);
 
   const accessToken =
     session?.access_token || "";
@@ -1159,80 +1193,63 @@ export default function AdminVisitorCardsPage() {
     signOut,
   ]);
 
-  function beginLoading() {
-    setInventory(null);
-    setRequestError("");
+  const applySearch = useEffectEvent(
+    (value) => {
+      if (filters.search !== value) {
+        updateFilters({ search: value });
+      }
+    },
+  );
+
+  // Search runs shortly after typing stops.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const parsed =
+        adminVisitorCardInventorySchema.shape.search.safeParse(
+          searchDraft,
+        );
+
+      if (!parsed.success) {
+        setSearchError(
+          parsed.error.issues[0]?.message ||
+            "Check the search and try again.",
+        );
+        return;
+      }
+
+      setSearchError("");
+      applySearch(parsed.data);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [searchDraft]);
+
+  function updateFilters(changes) {
+    setFilters((current) => ({
+      ...current,
+      ...changes,
+    }));
+    setPage(1);
     setRequestStatus("loading");
   }
 
-  function submitFilters(event) {
-    event.preventDefault();
-    setFilterError("");
+  function showInPanel(changes) {
+    updateFilters(changes);
 
-    const parsed =
-      adminVisitorCardInventorySchema.safeParse(
-        {
-          cardType: cardTypeDraft,
-          page: 1,
-          pageSize: PAGE_SIZE,
-          search: searchDraft,
-          status: statusDraft,
-          tower: towerDraft,
-        },
-      );
-
-    if (!parsed.success) {
-      setFilterError(
-        parsed.error.issues[0]?.message ||
-          "Check the inventory filters and try again.",
-      );
-      return;
-    }
-
-    const nextFilters = {
-      cardType:
-        parsed.data.cardType,
-      search: parsed.data.search,
-      status: parsed.data.status,
-      tower: parsed.data.tower,
-    };
-
-    const unchanged =
-      page === 1 &&
-      sameFilters(
-        filters,
-        nextFilters,
-      );
-
-    beginLoading();
-    setPage(1);
-    setFilters(nextFilters);
-
-    if (unchanged) {
-      setRefreshKey(
-        (currentKey) =>
-          currentKey + 1,
-      );
-    }
-  }
-
-  function clearFilters() {
-    setSearchDraft("");
-    setCardTypeDraft("all");
-    setTowerDraft("all");
-    setStatusDraft("all");
-    setFilterError("");
-    setFilters(EMPTY_FILTERS);
-    beginLoading();
-    setPage(1);
-    setRefreshKey(
-      (currentKey) =>
-        currentKey + 1,
-    );
+    panelRef.current?.scrollIntoView({
+      behavior: window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
   }
 
   function refreshInventory() {
-    beginLoading();
+    setRequestStatus("loading");
     setRefreshKey(
       (currentKey) =>
         currentKey + 1,
@@ -1252,12 +1269,11 @@ export default function AdminVisitorCardsPage() {
       return;
     }
 
-    beginLoading();
+    setRequestStatus("loading");
     setPage(nextPage);
 
-    window.scrollTo({
-      behavior: "smooth",
-      top: 0,
+    panelRef.current?.scrollIntoView({
+      block: "start",
     });
   }
 
@@ -1268,12 +1284,19 @@ export default function AdminVisitorCardsPage() {
     });
   }
 
+  function openDetails(card) {
+    setSuccessMessage("");
+    setAction({
+      card,
+      type: "details",
+    });
+  }
+
   function openTowerChange(card) {
     if (!card.canChangeTower) {
       return;
     }
 
-    setSuccessMessage("");
     setAction({
       card,
       type: "tower",
@@ -1287,29 +1310,148 @@ export default function AdminVisitorCardsPage() {
   function completeAction(message) {
     setAction(null);
     setSuccessMessage(message);
-    beginLoading();
-    setPage(1);
-    setRefreshKey(
-      (currentKey) =>
-        currentKey + 1,
-    );
+    refreshInventory();
   }
 
   const loading =
     requestStatus === "loading";
 
-  const filtersApplied = Boolean(
-    filters.search ||
-      filters.cardType !== "all" ||
-      filters.tower !== "all" ||
-      filters.status !== "all",
-  );
+  const summary = inventory?.summary;
+
+  const towerCounts = summary
+    ? getTowerCounts(
+        summary,
+        filters.cardType,
+      )
+    : null;
+
+  const typeTotal = summary
+    ? summary[
+        TYPE_FILTERS.find(
+          (option) =>
+            option.value ===
+            filters.cardType,
+        ).countKey
+      ]
+    : null;
+
+  // A tower with no cards of this type has nothing to show, unless it is
+  // the one already selected.
+  const towerTabs = [
+    {
+      count: typeTotal,
+      label: "All",
+      value: "all",
+    },
+    ...TOWER_FILTERS.map((option) => ({
+      ...option,
+      count: towerCounts
+        ? towerCounts[option.value]
+        : null,
+    })).filter(
+      (option) =>
+        option.count === null ||
+        option.count > 0 ||
+        option.value === filters.tower,
+    ),
+  ];
+
+  const statusFilters =
+    STATUS_FILTERS.filter(
+      (option) =>
+        !option.countKey ||
+        !summary ||
+        summary[option.countKey] > 0 ||
+        option.value === filters.status,
+    );
+
+  const statCards = summary
+    ? [
+        {
+          count: (
+            summary.regularCount +
+            summary.vipCount
+          ).toLocaleString(),
+          icon: Archive,
+          id: "total",
+          note: `${summary.regularCount.toLocaleString()} regular · ${summary.vipCount.toLocaleString()} VIP`,
+          onOpen: () =>
+            showInPanel({
+              status: "all",
+              tower: "all",
+            }),
+          shortTitle: "Total",
+          title: "Total inventory",
+        },
+        {
+          count:
+            summary.availableCount.toLocaleString(),
+          icon: Check,
+          id: "available",
+          note: `${summary.assignedCount.toLocaleString()} currently assigned`,
+          noteTone: "brand",
+          onOpen: () =>
+            showInPanel({
+              status: "available",
+            }),
+          shortTitle: "Available",
+          title: "Available cards",
+        },
+        {
+          count: (
+            <>
+              {summary.tower1Count.toLocaleString()}
+              <span className="sr-only">
+                {" "}in Tower 1,{" "}
+              </span>
+              <span
+                aria-hidden="true"
+                className="mx-1 text-2xl font-bold text-slate-400 md:text-4xl"
+              >
+                /
+              </span>
+              {summary.tower2Count.toLocaleString()}
+              <span className="sr-only">
+                {" "}in Tower 2
+              </span>
+            </>
+          ),
+          icon: Building2,
+          id: "towers",
+          note: "Tower 1 / Tower 2",
+          noteTone: "blue",
+          onOpen: () =>
+            showInPanel({
+              tower: "all",
+            }),
+          shortTitle: "Tower 1 / 2",
+          title: "Tower allocation",
+        },
+        {
+          count:
+            summary.notReturnedCount.toLocaleString(),
+          icon: AlertTriangle,
+          id: "not-returned",
+          note: `${summary.investigatingCount.toLocaleString()} investigating · ${summary.deactivatedCount.toLocaleString()} deactivated`,
+          onOpen: () =>
+            showInPanel({
+              status: "not_returned",
+            }),
+          shortTitle: "Not returned",
+          title: "Not returned",
+          tone:
+            summary.notReturnedCount > 0
+              ? "alert"
+              : undefined,
+        },
+      ]
+    : [];
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-800">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
+      <header className="flex flex-col gap-4 px-1 pt-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Administration
           </p>
 
@@ -1317,23 +1459,22 @@ export default function AdminVisitorCardsPage() {
             Visitor-card inventory
           </h1>
 
-          <p className="mt-4 max-w-3xl leading-7 text-slate-600">
+          <p className="mt-3 max-w-3xl leading-7 text-slate-600">
             Manage regular and VIP visitor
-            cards, review their current
-            assignment state, and control
-            the tower from which available
-            cards are issued.
+            cards, review their assignment
+            state, and control the tower each
+            card is issued from.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} onClick={refreshInventory} type="button">
-            <RefreshCw aria-hidden="true" className={`size-5 ${loading ? "animate-spin" : ""}`} />
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <button className={`${PILL_BUTTON} border border-brand-600 bg-white text-brand-800 hover:bg-brand-50 disabled:opacity-60`} disabled={loading} onClick={refreshInventory} type="button">
+            <RefreshCw aria-hidden="true" className={`size-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
 
-          <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900" onClick={openCreateCards} type="button">
-            <CirclePlus aria-hidden="true" className="size-5" />
+          <button className={`${PILL_BUTTON} bg-brand-800 text-white hover:bg-brand-900`} onClick={openCreateCards} type="button">
+            <CirclePlus aria-hidden="true" className="size-4" />
             Add cards
           </button>
         </div>
@@ -1351,147 +1492,26 @@ export default function AdminVisitorCardsPage() {
         </div>
       ) : null}
 
-      {inventory ? (
-        <section aria-label="Visitor-card inventory summary" className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard description={`${inventory.summary.regularCount.toLocaleString()} regular and ${inventory.summary.vipCount.toLocaleString()} VIP cards`} label="Total inventory" value={inventory.summary.regularCount + inventory.summary.vipCount} />
-
-          <SummaryCard description={`${inventory.summary.assignedCount.toLocaleString()} currently assigned`} label="Available cards" value={inventory.summary.availableCount} />
-
-          <SummaryCard description={`${inventory.summary.tower1Count.toLocaleString()} in Tower 1 and ${inventory.summary.tower2Count.toLocaleString()} in Tower 2`} label="Tower allocation" value={inventory.summary.tower1Count + inventory.summary.tower2Count} />
-
-          <SummaryCard description={`${inventory.summary.investigatingCount.toLocaleString()} investigating and ${inventory.summary.deactivatedCount.toLocaleString()} deactivated`} label="Not returned" value={inventory.summary.notReturnedCount} />
+      {statCards.length ? (
+        <section aria-label="Visitor-card inventory summary" className="mt-6 grid grid-cols-2 gap-2 sm:gap-4 min-[1400px]:grid-cols-4">
+          {statCards.map((card, index) => (
+            <StatCard
+              count={card.count}
+              featured={index === 0}
+              icon={card.icon}
+              key={card.id}
+              note={card.note}
+              noteTone={card.noteTone}
+              onOpen={card.onOpen}
+              shortTitle={card.shortTitle}
+              title={card.title}
+              tone={card.tone}
+            />
+          ))}
         </section>
       ) : null}
 
-      <section aria-labelledby="card-inventory-filters-heading" className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-        <div className="flex items-center gap-3">
-          <Search aria-hidden="true" className="size-5 text-brand-800" />
-
-          <h2 className="text-xl font-black text-slate-950" id="card-inventory-filters-heading">
-            Search and filter
-          </h2>
-        </div>
-
-        <form className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-[1.4fr_0.75fr_0.75fr_0.9fr_auto]" noValidate onSubmit={submitFilters}>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Card or visitor
-            </span>
-
-            <div className="relative">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-
-              <input autoComplete="off" className={`${inputClassName} pl-12`} maxLength="120" onChange={(event) => setSearchDraft(event.target.value)} placeholder="Card, visitor or reference" type="search" value={searchDraft} />
-            </div>
-          </label>
-
-          <AppSelect
-
-            id="inventory-card-type-2"
-
-            label="Card type"
-
-            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
-
-            onChange={setCardTypeDraft}
-
-            options={[
-
-              { label: "All types", value: "all" },
-
-              { label: "Regular", value: "regular" },
-
-              { label: "VIP", value: "vip" },
-
-            ]}
-
-            size="3xl"
-
-            value={cardTypeDraft}
-
-          />
-
-          <AppSelect
-
-            id="inventory-tower"
-
-            label="Tower"
-
-            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
-
-            onChange={setTowerDraft}
-
-            options={[
-
-              { label: "All towers", value: "all" },
-
-              { label: "Tower 1", value: "tower_1" },
-
-              { label: "Tower 2", value: "tower_2" },
-
-            ]}
-
-            size="3xl"
-
-            value={towerDraft}
-
-          />
-
-          <AppSelect
-
-            id="inventory-status"
-
-            label="Status"
-
-            labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
-
-            onChange={setStatusDraft}
-
-            options={[
-
-              { label: "All statuses", value: "all" },
-
-              { label: "Available", value: "available" },
-
-              { label: "Assigned", value: "assigned" },
-
-              { label: "Not returned", value: "not_returned" },
-
-              { label: "Investigating", value: "investigating" },
-
-              { label: "Deactivated", value: "deactivated" },
-
-            ]}
-
-            size="3xl"
-
-            value={statusDraft}
-
-          />
-
-          <div className="flex items-end">
-            <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading} type="submit">
-              <Search aria-hidden="true" className="size-5" />
-              Apply
-            </button>
-          </div>
-        </form>
-
-        {filterError ? (
-          <p className="mt-4 text-sm font-semibold text-red-700" role="alert">
-            {filterError}
-          </p>
-        ) : null}
-
-        {filtersApplied ? (
-          <button className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50" disabled={loading} onClick={clearFilters} type="button">
-            <X aria-hidden="true" className="size-4" />
-            Clear filters
-          </button>
-        ) : null}
-      </section>
-
-      {loading && !inventory ? (
+      {!inventory && loading ? (
         <div className="mt-6">
           <LoadingState message="Loading visitor-card inventory…" />
         </div>
@@ -1503,114 +1523,129 @@ export default function AdminVisitorCardsPage() {
         </div>
       ) : null}
 
-      {inventory &&
-      requestStatus !== "error" ? (
-        <section aria-busy={loading} aria-labelledby="visitor-card-records-heading" className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div>
-              <h2 className="text-xl font-black text-slate-950" id="visitor-card-records-heading">
-                Inventory records
-              </h2>
+      {inventory && requestStatus !== "error" ? (
+        <section aria-busy={loading} aria-labelledby="visitor-card-records-heading" className="@container mt-4 scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" ref={panelRef}>
+          <h2 className="sr-only" id="visitor-card-records-heading">
+            Visitor cards
+          </h2>
 
-              <p className="mt-2 text-sm text-slate-600">
+          <div className="flex flex-col gap-4 p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div aria-label="Card type" className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-1" role="group">
+                {TYPE_FILTERS.map((option) => {
+                  const active =
+                    filters.cardType ===
+                    option.value;
+
+                  return (
+                    <SegmentedButton active={active} aria-pressed={active} key={option.value} onClick={() => updateFilters({ cardType: option.value, tower: "all" })}>
+                      <span aria-hidden="true" className={`size-2.5 rounded-sm ${CARD_TYPE_STYLES[option.value].dot}`} />
+                      {option.label}
+                      <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-black ${active ? (option.value === "vip" ? "bg-[#881337] text-[#ffffff]" : "bg-brand-800 text-[#ffffff]") : "bg-slate-200 text-slate-700"}`}>
+                        {summary[option.countKey].toLocaleString()}
+                      </span>
+                    </SegmentedButton>
+                  );
+                })}
+              </div>
+
+              <p aria-live="polite" className="rounded-full bg-brand-50 px-3 py-1.5 text-sm font-bold text-brand-800">
                 {inventory.pagination.totalCount.toLocaleString()}{" "}
-                {inventory.pagination.totalCount ===
-                1
+                {inventory.pagination.totalCount === 1
                   ? "matching card"
                   : "matching cards"}
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
-              <Boxes aria-hidden="true" className="size-4" />
-              Page{" "}
-              {inventory.pagination.page}{" "}
-              of{" "}
-              {Math.max(
-                inventory.pagination
-                  .totalPages,
-                1,
-              )}
+            <div aria-label="Tower" className="flex max-w-full gap-2 overflow-x-auto border-b border-slate-200" role="group">
+              {towerTabs.map((option) => {
+                const active =
+                  filters.tower ===
+                  option.value;
+
+                return (
+                  <button aria-pressed={active} className={`-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-2 text-sm sm:gap-2 sm:px-3 transition focus-visible:ring-4 focus-visible:ring-brand-200 ${active ? "border-brand-700 font-bold text-brand-800" : "border-transparent font-semibold text-slate-600 hover:text-slate-900"}`} key={option.value} onClick={() => updateFilters({ tower: option.value })} type="button">
+                    {option.value === "all" ? null : (
+                      <MapPin aria-hidden="true" className="size-4 max-sm:hidden" />
+                    )}
+                    {option.label}
+                    {option.count !== null ? (
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-black ${active ? "bg-brand-100 text-brand-800" : "bg-slate-100 text-slate-700"}`}>
+                        {option.count.toLocaleString()}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
+
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <form className="relative w-full min-w-0 lg:max-w-md" onSubmit={(event) => event.preventDefault()} role="search">
+                <label className="sr-only" htmlFor="inventory-search">
+                  Search visitor cards
+                </label>
+
+                <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+
+                <input aria-describedby={searchError ? "inventory-search-error" : undefined} aria-invalid={searchError ? true : undefined} autoComplete="off" className="h-11 min-h-11 w-full rounded-full border border-slate-200 bg-slate-50 py-0 pl-11 pr-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-100" id="inventory-search" maxLength="80" onChange={(event) => setSearchDraft(event.target.value)} placeholder="Card number, e.g. 205, or visitor" type="search" value={searchDraft} />
+              </form>
+
+              <div aria-label="Card status" className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full sm:gap-1 border border-slate-200 bg-slate-100 p-1 lg:self-auto" role="group">
+                {statusFilters.map((option) => {
+                  const active =
+                    filters.status ===
+                    option.value;
+
+                  return (
+                    <SegmentedButton active={active} aria-pressed={active} className="max-sm:px-2.5" key={option.value} onClick={() => updateFilters({ status: option.value })}>
+                      {option.label}
+                    </SegmentedButton>
+                  );
+                })}
+              </div>
+            </div>
+
+            {searchError ? (
+              <p className="text-sm font-semibold text-red-700" id="inventory-search-error" role="alert">
+                {searchError}
+              </p>
+            ) : null}
           </div>
 
-          {inventory.cards.length ===
-          0 ? (
-            <div className="p-5 sm:p-8">
+          {inventory.cards.length === 0 ? (
+            <div className="px-4 pb-6 sm:px-6">
               <div className="rounded-2xl bg-slate-50 p-8 text-center">
-                <CreditCard aria-hidden="true" className="mx-auto size-10 text-slate-400" />
+                <CreditCard aria-hidden="true" className="mx-auto size-10 text-slate-500" />
 
                 <h3 className="mt-4 font-black text-slate-950">
                   No visitor cards found
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  No card matches the
-                  current inventory filters.
+                  No card matches this type, tower
+                  and status. Try another filter or
+                  add cards.
                 </p>
               </div>
             </div>
           ) : (
-            <>
-              <div className="grid gap-4 p-4 md:hidden">
-                {inventory.cards.map(
-                  (card) => (
-                    <InventoryCard card={card} key={card.cardId} onChangeTower={openTowerChange} />
-                  ),
-                )}
-              </div>
-
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1050px] border-collapse text-left">
-                  <thead className="bg-slate-50 text-sm text-slate-700">
-                    <tr>
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Visitor card
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Type
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Tower
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Status
-                      </th>
-
-                      <th className="px-6 py-4 font-bold" scope="col">
-                        Active assignment
-                      </th>
-
-                      <th className="px-6 py-4 text-right font-bold" scope="col">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-200">
-                    {inventory.cards.map(
-                      (card) => (
-                        <InventoryRow card={card} key={card.cardId} onChangeTower={openTowerChange} />
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
+            <div className={`grid grid-cols-2 gap-3 px-4 pb-6 transition-opacity @lg:grid-cols-3 @3xl:grid-cols-4 @4xl:grid-cols-5 @5xl:grid-cols-6 sm:gap-4 sm:px-6 ${loading ? "opacity-60" : ""}`}>
+              {inventory.cards.map((card) => (
+                <CardTile card={card} key={card.cardId} onOpen={openDetails} />
+              ))}
+            </div>
           )}
 
-          {inventory.pagination
-            .totalPages > 1 ? (
-            <Pagination currentPage={page} goToPage={goToPage} totalPages={inventory.pagination.totalPages} />
-          ) : null}
+          <ListPagination goToPage={goToPage} label="Visitor-card inventory pages" noun="cards" nounSingular="card" pagination={inventory.pagination} />
         </section>
       ) : null}
 
       {action?.type === "create" ? (
         <CreateCardsModal accessToken={accessToken} onClose={closeAction} onSuccess={completeAction} />
+      ) : null}
+
+      {action?.type === "details" ? (
+        <CardDetailsModal card={action.card} onChangeTower={openTowerChange} onClose={closeAction} />
       ) : null}
 
       {action?.type === "tower" ? (

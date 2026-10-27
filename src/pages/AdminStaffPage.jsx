@@ -1,9 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
-  BadgeCheck,
-  ChevronLeft,
-  ChevronRight,
+  Check,
   CirclePlus,
   Clock,
   KeyRound,
@@ -11,22 +9,47 @@ import {
   Mail,
   Pencil,
   RefreshCw,
-  Search,
   ShieldCheck,
   Trash2,
+  UserCheck,
   UserCog,
   Users,
-  X,
 } from "lucide-react";
 import {
   useEffect,
+  useEffectEvent,
   useState,
 } from "react";
-import { useForm } from "react-hook-form";
-import AppSelect, { ControlledAppSelect } from "../components/AppSelect.jsx";
+import {
+  Controller,
+  useForm,
+  useWatch,
+} from "react-hook-form";
+import AdminDialog, {
+  DIALOG_BUTTON,
+  DIALOG_CANCEL_BUTTON,
+  DIALOG_INPUT,
+  DIALOG_PRIMARY_BUTTON,
+  DialogBody,
+  DialogFooter,
+} from "../components/AdminDialog.jsx";
+import {
+  FILLED_BUTTON,
+  InitialsAvatar,
+  OUTLINE_BUTTON,
+  SearchPill,
+  StateChip,
+  SuccessBanner,
+  TABLE_HEAD_CELL,
+} from "../components/AdminRecords.jsx";
+import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
+import ListPagination from "../components/ListPagination.jsx";
 import LoadingState from "../components/LoadingState.jsx";
+import SegmentedButton from "../components/SegmentedButton.jsx";
+import SegmentedChoice from "../components/SegmentedChoice.jsx";
+import StatCard from "../components/StatCard.jsx";
 import useAuth from "../hooks/useAuth.js";
 import {
   ApiError,
@@ -40,11 +63,13 @@ import {
   adminStaffUpdateSchema,
 } from "../validation/adminManagement.js";
 
-const EMPTY_FILTERS = {
+const PAGE_SIZE = 10;
+
+const INITIAL_FILTERS = Object.freeze({
   role: "all",
   search: "",
   status: "all",
-};
+});
 
 const dateTimeFormatter = new Intl.DateTimeFormat(
   "en-GH",
@@ -55,8 +80,21 @@ const dateTimeFormatter = new Intl.DateTimeFormat(
   },
 );
 
-const inputClassName =
-  "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+const dateFormatter = new Intl.DateTimeFormat(
+  "en-GH",
+  {
+    dateStyle: "medium",
+    timeZone: "Africa/Accra",
+  },
+);
+
+function formatDate(value) {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "Unavailable"
+    : dateFormatter.format(date);
+}
 
 function formatDateTime(value) {
   if (!value) {
@@ -152,6 +190,9 @@ function normalizeStaffList(result) {
   return {
     pagination,
     staff: result.staff,
+    summary: normalizeStaffSummary(
+      result.summary,
+    ),
   };
 }
 
@@ -170,35 +211,85 @@ function temporaryPasswordExpired(
   );
 }
 
-function getVisiblePages(currentPage, totalPages) {
-  if (totalPages <= 0) {
-    return [];
+// Whole-table counts. Null until the summary migration is applied, in
+// which case the stat cards are hidden.
+function normalizeStaffSummary(summary) {
+  if (!summary || typeof summary !== "object") {
+    return null;
   }
 
-  if (totalPages <= 5) {
-    return Array.from(
-      { length: totalPages },
-      (_, index) => index + 1,
-    );
-  }
-
-  const start = Math.min(
-    Math.max(currentPage - 2, 1),
-    totalPages - 4,
+  const counts = Object.fromEntries(
+    [
+      "activeCount",
+      "adminCount",
+      "clientServiceHeadCount",
+      "deactivatedCount",
+      "receptionistCount",
+      "setupExpiredCount",
+      "setupPendingCount",
+      "totalCount",
+    ].map((key) => [key, Number(summary[key])]),
   );
 
-  return Array.from(
-    { length: 5 },
-    (_, index) => start + index,
-  );
+  return Object.values(counts).every(
+    (value) =>
+      Number.isInteger(value) && value >= 0,
+  )
+    ? counts
+    : null;
 }
 
-function sameFilters(first, second) {
-  return (
-    first.role === second.role &&
-    first.search === second.search &&
-    first.status === second.status
-  );
+const RECORDS_ID = "staff-records";
+
+function scrollToRecords(options) {
+  document
+    .getElementById(RECORDS_ID)
+    ?.scrollIntoView(options);
+}
+
+const ROLE_OPTIONS = Object.freeze([
+  Object.freeze({ label: "Receptionist", value: "receptionist" }),
+  Object.freeze({ label: "Client Service Head", value: "client_service_head" }),
+  Object.freeze({ label: "Administrator", value: "admin" }),
+]);
+
+const ROLE_FILTER_OPTIONS = Object.freeze([
+  Object.freeze({ label: "All roles", value: "all" }),
+  ...ROLE_OPTIONS,
+]);
+
+const STATUS_FILTERS = Object.freeze([
+  Object.freeze({ label: "All", value: "all" }),
+  Object.freeze({ label: "Active", value: "active" }),
+  Object.freeze({ label: "Setup pending", value: "setup_pending" }),
+  Object.freeze({ label: "Setup expired", value: "setup_expired" }),
+  Object.freeze({ label: "Deactivated", value: "inactive" }),
+]);
+
+const ACCESS_CHOICES = Object.freeze([
+  Object.freeze({ label: "Active", value: true }),
+  Object.freeze({ label: "Inactive", value: false }),
+]);
+
+function formatRoleCounts(summary) {
+  const parts = [
+    [summary.adminCount, "Administrator", "Administrators"],
+    [
+      summary.clientServiceHeadCount,
+      "Client Service Head",
+      "Client Service Heads",
+    ],
+    [summary.receptionistCount, "Receptionist", "Receptionists"],
+  ]
+    .filter(([count]) => count > 0)
+    .map(
+      ([count, one, many]) =>
+        `${count.toLocaleString()} ${count === 1 ? one : many}`,
+    );
+
+  return parts.length
+    ? parts.join(" · ")
+    : "No staff yet";
 }
 
 export default function AdminStaffPage() {
@@ -213,23 +304,17 @@ export default function AdminStaffPage() {
   const [requestError, setRequestError] =
     useState("");
 
-  const [filterError, setFilterError] =
+  const [searchError, setSearchError] =
     useState("");
 
   const [successMessage, setSuccessMessage] =
     useState("");
 
   const [filters, setFilters] =
-    useState(EMPTY_FILTERS);
+    useState(INITIAL_FILTERS);
 
   const [searchDraft, setSearchDraft] =
     useState("");
-
-  const [roleDraft, setRoleDraft] =
-    useState("all");
-
-  const [statusDraft, setStatusDraft] =
-    useState("all");
 
   const [page, setPage] = useState(1);
 
@@ -257,7 +342,7 @@ export default function AdminStaffPage() {
     apiRequest("/api/admin/staff/list", {
       body: JSON.stringify({
         page,
-        pageSize: 10,
+        pageSize: PAGE_SIZE,
         role: filters.role,
         search: filters.search,
         status: filters.status,
@@ -317,63 +402,59 @@ export default function AdminStaffPage() {
     signOut,
   ]);
 
-  function submitFilters(event) {
-    event.preventDefault();
-    setFilterError("");
-
-    const parsed =
-      adminStaffListSchema.safeParse({
-        page: 1,
-        pageSize: 10,
-        role: roleDraft,
-        search: searchDraft,
-        status: statusDraft,
-      });
-
-    if (!parsed.success) {
-      setFilterError(
-        parsed.error.issues[0]?.message ||
-          "Check the staff filters and try again.",
-      );
-      return;
-    }
-
-    const nextFilters = {
-      role: parsed.data.role,
-      search: parsed.data.search,
-      status: parsed.data.status,
-    };
-
-    const unchanged =
-      page === 1 &&
-      sameFilters(filters, nextFilters);
-
-    setStaffList(null);
-    setRequestError("");
-    setRequestStatus("loading");
+  function updateFilters(changes) {
+    setFilters((current) => ({
+      ...current,
+      ...changes,
+    }));
     setPage(1);
-    setFilters(nextFilters);
-
-    if (unchanged) {
-      setRefreshKey(
-        (currentKey) => currentKey + 1,
-      );
-    }
+    setRequestStatus("loading");
   }
 
-  function clearFilters() {
-    setSearchDraft("");
-    setRoleDraft("all");
-    setStatusDraft("all");
-    setFilterError("");
-    setFilters(EMPTY_FILTERS);
-    setStaffList(null);
-    setRequestError("");
-    setRequestStatus("loading");
-    setPage(1);
-    setRefreshKey(
-      (currentKey) => currentKey + 1,
-    );
+  const applySearch = useEffectEvent(
+    (value) => {
+      if (filters.search !== value) {
+        updateFilters({ search: value });
+      }
+    },
+  );
+
+  // Search runs shortly after typing stops.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const parsed =
+        adminStaffListSchema.shape.search.safeParse(
+          searchDraft,
+        );
+
+      if (!parsed.success) {
+        setSearchError(
+          parsed.error.issues[0]?.message ||
+            "Check the search and try again.",
+        );
+        return;
+      }
+
+      setSearchError("");
+      applySearch(parsed.data);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [searchDraft]);
+
+  function showInPanel(changes) {
+    updateFilters(changes);
+
+    scrollToRecords({
+      behavior: window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
   }
 
   function refreshStaff() {
@@ -395,14 +476,11 @@ export default function AdminStaffPage() {
       return;
     }
 
-    setStaffList(null);
-    setRequestError("");
     setRequestStatus("loading");
     setPage(nextPage);
 
-    window.scrollTo({
-      behavior: "smooth",
-      top: 0,
+    scrollToRecords({
+      block: "start",
     });
   }
 
@@ -456,7 +534,6 @@ export default function AdminStaffPage() {
   function refreshAfterMutation(message) {
     setDialog(null);
     setSuccessMessage(message);
-    setStaffList(null);
     setRequestError("");
     setRequestStatus("loading");
     setPage(1);
@@ -715,22 +792,62 @@ export default function AdminStaffPage() {
   const loading =
     requestStatus === "loading";
 
-  const filtersApplied = Boolean(
-    filters.search ||
-      filters.role !== "all" ||
-      filters.status !== "all",
-  );
+  const summary = staffList?.summary || null;
 
-  const visiblePages = getVisiblePages(
-    page,
-    staffList?.pagination.totalPages || 0,
-  );
+  const statCards = summary
+    ? [
+        {
+          count: summary.totalCount.toLocaleString(),
+          icon: Users,
+          id: "total",
+          note: formatRoleCounts(summary),
+          onOpen: () =>
+            showInPanel({
+              role: "all",
+              status: "all",
+            }),
+          shortTitle: "Total",
+          title: "Total staff",
+        },
+        {
+          count: summary.activeCount.toLocaleString(),
+          icon: UserCheck,
+          id: "active",
+          note: `${summary.deactivatedCount.toLocaleString()} deactivated`,
+          noteTone: "brand",
+          onOpen: () =>
+            showInPanel({ status: "active" }),
+          shortTitle: "Active",
+          title: "Active accounts",
+        },
+        {
+          count: (
+            summary.setupPendingCount +
+            summary.setupExpiredCount
+          ).toLocaleString(),
+          icon: Clock,
+          iconTone: "amber",
+          id: "setup",
+          note: `${summary.setupPendingCount.toLocaleString()} pending · ${summary.setupExpiredCount.toLocaleString()} expired`,
+          noteTone:
+            summary.setupExpiredCount > 0
+              ? "red"
+              : "amber",
+          onOpen: () =>
+            showInPanel({
+              status: "setup_pending",
+            }),
+          shortTitle: "Setup",
+          title: "Awaiting setup",
+        },
+      ]
+    : [];
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-800">
+    <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
+      <header className="flex flex-col gap-4 px-1 pt-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
             Administration
           </p>
 
@@ -738,21 +855,23 @@ export default function AdminStaffPage() {
             Staff accounts
           </h1>
 
-          <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-            Invite authorised staff and manage their assigned role, access and password onboarding. Reissue a temporary password first when setup expires. If recovery remains impossible, permanently delete the expired account and invite the person again.
+          <p className="mt-3 max-w-3xl leading-7 text-slate-600">
+            Invite authorised staff and manage
+            their role, access and password
+            onboarding.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className={OUTLINE_BUTTON}
             disabled={loading}
             onClick={refreshStaff}
             type="button"
           >
             <RefreshCw
               aria-hidden="true"
-              className={`size-5 ${
+              className={`size-4 ${
                 loading ? "animate-spin" : ""
               }`}
             />
@@ -760,184 +879,52 @@ export default function AdminStaffPage() {
           </button>
 
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900"
+            className={FILLED_BUTTON}
             onClick={openInvitation}
             type="button"
           >
             <CirclePlus
               aria-hidden="true"
-              className="size-5"
+              className="size-4"
             />
             Invite staff
           </button>
         </div>
       </header>
 
-      {successMessage ? (
-        <div
-          className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"
-          role="status"
-        >
-          <p className="flex-1">
-            {successMessage}
-          </p>
+      <SuccessBanner
+        message={successMessage}
+        onDismiss={() => setSuccessMessage("")}
+      />
 
-          <button
-            aria-label="Dismiss confirmation"
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
-            onClick={() =>
-              setSuccessMessage("")
-            }
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
+      {statCards.length ? (
+        <section
+          aria-label="Staff statistics"
+          className="mt-6 grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-3"
+        >
+          {statCards.map((card, index) => (
+            <StatCard
+              // Two columns leave the third card alone on its row, so it
+              // spans the full width there.
+              className={
+                index === 2
+                  ? "md:col-span-2 lg:col-span-1"
+                  : ""
+              }
+              count={card.count}
+              featured={index === 0}
+              icon={card.icon}
+              iconTone={card.iconTone}
+              key={card.id}
+              note={card.note}
+              noteTone={card.noteTone}
+              onOpen={card.onOpen}
+              shortTitle={card.shortTitle}
+              title={card.title}
             />
-          </button>
-        </div>
+          ))}
+        </section>
       ) : null}
-
-      <section
-        aria-labelledby="staff-filters-heading"
-        className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
-      >
-        <h2
-          className="text-xl font-black text-slate-950"
-          id="staff-filters-heading"
-        >
-          Search and filter
-        </h2>
-
-        <form
-          className="mt-6 grid gap-5 lg:grid-cols-[1.3fr_0.8fr_0.8fr_auto]"
-          noValidate
-          onSubmit={submitFilters}
-        >
-          <div className="grid gap-2">
-            <label
-              className="font-bold text-slate-800"
-              htmlFor="staff-search"
-            >
-              Staff name or email
-            </label>
-
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                autoComplete="off"
-                className={`${inputClassName} pl-12`}
-                id="staff-search"
-                maxLength="120"
-                onChange={(event) =>
-                  setSearchDraft(
-                    event.target.value,
-                  )
-                }
-                placeholder="Search staff"
-                type="search"
-                value={searchDraft}
-              />
-            </div>
-          </div>
-
-          <AppSelect
-
-            className="grid gap-2"
-
-            id="staff-role-filter"
-
-            label="Role"
-
-            labelClassName="font-bold text-slate-800"
-
-            onChange={setRoleDraft}
-
-            options={[
-
-              { label: "All roles", value: "all" },
-
-              { label: "Receptionist", value: "receptionist" },
-
-              { label: "Client Service Head", value: "client_service_head" },
-
-              { label: "Administrator", value: "admin" },
-
-            ]}
-
-            value={roleDraft}
-
-          />
-
-          <AppSelect
-
-            className="grid gap-2"
-
-            id="staff-status-filter"
-
-            label="Status"
-
-            labelClassName="font-bold text-slate-800"
-
-            onChange={setStatusDraft}
-
-            options={[
-
-              { label: "All staff", value: "all" },
-
-              { label: "Active", value: "active" },
-
-              { label: "Inactive", value: "inactive" },
-
-            ]}
-
-            value={statusDraft}
-
-          />
-
-          <div className="flex items-end">
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading}
-              type="submit"
-            >
-              <Search
-                aria-hidden="true"
-                className="size-5"
-              />
-              Apply
-            </button>
-          </div>
-        </form>
-
-        {filterError ? (
-          <p
-            className="mt-4 text-sm font-semibold text-red-700"
-            role="alert"
-          >
-            {filterError}
-          </p>
-        ) : null}
-
-        {filtersApplied ? (
-          <button
-            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-            disabled={loading}
-            onClick={clearFilters}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
-            />
-            Clear filters
-          </button>
-        ) : null}
-      </section>
 
       {loading && !staffList ? (
         <div className="mt-6">
@@ -960,31 +947,106 @@ export default function AdminStaffPage() {
         <section
           aria-busy={loading}
           aria-labelledby="staff-records-heading"
-          className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          className="mt-4 scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          id={RECORDS_ID}
         >
-          <div className="border-b border-slate-200 p-5 sm:p-7">
-            <h2
-              className="text-xl font-black text-slate-950"
-              id="staff-records-heading"
-            >
-              Staff records
-            </h2>
+          <div className="flex flex-col gap-4 p-4 sm:p-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2
+                className="text-xl font-black text-slate-950"
+                id="staff-records-heading"
+              >
+                Staff records
+              </h2>
 
-            <p className="mt-2 text-sm text-slate-600">
-              {staffList.pagination.totalCount}{" "}
-              {staffList.pagination.totalCount ===
-              1
-                ? "matching staff account"
-                : "matching staff accounts"}
-            </p>
+              <p
+                aria-live="polite"
+                className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800"
+              >
+                {staffList.pagination.totalCount.toLocaleString()}{" "}
+                {staffList.pagination.totalCount ===
+                1
+                  ? "matching staff account"
+                  : "matching staff accounts"}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row xl:flex-1">
+                <SearchPill
+                  describedBy={
+                    searchError
+                      ? "staff-search-error"
+                      : undefined
+                  }
+                  id="staff-search"
+                  label="Staff name or email"
+                  maxLength="120"
+                  onChange={setSearchDraft}
+                  placeholder="Staff name or email"
+                  value={searchDraft}
+                />
+
+                <AppSelect
+                  appearance="filter"
+                  className="w-full sm:w-52 sm:shrink-0"
+                  id="staff-role-filter"
+                  label="Role"
+                  labelHidden
+                  onChange={(role) =>
+                    updateFilters({ role })
+                  }
+                  options={ROLE_FILTER_OPTIONS}
+                  value={filters.role}
+                />
+              </div>
+
+              <div
+                aria-label="Account status"
+                className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-1 sm:gap-1 xl:self-auto"
+                role="group"
+              >
+                {STATUS_FILTERS.map((option) => {
+                  const active =
+                    filters.status ===
+                    option.value;
+
+                  return (
+                    <SegmentedButton
+                      active={active}
+                      aria-pressed={active}
+                      className="max-sm:px-3"
+                      key={option.value}
+                      onClick={() =>
+                        updateFilters({
+                          status: option.value,
+                        })
+                      }
+                    >
+                      {option.label}
+                    </SegmentedButton>
+                  );
+                })}
+              </div>
+            </div>
+
+            {searchError ? (
+              <p
+                className="text-sm font-semibold text-red-700"
+                id="staff-search-error"
+                role="alert"
+              >
+                {searchError}
+              </p>
+            ) : null}
           </div>
 
           {staffList.staff.length === 0 ? (
-            <div className="p-5 sm:p-8">
+            <div className="px-4 pb-6 sm:px-6">
               <div className="rounded-2xl bg-slate-50 p-6 text-center">
                 <Users
                   aria-hidden="true"
-                  className="mx-auto size-10 text-slate-400"
+                  className="mx-auto size-10 text-slate-500"
                 />
 
                 <h3 className="mt-4 font-black text-slate-950">
@@ -992,14 +1054,15 @@ export default function AdminStaffPage() {
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  No staff account matches the current
-                  search and filters.
+                  No staff account matches this
+                  search, role and status. Try another
+                  filter or invite staff.
                 </p>
               </div>
             </div>
           ) : (
-            <>
-              <div className="grid gap-4 p-4 lg:hidden">
+            <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"}>
+              <div className="grid gap-3 px-4 pb-4 lg:grid-cols-2 xl:hidden">
                 {staffList.staff.map(
                   (staffMember) => (
                     <StaffCard
@@ -1020,36 +1083,42 @@ export default function AdminStaffPage() {
                 )}
               </div>
 
-              <div className="hidden overflow-x-auto lg:block">
+              <div className="hidden overflow-x-auto xl:block">
                 <table className="w-full border-collapse text-left">
-                  <thead className="bg-slate-50 text-sm text-slate-700">
+                  <thead className="border-y border-slate-200 bg-slate-50">
                     <tr>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} pl-5`}
                         scope="col"
                       >
                         Staff member
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Role
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Access
                       </th>
                       <th
-                        className="px-6 py-4 font-bold"
+                        className={`${TABLE_HEAD_CELL} text-center`}
+                        scope="col"
+                      >
+                        Onboarding
+                      </th>
+                      <th
+                        className={`${TABLE_HEAD_CELL} text-center`}
                         scope="col"
                       >
                         Account activity
                       </th>
                       <th
-                        className="px-6 py-4 text-right font-bold"
+                        className={`${TABLE_HEAD_CELL} pr-5 text-center`}
                         scope="col"
                       >
                         Action
@@ -1083,23 +1152,41 @@ export default function AdminStaffPage() {
                   </tbody>
                 </table>
               </div>
-            </>
+            </div>
           )}
 
-          {staffList.pagination.totalPages >
-          1 ? (
-            <Pagination
-              currentPage={page}
-              goToPage={goToPage}
-              totalPages={
-                staffList.pagination
-                  .totalPages
-              }
-              visiblePages={visiblePages}
-            />
-          ) : null}
+          <ListPagination
+            goToPage={goToPage}
+            label="Staff administration pages"
+            noun="staff accounts"
+            nounSingular="staff account"
+            pagination={staffList.pagination}
+          />
         </section>
       ) : null}
+
+      <aside className="mt-4 flex items-start gap-4 rounded-3xl border border-brand-200 bg-brand-50 p-5 text-sm leading-6 text-slate-700 sm:p-6">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-brand-800">
+          <KeyRound
+            aria-hidden="true"
+            className="size-5"
+          />
+        </span>
+
+        <div>
+          <h2 className="font-black text-slate-950">
+            Account recovery
+          </h2>
+          <p className="mt-1">
+            Temporary passwords expire after 24
+            hours. When setup expires, reissue a
+            temporary password first. If recovery is
+            still impossible, permanently delete the
+            expired account and invite the person
+            again.
+          </p>
+        </div>
+      </aside>
 
       {dialog?.mode === "invite" ? (
         <InvitationDialog
@@ -1166,13 +1253,13 @@ function RoleBadge({ role }) {
       : "Receptionist";
 
   const colour = administrator
-    ? "bg-brand-100 text-brand-900"
+    ? "bg-brand-900 text-white"
     : clientServiceHead
       ? "bg-amber-100 text-amber-900"
       : "bg-sky-100 text-sky-800";
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${colour}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${colour}`}>
       {administrator ? (
         <ShieldCheck aria-hidden="true" className="size-3.5" />
       ) : (
@@ -1186,15 +1273,9 @@ function RoleBadge({ role }) {
 
 function AccessBadge({ active }) {
   return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${
-        active
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-slate-200 text-slate-700"
-      }`}
-    >
-      {active ? "Active" : "Inactive"}
-    </span>
+    <StateChip on={active}>
+      {active ? "Active" : "Deactivated"}
+    </StateChip>
   );
 }
 
@@ -1203,22 +1284,16 @@ function ConfirmationBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold ${
         emailConfirmed
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-amber-100 text-amber-800"
+          ? "border-brand-200 bg-brand-50 text-brand-800"
+          : "border-amber-200 bg-amber-50 text-amber-900"
       }`}
     >
       {emailConfirmed ? (
-        <BadgeCheck
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <Check aria-hidden="true" className="size-3.5" />
       ) : (
-        <Clock
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <Mail aria-hidden="true" className="size-3.5" />
       )}
 
       {emailConfirmed
@@ -1243,41 +1318,33 @@ function OnboardingBadge({
 
   let label = "Configured account";
   let colour =
-    "bg-slate-100 text-slate-700";
+    "border-brand-200 bg-brand-50 text-brand-800";
 
   if (pending && expired) {
     label = "Setup expired";
     colour =
-      "bg-red-100 text-red-800";
+      "border-red-200 bg-red-50 text-red-800";
   } else if (pending) {
-    label = "Password setup pending";
+    label = "Setup pending";
     colour =
-      "bg-amber-100 text-amber-900";
+      "border-amber-200 bg-amber-50 text-amber-900";
   } else if (
     staffMember.passwordSetupCompletedAt
   ) {
     label = "Password secured";
-    colour =
-      "bg-emerald-100 text-emerald-800";
   }
 
   return (
     <span
       className={
-        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black " +
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold " +
         colour
       }
     >
       {pending ? (
-        <Clock
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <Clock aria-hidden="true" className="size-3.5" />
       ) : (
-        <ShieldCheck
-          aria-hidden="true"
-          className="size-3.5"
-        />
+        <Check aria-hidden="true" className="size-3.5" />
       )}
 
       {label}
@@ -1285,24 +1352,8 @@ function OnboardingBadge({
   );
 }
 
-function EditButton({
-  onEdit,
-  staffMember,
-}) {
-  return (
-    <button
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-      onClick={() => onEdit(staffMember)}
-      type="button"
-    >
-      <Pencil
-        aria-hidden="true"
-        className="size-4"
-      />
-      Edit
-    </button>
-  );
-}
+const ROW_ICON_BUTTON =
+  "grid size-10 shrink-0 place-items-center rounded-full border bg-white transition focus-visible:ring-4 focus-visible:ring-brand-200";
 
 function StaffActions({
   currentUserId,
@@ -1320,44 +1371,132 @@ function StaffActions({
     staffMember.passwordChangeRequired;
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-      <EditButton
-        onEdit={onEdit}
-        staffMember={staffMember}
-      />
+    <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap xl:justify-center">
+      <button
+        aria-label={`Edit ${staffMember.fullName}`}
+        className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-brand-600 bg-white px-4 text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200"
+        onClick={() => onEdit(staffMember)}
+        type="button"
+      >
+        <Pencil
+          aria-hidden="true"
+          className="size-4"
+        />
+        Edit
+      </button>
 
       {canReissue ? (
         <button
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-950 hover:bg-amber-100"
+          aria-label={`Reissue password for ${staffMember.fullName}`}
+          className={`${ROW_ICON_BUTTON} border-amber-300 text-amber-800 hover:bg-amber-50`}
           onClick={() =>
             onReissue(staffMember)
           }
+          title="Reissue password"
           type="button"
         >
           <KeyRound
             aria-hidden="true"
             className="size-4"
           />
-          Reissue password
         </button>
       ) : null}
 
       {!ownAccount ? (
         <button
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50"
+          aria-label={`Delete account for ${staffMember.fullName}`}
+          className={`${ROW_ICON_BUTTON} border-red-200 text-red-700 hover:bg-red-50`}
           onClick={() =>
             onDelete(staffMember)
           }
+          title="Delete account"
           type="button"
         >
           <Trash2
             aria-hidden="true"
             className="size-4"
           />
-          Delete account
         </button>
       ) : null}
     </div>
+  );
+}
+
+function StaffIdentity({ staffMember }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <InitialsAvatar name={staffMember.fullName} />
+
+      <div className="min-w-0">
+        <p className="font-bold text-slate-950 xl:whitespace-nowrap">
+          {staffMember.fullName}
+        </p>
+
+        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-600">
+          <Mail
+            aria-hidden="true"
+            className="size-3.5 shrink-0"
+          />
+          {/* Long addresses wrap before the @, not mid-word. */}
+          <span className="wrap-break-word">
+            {staffMember.email.split("@")[0]}
+            <wbr />
+            {staffMember.email.includes("@")
+              ? "@" +
+                staffMember.email
+                  .split("@")
+                  .slice(1)
+                  .join("@")
+              : null}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AccountActivity({
+  showExpiry = true,
+  staffMember,
+}) {
+  return (
+    <>
+      <p className="whitespace-nowrap">
+        {staffMember.lastSignInAt ? (
+          <>
+            Signed in{" "}
+            <span className="font-bold text-slate-950">
+              {formatDateTime(
+                staffMember.lastSignInAt,
+              )}
+            </span>
+          </>
+        ) : (
+          <span className="font-bold text-slate-950">
+            Never signed in
+          </span>
+        )}
+      </p>
+
+      <p className="mt-1 whitespace-nowrap text-xs text-slate-600">
+        Created{" "}
+        {formatDate(
+          staffMember.createdAt,
+        )}
+      </p>
+
+      {showExpiry &&
+      staffMember
+        .passwordChangeRequired ? (
+        <p className="mt-1 font-semibold text-amber-900">
+          Temporary password expires:{" "}
+          {formatDateTime(
+            staffMember
+              .temporaryPasswordExpiresAt,
+          )}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -1369,22 +1508,10 @@ function StaffCard({
   staffMember,
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div>
-        <h3 className="wrap-break-word text-lg font-black text-slate-950">
-          {staffMember.fullName}
-        </h3>
+    <article className="rounded-2xl border border-slate-200 bg-white p-4">
+      <StaffIdentity staffMember={staffMember} />
 
-        <p className="mt-2 flex items-start gap-2 wrap-break-word text-sm text-slate-600">
-          <Mail
-            aria-hidden="true"
-            className="mt-0.5 size-4 shrink-0"
-          />
-          {staffMember.email}
-        </p>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <RoleBadge role={staffMember.role} />
         <AccessBadge
           active={staffMember.active}
@@ -1394,52 +1521,16 @@ function StaffCard({
             staffMember.emailConfirmed
           }
         />
-
         <OnboardingBadge
           staffMember={staffMember}
         />
       </div>
 
-      <dl className="mt-5 grid gap-3 text-sm">
-        <div>
-          <dt className="font-semibold text-slate-600">
-            Last sign-in
-          </dt>
-          <dd className="mt-1 font-bold text-slate-950">
-            {formatDateTime(
-              staffMember.lastSignInAt,
-            )}
-          </dd>
-        </div>
+      <div className="mt-3 text-sm text-slate-700">
+        <AccountActivity staffMember={staffMember} />
+      </div>
 
-        <div>
-          <dt className="font-semibold text-slate-600">
-            Account created
-          </dt>
-          <dd className="mt-1 font-bold text-slate-950">
-            {formatDateTime(
-              staffMember.createdAt,
-            )}
-          </dd>
-        </div>
-
-        {staffMember
-          .passwordChangeRequired ? (
-          <div>
-            <dt className="font-semibold text-slate-600">
-              Temporary password expires
-            </dt>
-            <dd className="mt-1 font-bold text-slate-950">
-              {formatDateTime(
-                staffMember
-                  .temporaryPasswordExpiresAt,
-              )}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-
-      <div className="mt-5 border-t border-slate-200 pt-5">
+      <div className="mt-4 border-t border-slate-200 pt-4">
         <StaffActions
           currentUserId={currentUserId}
           onDelete={onDelete}
@@ -1460,17 +1551,23 @@ function StaffRow({
   staffMember,
 }) {
   return (
-    <tr className="align-top hover:bg-slate-50">
-      <td className="px-6 py-5">
-        <p className="font-black text-slate-950">
-          {staffMember.fullName}
-        </p>
+    <tr className="hover:bg-slate-50">
+      <td className="py-4 pl-5 pr-3">
+        <StaffIdentity staffMember={staffMember} />
+      </td>
 
-        <p className="mt-2 wrap-break-word text-sm text-slate-600">
-          {staffMember.email}
-        </p>
+      <td className="px-3 py-4 text-center">
+        <RoleBadge role={staffMember.role} />
+      </td>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+      <td className="px-3 py-4 text-center">
+        <AccessBadge
+          active={staffMember.active}
+        />
+      </td>
+
+      <td className="px-3 py-4">
+        <div className="flex flex-col items-center gap-1.5">
           <ConfirmationBadge
             emailConfirmed={
               staffMember.emailConfirmed
@@ -1480,47 +1577,26 @@ function StaffRow({
           <OnboardingBadge
             staffMember={staffMember}
           />
+
+          {staffMember.passwordChangeRequired ? (
+            <p className="whitespace-nowrap text-xs font-semibold text-amber-900">
+              Expires{" "}
+              {formatDateTime(
+                staffMember.temporaryPasswordExpiresAt,
+              )}
+            </p>
+          ) : null}
         </div>
       </td>
 
-      <td className="px-6 py-5">
-        <RoleBadge role={staffMember.role} />
-      </td>
-
-      <td className="px-6 py-5">
-        <AccessBadge
-          active={staffMember.active}
+      <td className="px-3 py-4 text-center text-sm text-slate-700">
+        <AccountActivity
+          showExpiry={false}
+          staffMember={staffMember}
         />
       </td>
 
-      <td className="px-6 py-5 text-sm text-slate-700">
-        <p>
-          Last sign-in:{" "}
-          {formatDateTime(
-            staffMember.lastSignInAt,
-          )}
-        </p>
-
-        <p className="mt-2">
-          Created:{" "}
-          {formatDateTime(
-            staffMember.createdAt,
-          )}
-        </p>
-
-        {staffMember
-          .passwordChangeRequired ? (
-          <p className="mt-2 font-semibold text-amber-900">
-            Temporary password expires:{" "}
-            {formatDateTime(
-              staffMember
-                .temporaryPasswordExpiresAt,
-            )}
-          </p>
-        ) : null}
-      </td>
-
-      <td className="px-6 py-5 text-right">
+      <td className="py-4 pl-3 pr-5">
         <StaffActions
           currentUserId={currentUserId}
           onDelete={onDelete}
@@ -1580,100 +1656,67 @@ function AccountRecoveryDialog({
     });
   }
 
-  const heading = deleting
-    ? "Delete staff account"
-    : "Reissue temporary password";
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
-      role="presentation"
+    <AdminDialog
+      busy={submitting}
+      closeLabel={
+        deleting
+          ? "Close account deletion"
+          : "Close password reissue"
+      }
+      eyebrow="Staff administration"
+      onClose={onCancel}
+      title={
+        deleting
+          ? "Delete staff account"
+          : "Reissue temporary password"
+      }
     >
-      <section
-        aria-labelledby="staff-recovery-heading"
-        aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
-        role="dialog"
+      <form
+        noValidate
+        onSubmit={submitRecovery}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-brand-800">
-              Staff administration
-            </p>
-
-            <h2
-              className="mt-2 text-2xl font-black text-slate-950"
-              id="staff-recovery-heading"
-            >
-              {heading}
-            </h2>
+        <DialogBody>
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <StaffIdentity staffMember={staffMember} />
           </div>
 
-          <button
-            aria-label={
-              deleting
-                ? "Close account deletion"
-                : "Close password reissue"
-            }
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            disabled={submitting}
-            onClick={onCancel}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-5"
-            />
-          </button>
-        </div>
+          {deleting ? (
+            <>
+              <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-950">
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="mt-0.5 size-5 shrink-0 text-red-700"
+                />
 
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="font-black text-slate-950">
-            {staffMember.fullName}
-          </p>
+                <div>
+                  <p className="font-black">
+                    This deletion is permanent
+                  </p>
 
-          <p className="mt-1 wrap-break-word text-sm text-slate-600">
-            {staffMember.email}
-          </p>
-        </div>
-
-        {deleting ? (
-          <>
-            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-950">
-              <AlertTriangle
-                aria-hidden="true"
-                className="mt-0.5 size-5 shrink-0 text-red-700"
-              />
-
-              <div>
-                <p className="font-black">
-                  This deletion is permanent
-                </p>
-
-                <p className="mt-2 text-sm leading-6">
-                  The authentication account and staff profile will be removed. Security audit history will be retained. To restore access later, an administrator must invite the person again.
-                </p>
+                  <p className="mt-2 text-sm leading-6">
+                    The authentication account and staff profile will be removed. Security audit history will be retained. To restore access later, an administrator must invite the person again.
+                  </p>
+                </div>
               </div>
+
+              <p className="text-sm leading-6 text-slate-700">
+                Reissue the temporary password first when onboarding expires. Delete and invite the account again only when recovery remains impossible.
+              </p>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+              <p className="font-black">
+                Issue new sign-in details
+              </p>
+
+              <p className="mt-2 text-sm leading-6">
+                A new temporary password will be generated and emailed to this staff member. The previous temporary password will immediately stop working, and the replacement will expire after 24 hours.
+              </p>
             </div>
+          )}
 
-            <p className="mt-5 text-sm leading-6 text-slate-700">
-              Reissue the temporary password first when onboarding expires. Delete and invite the account again only when recovery remains impossible.
-            </p>
-          </>
-        ) : (
-          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
-            <p className="font-black">
-              Issue new sign-in details
-            </p>
-
-            <p className="mt-2 text-sm leading-6">
-              A new temporary password will be generated and emailed to this staff member. The previous temporary password will immediately stop working, and the replacement will expire after 24 hours.
-            </p>
-          </div>
-        )}
-
-        {error ? (
-          <div className="mt-5">
+          {error ? (
             <ErrorMessage
               message={error}
               title={
@@ -1682,14 +1725,8 @@ function AccountRecoveryDialog({
                   : "Password reissue unsuccessful"
               }
             />
-          </div>
-        ) : null}
+          ) : null}
 
-        <form
-          className="mt-6"
-          noValidate
-          onSubmit={submitRecovery}
-        >
           {deleting ? (
             <Field
               id="delete-confirmation-email"
@@ -1701,7 +1738,7 @@ function AccountRecoveryDialog({
                 autoCapitalize="none"
                 autoComplete="off"
                 autoFocus
-                className={inputClassName}
+                className={DIALOG_INPUT}
                 disabled={submitting}
                 id="delete-confirmation-email"
                 inputMode="email"
@@ -1717,65 +1754,65 @@ function AccountRecoveryDialog({
               />
 
               <p
-                className="mt-2 text-sm leading-6 text-slate-600"
+                className="text-sm leading-6 text-slate-600"
                 id="delete-confirmation-help"
               >
                 Enter {staffMember.email} exactly. Capitalisation is ignored.
               </p>
             </Field>
           ) : null}
+        </DialogBody>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              disabled={submitting}
-              onClick={onCancel}
-              type="button"
-            >
-              Cancel
-            </button>
+        <DialogFooter>
+          <button
+            className={DIALOG_CANCEL_BUTTON}
+            disabled={submitting}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
 
-            <button
-              className={
-                deleting
-                  ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 font-black text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-              }
-              disabled={
-                submitting ||
-                !confirmationMatches
-              }
-              type="submit"
-            >
-              {submitting ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-5 animate-spin"
-                />
-              ) : deleting ? (
-                <Trash2
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              ) : (
-                <KeyRound
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              )}
+          <button
+            className={`${DIALOG_BUTTON} ${
+              deleting
+                ? "bg-red-700 text-white hover:bg-red-800"
+                : "bg-amber-600 text-white hover:bg-amber-700"
+            } disabled:bg-slate-200 disabled:text-slate-500`}
+            disabled={
+              submitting ||
+              !confirmationMatches
+            }
+            type="submit"
+          >
+            {submitting ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-4 animate-spin"
+              />
+            ) : deleting ? (
+              <Trash2
+                aria-hidden="true"
+                className="size-4"
+              />
+            ) : (
+              <KeyRound
+                aria-hidden="true"
+                className="size-4"
+              />
+            )}
 
-              {submitting
-                ? deleting
-                  ? "Deleting account…"
-                  : "Reissuing password…"
-                : deleting
-                  ? "Permanently delete account"
-                  : "Reissue temporary password"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+            {submitting
+              ? deleting
+                ? "Deleting account…"
+                : "Reissuing password…"
+              : deleting
+                ? "Permanently delete account"
+                : "Reissue temporary password"}
+          </button>
+        </DialogFooter>
+      </form>
+    </AdminDialog>
   );
 }
 
@@ -1786,8 +1823,8 @@ function InvitationDialog({
   submitting,
 }) {
   const {
-    formState: { errors },
     control,
+    formState: { errors },
     handleSubmit,
     register,
   } = useForm({
@@ -1802,63 +1839,37 @@ function InvitationDialog({
     shouldFocusError: true,
   });
 
+  const [fullName, email] = useWatch({
+    control,
+    name: ["fullName", "email"],
+  });
+
+  // Sending needs a name and an email address.
+  const ready = Boolean(
+    fullName.trim() && email.trim(),
+  );
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
-      role="presentation"
+    <AdminDialog
+      busy={submitting}
+      closeLabel="Close invitation form"
+      description="The system emails a temporary password that expires after 24 hours. The person must replace it before using staff services."
+      eyebrow="Staff administration"
+      onClose={onCancel}
+      title="Invite staff member"
     >
-      <section
-        aria-labelledby="staff-invite-heading"
-        aria-modal="true"
-        className="w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
-        role="dialog"
+      <form
+        noValidate
+        onSubmit={handleSubmit(onSubmit)}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-brand-800">
-              Staff administration
-            </p>
-
-            <h2
-              className="mt-2 text-2xl font-black text-slate-950"
-              id="staff-invite-heading"
-            >
-              Invite staff member
-            </h2>
-          </div>
-
-          <button
-            aria-label="Close invitation form"
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            disabled={submitting}
-            onClick={onCancel}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-5"
-            />
-          </button>
-        </div>
-
-        <p className="mt-4 text-sm leading-6 text-slate-600">
-          The system will email a temporary password that expires after 24 hours. The invited person must replace it before accessing staff services.
-        </p>
-
-        {error ? (
-          <div className="mt-5">
+        <DialogBody>
+          {error ? (
             <ErrorMessage
               message={error}
               title="Invitation unsuccessful"
             />
-          </div>
-        ) : null}
+          ) : null}
 
-        <form
-          className="mt-6 grid gap-5"
-          noValidate
-          onSubmit={handleSubmit(onSubmit)}
-        >
           <Field
             error={errors.fullName?.message}
             id="invite-full-name"
@@ -1876,7 +1887,7 @@ function InvitationDialog({
               )}
               autoComplete="name"
               autoFocus
-              className={inputClassName}
+              className={DIALOG_INPUT}
               disabled={submitting}
               id="invite-full-name"
               maxLength="120"
@@ -1890,94 +1901,74 @@ function InvitationDialog({
             label="Email address"
             required
           >
-            <div className="relative">
-              <Mail
-                aria-hidden="true"
-                className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                aria-describedby={
-                  errors.email
-                    ? "invite-email-error"
-                    : undefined
-                }
-                aria-invalid={Boolean(
-                  errors.email,
-                )}
-                autoCapitalize="none"
-                autoComplete="email"
-                className={`${inputClassName} pl-12`}
-                disabled={submitting}
-                id="invite-email"
-                inputMode="email"
-                maxLength="254"
-                spellCheck="false"
-                type="email"
-                {...register("email")}
-              />
-            </div>
-          </Field>
-
-          <Field
-            error={errors.role?.message}
-            id="invite-role"
-            label="Authorised role"
-            required
-          >
-            <ControlledAppSelect
-              control={control}
-              describedBy={errors.role
-                  ? "invite-role-error"
-                  : undefined}
+            <input
+              aria-describedby={
+                errors.email
+                  ? "invite-email-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(
+                errors.email,
+              )}
+              autoCapitalize="none"
+              autoComplete="email"
+              className={DIALOG_INPUT}
               disabled={submitting}
-              id="invite-role"
-              invalid={Boolean(errors.role)}
-              labelledBy="invite-role-label"
-              name="role"
-              options={[
-                { label: "Receptionist", value: "receptionist" },
-                { label: "Client Service Head", value: "client_service_head" },
-                { label: "Administrator", value: "admin" },
-              ]}
+              id="invite-email"
+              inputMode="email"
+              maxLength="254"
+              spellCheck="false"
+              type="email"
+              {...register("email")}
             />
           </Field>
 
-          <div className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              disabled={submitting}
-              onClick={onCancel}
-              type="button"
-            >
-              Cancel
-            </button>
+          <Controller
+            control={control}
+            name="role"
+            render={({ field }) => (
+              <SegmentedChoice
+                disabled={submitting}
+                legend="Authorised role"
+                name="invite-role"
+                onChange={field.onChange}
+                options={ROLE_OPTIONS}
+                required
+                value={field.value}
+              />
+            )}
+          />
+        </DialogBody>
 
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={submitting}
-              type="submit"
-            >
-              {submitting ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-5 animate-spin"
-                />
-              ) : (
-                <CirclePlus
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              )}
+        <DialogFooter>
+          <button
+            className={DIALOG_CANCEL_BUTTON}
+            disabled={submitting}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
 
-              {submitting
-                ? "Sending invitation…"
-                : "Send invitation"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+          <button
+            className={DIALOG_PRIMARY_BUTTON}
+            disabled={submitting || !ready}
+            type="submit"
+          >
+            {submitting ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-4 animate-spin"
+              />
+            ) : null}
+
+            {submitting
+              ? "Sending invitation…"
+              : "Send invitation"}
+          </button>
+        </DialogFooter>
+      </form>
+    </AdminDialog>
   );
 }
 
@@ -1989,8 +1980,8 @@ function StaffEditorDialog({
   submitting,
 }) {
   const {
-    formState: { errors },
     control,
+    formState: { errors, isDirty },
     handleSubmit,
     register,
   } = useForm({
@@ -2007,62 +1998,26 @@ function StaffEditorDialog({
   });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
-      role="presentation"
+    <AdminDialog
+      busy={submitting}
+      closeLabel="Close staff editor"
+      description={staffMember.email}
+      eyebrow="Staff administration"
+      onClose={onCancel}
+      title="Edit staff account"
     >
-      <section
-        aria-labelledby="staff-editor-heading"
-        aria-modal="true"
-        className="w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
-        role="dialog"
+      <form
+        noValidate
+        onSubmit={handleSubmit(onSubmit)}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-brand-800">
-              Staff administration
-            </p>
-
-            <h2
-              className="mt-2 text-2xl font-black text-slate-950"
-              id="staff-editor-heading"
-            >
-              Edit staff account
-            </h2>
-          </div>
-
-          <button
-            aria-label="Close staff editor"
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            disabled={submitting}
-            onClick={onCancel}
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-5"
-            />
-          </button>
-        </div>
-
-        <p className="mt-4 wrap-break-word text-sm text-slate-600">
-          {staffMember.email}
-        </p>
-
-        {error ? (
-          <div className="mt-5">
+        <DialogBody>
+          {error ? (
             <ErrorMessage
               message={error}
               title="Staff update unsuccessful"
             />
-          </div>
-        ) : null}
+          ) : null}
 
-        <form
-          className="mt-6 grid gap-5"
-          noValidate
-          onSubmit={handleSubmit(onSubmit)}
-        >
           <Field
             error={errors.fullName?.message}
             id="edit-staff-full-name"
@@ -2080,7 +2035,7 @@ function StaffEditorDialog({
               )}
               autoComplete="name"
               autoFocus
-              className={inputClassName}
+              className={DIALOG_INPUT}
               disabled={submitting}
               id="edit-staff-full-name"
               maxLength="120"
@@ -2088,161 +2043,71 @@ function StaffEditorDialog({
             />
           </Field>
 
-          <Field
-            error={errors.role?.message}
-            id="edit-staff-role"
-            label="Authorised role"
-            required
+          <Controller
+            control={control}
+            name="role"
+            render={({ field }) => (
+              <SegmentedChoice
+                disabled={submitting}
+                legend="Authorised role"
+                name="edit-staff-role"
+                onChange={field.onChange}
+                options={ROLE_OPTIONS}
+                required
+                value={field.value}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="active"
+            render={({ field }) => (
+              <SegmentedChoice
+                description={
+                  field.value
+                    ? "This person can sign in and use staff services."
+                    : "This account stays on record but cannot use protected staff functions."
+                }
+                disabled={submitting}
+                legend="Access"
+                name="edit-staff-access"
+                onChange={field.onChange}
+                options={ACCESS_CHOICES}
+                value={field.value}
+              />
+            )}
+          />
+        </DialogBody>
+
+        <DialogFooter>
+          <button
+            className={DIALOG_CANCEL_BUTTON}
+            disabled={submitting}
+            onClick={onCancel}
+            type="button"
           >
-            <ControlledAppSelect
-              control={control}
-              describedBy={errors.role
-                  ? "edit-staff-role-error"
-                  : undefined}
-              disabled={submitting}
-              id="edit-staff-role"
-              invalid={Boolean(errors.role)}
-              labelledBy="edit-staff-role-label"
-              name="role"
-              options={[
-                { label: "Receptionist", value: "receptionist" },
-                { label: "Client Service Head", value: "client_service_head" },
-                { label: "Administrator", value: "admin" },
-              ]}
-            />
-          </Field>
+            Cancel
+          </button>
 
-          <label className="flex min-h-12 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <input
-              className="mt-1 size-5 rounded border-slate-300 text-brand-800 focus:ring-brand-600"
-              disabled={submitting}
-              type="checkbox"
-              {...register("active")}
-            />
+          <button
+            className={DIALOG_PRIMARY_BUTTON}
+            disabled={submitting || !isDirty}
+            type="submit"
+          >
+            {submitting ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-4 animate-spin"
+              />
+            ) : null}
 
-            <span>
-              <span className="block font-black text-slate-950">
-                Active staff access
-              </span>
-              <span className="mt-1 block text-sm leading-6 text-slate-600">
-                Inactive staff accounts cannot access
-                protected staff functions.
-              </span>
-            </span>
-          </label>
-
-          <div className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-              disabled={submitting}
-              onClick={onCancel}
-              type="button"
-            >
-              Cancel
-            </button>
-
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={submitting}
-              type="submit"
-            >
-              {submitting ? (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-5 animate-spin"
-                />
-              ) : (
-                <Pencil
-                  aria-hidden="true"
-                  className="size-5"
-                />
-              )}
-
-              {submitting
-                ? "Saving…"
-                : "Save changes"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-function Pagination({
-  currentPage,
-  goToPage,
-  totalPages,
-  visiblePages,
-}) {
-  return (
-    <nav
-      aria-label="Staff administration pages"
-      className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
-    >
-      <p
-        aria-live="polite"
-        className="text-center text-sm font-semibold text-slate-600 sm:text-left"
-      >
-        Page {currentPage} of {totalPages}
-      </p>
-
-      <div className="flex items-center justify-center gap-2">
-        <button
-          aria-label="Previous page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={currentPage <= 1}
-          onClick={() =>
-            goToPage(currentPage - 1)
-          }
-          type="button"
-        >
-          <ChevronLeft
-            aria-hidden="true"
-            className="size-5"
-          />
-        </button>
-
-        <div className="hidden items-center gap-2 sm:flex">
-          {visiblePages.map((pageNumber) => (
-            <button
-              aria-current={
-                pageNumber === currentPage
-                  ? "page"
-                  : undefined
-              }
-              aria-label={`Page ${pageNumber}`}
-              className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
-                pageNumber === currentPage
-                  ? "border-brand-800 bg-brand-800 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-              key={pageNumber}
-              onClick={() =>
-                goToPage(pageNumber)
-              }
-              type="button"
-            >
-              {pageNumber}
-            </button>
-          ))}
-        </div>
-
-        <button
-          aria-label="Next page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={currentPage >= totalPages}
-          onClick={() =>
-            goToPage(currentPage + 1)
-          }
-          type="button"
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className="size-5"
-          />
-        </button>
-      </div>
-    </nav>
+            {submitting
+              ? "Saving…"
+              : "Save changes"}
+          </button>
+        </DialogFooter>
+      </form>
+    </AdminDialog>
   );
 }
