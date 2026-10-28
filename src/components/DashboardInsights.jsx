@@ -1,3 +1,4 @@
+import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getAccraIsoDate } from "../lib/accraDate.js";
 
@@ -64,7 +65,7 @@ export function WeeklyArrivalsCard({
   return (
     <article
       aria-labelledby="weekly-arrivals-heading"
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 md:col-span-2"
+      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2
@@ -91,7 +92,9 @@ export function WeeklyArrivalsCard({
           Weekly arrivals are unavailable.
         </p>
       ) : (
-        <ol className="mt-6 grid h-56 grid-cols-7 items-end gap-2 sm:gap-4">
+        // Only today carries a visible count; every bar has its count for
+        // screen readers and as a hover title.
+        <ol className="mt-5 grid min-h-40 flex-1 grid-cols-7 items-end gap-2 sm:gap-3">
           {days.map((day) => {
             const date = fromIsoDate(day.date);
             const isToday = day.date === today;
@@ -124,18 +127,11 @@ export function WeeklyArrivalsCard({
                   >
                     Today {day.count}
                   </span>
-                ) : !future ? (
-                  <span
-                    aria-hidden="true"
-                    className="text-xs font-bold text-slate-700"
-                  >
-                    {day.count}
-                  </span>
                 ) : null}
 
                 <span
                   aria-hidden="true"
-                  className={`w-full max-w-16 rounded-full ${
+                  className={`w-full max-w-14 rounded-full ${
                     future
                       ? "border border-dashed border-slate-300 bg-[repeating-linear-gradient(135deg,var(--color-slate-200)_0_5px,transparent_5px_11px)] opacity-80"
                       : isToday
@@ -145,6 +141,11 @@ export function WeeklyArrivalsCard({
                   style={{
                     height: `${future ? 70 : height}%`,
                   }}
+                  title={
+                    future
+                      ? `${dayLabelFormatter.format(date)}: upcoming`
+                      : `${dayLabelFormatter.format(date)}: ${day.count} ${day.count === 1 ? "arrival" : "arrivals"}`
+                  }
                 />
 
                 <span
@@ -166,88 +167,33 @@ export function WeeklyArrivalsCard({
   );
 }
 
-export function CardAssignmentCard({
-  assignment,
-}) {
-  const assigned = assignment?.assigned ?? 0;
-  const notAssigned =
-    assignment?.notAssigned ?? 0;
-  const total = assigned + notAssigned;
-  const percent = total
-    ? Math.round((assigned / total) * 100)
-    : 0;
+const accraPartsFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  hour12: false,
+  minute: "2-digit",
+  timeZone: ACCRA,
+  weekday: "short",
+});
+
+// Front desk hours: Monday to Friday, 08:00 to 17:00 Accra time.
+function isFrontDeskOpen(date) {
+  const parts = Object.fromEntries(
+    accraPartsFormatter
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+
+  const minutes =
+    Number(parts.hour) * 60 + Number(parts.minute);
 
   return (
-    <article
-      aria-labelledby="card-assignment-heading"
-      className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
-    >
-      <h2
-        className="text-lg font-black text-slate-950"
-        id="card-assignment-heading"
-      >
-        Card Assignment
-      </h2>
-
-      <div className="relative mx-auto mt-4 w-full max-w-56">
-        <svg
-          aria-hidden="true"
-          className="w-full"
-          viewBox="0 0 200 110"
-        >
-          <path
-            className="stroke-slate-200"
-            d="M 18 100 A 82 82 0 0 1 182 100"
-            fill="none"
-            strokeLinecap="round"
-            strokeWidth="18"
-          />
-          {percent > 0 ? (
-            <path
-              className="stroke-brand-600"
-              d="M 18 100 A 82 82 0 0 1 182 100"
-              fill="none"
-              pathLength="100"
-              strokeDasharray={`${percent} 100`}
-              strokeLinecap="round"
-              strokeWidth="18"
-            />
-          ) : null}
-        </svg>
-
-        <p className="absolute inset-x-0 bottom-0 text-center">
-          <span className="block text-3xl font-black text-slate-950">
-            {assignment ? `${percent}%` : "—"}
-          </span>
-          <span className="block text-xs font-semibold text-slate-600">
-            Cards assigned
-          </span>
-        </p>
-      </div>
-
-      <ul className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-slate-700">
-        <li className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-2.5 rounded-full bg-brand-600"
-          />
-          Assigned {assigned}
-        </li>
-        <li className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-2.5 rounded-full bg-slate-300"
-          />
-          Not assigned {notAssigned}
-        </li>
-      </ul>
-    </article>
+    !["Sat", "Sun"].includes(parts.weekday) &&
+    minutes >= 8 * 60 &&
+    minutes < 17 * 60
   );
 }
 
-export function ReceptionClockCard({
-  towerLabel,
-}) {
+export function ReceptionClockCard() {
   const [now, setNow] = useState(
     () => new Date(),
   );
@@ -266,19 +212,25 @@ export function ReceptionClockCard({
   return (
     <article
       aria-labelledby="reception-clock-heading"
-      className="relative flex min-h-64 flex-col overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm sm:p-6"
+      className="relative flex min-h-56 flex-col overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm sm:p-6"
     >
       <DecorativeRings />
 
-      <h2
-        className="text-lg font-black"
-        id="reception-clock-heading"
-      >
-        Reception Clock
-      </h2>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-xl bg-white/15">
+          <Clock aria-hidden="true" className="size-5" />
+        </span>
+
+        <h2
+          className="text-lg font-black"
+          id="reception-clock-heading"
+        >
+          Reception Clock
+        </h2>
+      </div>
 
       <time
-        className="mt-3 block text-4xl font-black tabular-nums tracking-tight sm:text-5xl"
+        className="mt-5 block text-4xl font-black tabular-nums tracking-tight sm:text-5xl"
         dateTime={now.toISOString()}
       >
         {clockFormatter.format(now)}
@@ -288,8 +240,19 @@ export function ReceptionClockCard({
         {longDateFormatter.format(now)}
       </p>
 
-      <p className="relative mt-auto self-start rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
-        {towerLabel} · Accra time (GMT)
+      <p className="relative mt-auto inline-flex items-center gap-2 self-start rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
+        <span
+          aria-hidden="true"
+          className={`size-2 rounded-full ${
+            isFrontDeskOpen(now)
+              ? "bg-[#5eead4]"
+              : "bg-[#cbd5e1]"
+          }`}
+        />
+        {isFrontDeskOpen(now)
+          ? "Front desk open"
+          : "Front desk closed"}{" "}
+        · Accra (GMT)
       </p>
     </article>
   );

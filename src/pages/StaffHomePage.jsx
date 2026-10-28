@@ -21,9 +21,8 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import heroIllustration from "../assets/images/reception-hero-cutout.webp";
+import heroIllustration from "../assets/images/reception-desk.webp";
 import {
-  CardAssignmentCard,
   ReceptionClockCard,
   WeeklyArrivalsCard,
 } from "../components/DashboardInsights.jsx";
@@ -954,80 +953,77 @@ export default function StaffHomePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
-      {/*
-        Hero colours use arbitrary values on purpose: dark-theme.css remaps
-        brand/white utilities globally, and this banner needs its own
-        mint (light) and deep-teal (dark) palette.
-      */}
-      <section
-        aria-labelledby="dashboard-heading"
-        className="relative flex flex-col overflow-hidden rounded-3xl border border-[#ccfbf1] md:block bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
-      >
-        <div className="relative z-10 p-6 sm:p-8 md:w-[60%] lg:w-[46%] lg:py-10 lg:pl-10">
-          <h1
-            className="text-3xl font-black tracking-tight text-[#134e4a] sm:text-4xl dark:text-[#ffffff]"
-            id="dashboard-heading"
-          >
-            Welcome to your{" "}
-            {workspaceName}
-          </h1>
-
-          <p className="mt-3 max-w-xl leading-7 text-[#334155] dark:text-[#cfe9e5]">
-            Manage visitors, monitor check-ins, issue
-            visitor cards, and keep reception activities
-            running smoothly from one place.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <span className="inline-flex min-h-8 items-center rounded-full bg-[#ccfbf1] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#134e4a] dark:bg-[#ffffff1a] dark:text-[#ffffff]">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1.05fr)_minmax(0,0.85fr)]">
+        {/*
+          Hero colours use arbitrary values on purpose: dark-theme.css remaps
+          brand/white utilities globally, and this banner needs its own
+          mint (light) and deep-teal (dark) palette.
+        */}
+        <section
+          aria-labelledby="dashboard-heading"
+          className="relative flex min-h-60 flex-col overflow-hidden rounded-3xl border border-[#ccfbf1] bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm md:col-span-2 md:block 2xl:col-span-1 dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
+        >
+          <div className="relative z-10 p-6 sm:p-7 md:w-[50%] md:py-8 2xl:w-[47%]">
+            <h1
+              className="text-3xl font-black leading-tight tracking-tight text-[#134e4a] dark:text-[#ffffff]"
+              id="dashboard-heading"
+            >
+              <span className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-[#0f766e] dark:text-[#5eead4]">
+                Welcome to your
+              </span>{" "}
               {workspaceName}
-            </span>
+            </h1>
 
-            <span className="inline-flex min-h-8 items-center rounded-full border border-[#b9e9e1] bg-[#ffffff] px-4 text-xs font-black uppercase tracking-[0.08em] text-[#334155] dark:border-[#ffffff33] dark:bg-transparent dark:text-[#ffffff]">
+            <p className="mt-3 max-w-xs text-sm leading-6 text-[#334155] dark:text-[#cfe9e5]">
+              Manage visitors, check-ins and cards
+              from one place.
+            </p>
+
+            <span className="mt-5 inline-flex min-h-8 items-center rounded-full border border-[#b9e9e1] bg-[#ffffff] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#134e4a] dark:border-[#ffffff33] dark:bg-transparent dark:text-[#ffffff]">
               {administrator
                 ? "Administrator"
                 : "Receptionist"}
             </span>
           </div>
 
-          <p className="mt-6 flex max-w-lg items-center gap-3 rounded-xl bg-[#ffffff99] px-4 py-3 text-sm font-semibold text-[#134e4a] dark:bg-[#ffffff14] dark:text-[#ccfbf1]">
-            <Users
-              aria-hidden="true"
-              className="size-5 shrink-0"
+          <div
+            aria-hidden="true"
+            className="pointer-events-none relative order-first h-48 sm:h-56 md:absolute md:inset-y-0 md:right-0 md:order-none md:h-auto md:w-[58%] 2xl:w-[60%]"
+          >
+            {/* Soft room behind the desk: an arch and window panes. */}
+            <div className="absolute inset-0 overflow-hidden md:[mask-image:linear-gradient(to_right,transparent,#000_30%)]">
+              <span className="absolute left-[18%] top-[10%] h-[150%] w-[62%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
+
+              {["left-[46%]", "left-[60%]", "left-[74%]"].map(
+                (position) => (
+                  <span
+                    className={`absolute bottom-[30%] top-0 w-[11%] border-x border-[#ffffff99] bg-[#ffffff4d] dark:border-[#ffffff14] dark:bg-[#ffffff0a] ${position}`}
+                    key={position}
+                  />
+                ),
+              )}
+
+              <span className="absolute inset-x-[8%] bottom-[2%] h-[14%] rounded-[50%] bg-[#134e4a33] blur-2xl dark:bg-[#00000066]" />
+            </div>
+
+            <img
+              alt=""
+              className="absolute bottom-0 left-1/2 h-[96%] w-auto max-w-none -translate-x-1/2 object-contain md:left-auto md:right-0 md:max-w-full md:translate-x-0 md:object-right-bottom"
+              src={heroIllustration}
             />
-            A professional, secure and seamless
-            visitor experience.
-          </p>
-        </div>
-
-        <div
-          aria-hidden="true"
-          className="pointer-events-none relative order-first h-44 sm:h-56 md:absolute md:inset-y-0 md:right-0 md:order-none md:h-auto md:w-[56%] md:overflow-hidden md:[mask-image:linear-gradient(to_right,transparent,#000_35%)] lg:w-[56%] lg:overflow-visible lg:[mask-image:none]"
-        >
-          <div className="absolute inset-0 overflow-hidden lg:[mask-image:linear-gradient(to_right,transparent,#000_22%)]">
-            <span className="absolute left-[12%] top-[7%] h-[150%] w-[64%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
-
-            {["left-[40%]", "left-[52%]", "left-[64%]"].map(
-              (position) => (
-                <span
-                  className={`absolute bottom-[24%] top-0 w-[10%] border-x border-[#ffffff99] bg-[#ffffff4d] dark:border-[#ffffff14] dark:bg-[#ffffff0a] ${position}`}
-                  key={position}
-                />
-              ),
-            )}
-
-            <span className="absolute inset-y-0 right-0 w-[12%] bg-linear-to-b from-[#0f766e] to-[#115e59] dark:from-[#0d9488] dark:to-[#0f766e]" />
-
-            <span className="absolute inset-x-[4%] bottom-[1%] h-[16%] rounded-[50%] bg-[#134e4a33] blur-2xl dark:bg-[#00000066]" />
           </div>
+        </section>
 
-          <img
-            alt=""
-            className="absolute inset-0 size-full object-cover object-[50%_100%] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_10%)] md:inset-auto md:bottom-0 md:right-0 md:h-[94%] md:w-auto md:max-w-none md:object-contain lg:w-full lg:max-w-full lg:object-[100%_100%]"
-            src={heroIllustration}
-          />
-        </div>
-      </section>
+        <WeeklyArrivalsCard
+          days={
+            dashboard?.weeklyArrivals ||
+            []
+          }
+          towerLabel={towerHeading}
+        />
+
+        <ReceptionClockCard />
+      </div>
 
       {checkoutSuccess ? (
         <div
@@ -1167,29 +1163,6 @@ export default function StaffHomePage() {
           value={
             stats?.checkedInThisMonth
           }
-        />
-      </section>
-
-      <section
-        aria-label="Reception insights"
-        className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4"
-      >
-        <WeeklyArrivalsCard
-          days={
-            dashboard?.weeklyArrivals ||
-            []
-          }
-          towerLabel={towerHeading}
-        />
-
-        <CardAssignmentCard
-          assignment={
-            dashboard?.cardAssignment
-          }
-        />
-
-        <ReceptionClockCard
-          towerLabel={towerHeading}
         />
       </section>
 
