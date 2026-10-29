@@ -53,6 +53,10 @@ const ReturningVisitorPage = lazy(() =>
   import("./pages/ReturningVisitorPage.jsx"),
 );
 
+const StaffMeetingsPage = lazy(() =>
+  import("./pages/StaffMeetingsPage.jsx"),
+);
+
 const StaffHomePage = lazy(() =>
   import("./pages/StaffHomePage.jsx"),
 );
@@ -148,6 +152,11 @@ export default function App() {
                 <StaffVisitorCardsPage />
               }
               path="cards"
+            />
+
+            <Route
+              element={<StaffMeetingsPage />}
+              path="meetings"
             />
 
             <Route

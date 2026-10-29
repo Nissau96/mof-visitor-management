@@ -163,6 +163,30 @@ const EXPECTED_REWRITES = [
       "/api/staff/checkout?operation=card-reprint",
   },
   {
+    source:
+      "/api/staff/meetings/list",
+    destination:
+      "/api/meetings?operation=staff-list",
+  },
+  {
+    source:
+      "/api/staff/meetings/save",
+    destination:
+      "/api/meetings?operation=staff-save",
+  },
+  {
+    source:
+      "/api/staff/meetings/status",
+    destination:
+      "/api/meetings?operation=staff-status",
+  },
+  {
+    source:
+      "/api/staff/meetings/delete",
+    destination:
+      "/api/meetings?operation=staff-delete",
+  },
+  {
     source: "/visit",
     destination: "/index.html",
   },

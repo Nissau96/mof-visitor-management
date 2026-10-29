@@ -961,9 +961,9 @@ export default function StaffHomePage() {
         */}
         <section
           aria-labelledby="dashboard-heading"
-          className="relative flex min-h-60 flex-col overflow-hidden rounded-3xl border border-[#ccfbf1] bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm md:col-span-2 md:block 2xl:col-span-1 dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
+          className="relative flex min-h-60 flex-col overflow-hidden rounded-3xl border border-[#ccfbf1] bg-linear-to-br from-[#f0fdfa] via-[#e4f8f4] to-[#d2f1eb] shadow-sm min-[480px]:block md:col-span-2 2xl:col-span-1 dark:border-[#134e4a] dark:from-[#052422] dark:via-[#073230] dark:to-[#0a3c38]"
         >
-          <div className="relative z-10 p-6 sm:p-7 md:w-[50%] md:py-8 2xl:w-[47%]">
+          <div className="relative z-10 p-6 sm:p-7 min-[480px]:w-[46%] md:w-[50%] md:py-8 2xl:w-[47%]">
             <h1
               className="text-3xl font-black leading-tight tracking-tight text-[#134e4a] dark:text-[#ffffff]"
               id="dashboard-heading"
@@ -988,10 +988,10 @@ export default function StaffHomePage() {
 
           <div
             aria-hidden="true"
-            className="pointer-events-none relative order-first h-48 sm:h-56 md:absolute md:inset-y-0 md:right-0 md:order-none md:h-auto md:w-[58%] 2xl:w-[60%]"
+            className="pointer-events-none relative order-first h-48 min-[480px]:absolute min-[480px]:inset-y-0 min-[480px]:right-0 min-[480px]:order-none min-[480px]:h-auto min-[480px]:w-[48%] md:w-[58%] 2xl:w-[60%]"
           >
             {/* Soft room behind the desk: an arch and window panes. */}
-            <div className="absolute inset-0 overflow-hidden md:[mask-image:linear-gradient(to_right,transparent,#000_30%)]">
+            <div className="absolute inset-0 overflow-hidden min-[480px]:[mask-image:linear-gradient(to_right,transparent,#000_30%)]">
               <span className="absolute left-[18%] top-[10%] h-[150%] w-[62%] rounded-t-full bg-[#bdece3b3] dark:bg-[#0f4c47b3]" />
 
               {["left-[46%]", "left-[60%]", "left-[74%]"].map(
@@ -1008,7 +1008,7 @@ export default function StaffHomePage() {
 
             <img
               alt=""
-              className="absolute bottom-0 left-1/2 h-[96%] w-auto max-w-none -translate-x-1/2 object-contain md:left-auto md:right-0 md:max-w-full md:translate-x-0 md:object-right-bottom"
+              className="absolute bottom-0 left-1/2 h-[96%] w-auto max-w-none -translate-x-1/2 object-contain min-[480px]:-right-[22%] min-[480px]:left-auto min-[480px]:h-[72%] min-[480px]:translate-x-0 md:right-0 md:h-[96%] md:max-w-full md:object-right-bottom"
               src={heroIllustration}
             />
           </div>

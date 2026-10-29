@@ -27,6 +27,7 @@ import {
   VISIT_PURPOSES,
 } from "../constants/visitorOptions.js";
 import { apiRequest } from "../lib/api.js";
+import { formatMeetingOption } from "../lib/meetingSchedule.js";
 import { visitorRegistrationSchema } from "../validation/visitorRegistration.js";
 
 const EMPTY_FORM = {
@@ -583,7 +584,7 @@ function MeetingSelector({
           name="meetingId"
           options={[
             ...meetings.map((meeting) => ({
-              label: meeting.title,
+              label: formatMeetingOption(meeting),
               value: meeting.id,
             })),
             { label: "Meeting not listed", value: CUSTOM_MEETING_OPTION },

@@ -1,4 +1,4 @@
-import { Clock } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getAccraIsoDate } from "../lib/accraDate.js";
 
@@ -80,7 +80,8 @@ export function WeeklyArrivalsCard({
             {towerLabel}
           </span>
           {range ? (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+              <CalendarDays aria-hidden="true" className="size-3.5" />
               {range}
             </span>
           ) : null}
@@ -93,24 +94,36 @@ export function WeeklyArrivalsCard({
         </p>
       ) : (
         // Only today carries a visible count; every bar has its count for
-        // screen readers and as a hover title.
-        <ol className="mt-5 grid min-h-40 flex-1 grid-cols-7 items-end gap-2 sm:gap-3">
+        // screen readers and as a hover title. Bars sit in a fixed-height
+        // track so percentage heights also work in Safari.
+        <ol className="mt-auto pt-9 grid grid-cols-7 items-end gap-2 sm:gap-3">
           {days.map((day) => {
             const date = fromIsoDate(day.date);
             const isToday = day.date === today;
             const future = day.count === null;
+            const empty = day.count === 0;
+            const ratio = future ? 0 : (day.count || 0) / max;
+
+            // Darker teal for busier days.
+            const fill = ratio >= 0.75
+              ? "bg-brand-800"
+              : ratio >= 0.4
+                ? "bg-brand-600"
+                : "bg-[#5eead4] dark:bg-[#2dd4bf]";
+
             const height = future
-              ? 100
-              : Math.max(
-                  6,
-                  Math.round(
-                    ((day.count || 0) / max) * 100,
-                  ),
-                );
+              ? 70
+              : empty
+                ? 22
+                : Math.max(18, Math.round(ratio * 100));
+
+            const title = future
+              ? `${dayLabelFormatter.format(date)}: upcoming`
+              : `${dayLabelFormatter.format(date)}: ${day.count} ${day.count === 1 ? "arrival" : "arrivals"}`;
 
             return (
               <li
-                className="flex h-full flex-col items-center justify-end gap-2"
+                className="flex flex-col items-center gap-2"
                 key={day.date}
               >
                 <span className="sr-only">
@@ -120,33 +133,32 @@ export function WeeklyArrivalsCard({
                     : `${day.count} ${day.count === 1 ? "arrival" : "arrivals"}`}
                 </span>
 
-                {isToday ? (
-                  <span
-                    aria-hidden="true"
-                    className="whitespace-nowrap rounded-md bg-brand-800 px-1.5 py-0.5 text-[11px] font-bold text-white"
-                  >
-                    Today {day.count}
-                  </span>
-                ) : null}
-
-                <span
+                <div
                   aria-hidden="true"
-                  className={`w-full max-w-14 rounded-full ${
-                    future
-                      ? "border border-dashed border-slate-300 bg-[repeating-linear-gradient(135deg,var(--color-slate-200)_0_5px,transparent_5px_11px)] opacity-80"
-                      : isToday
-                        ? "bg-brand-600 ring-4 ring-brand-100"
-                        : "bg-brand-700"
-                  }`}
-                  style={{
-                    height: `${future ? 70 : height}%`,
-                  }}
-                  title={
-                    future
-                      ? `${dayLabelFormatter.format(date)}: upcoming`
-                      : `${dayLabelFormatter.format(date)}: ${day.count} ${day.count === 1 ? "arrival" : "arrivals"}`
-                  }
-                />
+                  className="flex h-32 w-full items-end justify-center"
+                >
+                  <div
+                    className="relative w-full max-w-14"
+                    style={{ height: `${height}%` }}
+                    title={title}
+                  >
+                    {isToday ? (
+                      <span className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-brand-800 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                        Today {day.count}
+                      </span>
+                    ) : null}
+
+                    <span
+                      className={`block size-full rounded-full ${
+                        future
+                          ? "border border-dashed border-slate-300 bg-[repeating-linear-gradient(135deg,var(--color-slate-200)_0_5px,transparent_5px_11px)] opacity-80"
+                          : empty
+                            ? "border-2 border-dashed border-brand-600"
+                            : `${fill} ${isToday ? "ring-4 ring-brand-100" : ""}`
+                      }`}
+                    />
+                  </div>
+                </div>
 
                 <span
                   aria-hidden="true"
@@ -209,47 +221,62 @@ export function ReceptionClockCard() {
     };
   }, []);
 
+  const open = isFrontDeskOpen(now);
+
+  // Phones and small tablets: one horizontal band. From md up the card
+  // stacks vertically beside Weekly Arrivals.
   return (
     <article
       aria-labelledby="reception-clock-heading"
-      className="relative flex min-h-56 flex-col overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm sm:p-6"
+      className="relative flex flex-col gap-4 overflow-hidden rounded-3xl bg-brand-800 p-5 text-white shadow-sm min-[480px]:flex-row min-[480px]:items-center sm:p-6 md:min-h-56 md:flex-col md:items-stretch md:gap-0"
     >
       <DecorativeRings />
 
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-xl bg-white/15">
-          <Clock aria-hidden="true" className="size-5" />
+      <div className="relative flex items-center gap-4 md:block">
+        <span className="grid size-14 shrink-0 place-items-center rounded-full bg-white/15 md:hidden">
+          <Clock aria-hidden="true" className="size-7" />
         </span>
 
-        <h2
-          className="text-lg font-black"
-          id="reception-clock-heading"
-        >
-          Reception Clock
-        </h2>
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="hidden size-10 place-items-center rounded-xl bg-white/15 md:grid">
+              <Clock aria-hidden="true" className="size-5" />
+            </span>
+
+            <h2
+              className="font-bold md:text-lg md:font-black"
+              id="reception-clock-heading"
+            >
+              Reception Clock
+            </h2>
+          </div>
+
+          <time
+            className="mt-1 block text-3xl font-black tabular-nums tracking-tight sm:text-4xl md:mt-5 md:text-5xl"
+            dateTime={now.toISOString()}
+          >
+            {clockFormatter.format(now)}
+          </time>
+
+          <p className="mt-1 text-sm font-medium text-white/90 md:mt-2">
+            {longDateFormatter.format(now)}
+          </p>
+        </div>
       </div>
 
-      <time
-        className="mt-5 block text-4xl font-black tabular-nums tracking-tight sm:text-5xl"
-        dateTime={now.toISOString()}
-      >
-        {clockFormatter.format(now)}
-      </time>
+      <span
+        aria-hidden="true"
+        className="hidden h-20 w-px shrink-0 bg-white/20 min-[480px]:ml-auto min-[480px]:block md:hidden"
+      />
 
-      <p className="mt-2 text-sm font-medium text-white/90">
-        {longDateFormatter.format(now)}
-      </p>
-
-      <p className="relative mt-auto inline-flex items-center gap-2 self-start rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
+      <p className="relative inline-flex items-center gap-2 self-start rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold min-[480px]:self-center md:mt-auto md:self-start">
         <span
           aria-hidden="true"
           className={`size-2 rounded-full ${
-            isFrontDeskOpen(now)
-              ? "bg-[#5eead4]"
-              : "bg-[#cbd5e1]"
+            open ? "bg-[#5eead4]" : "bg-[#cbd5e1]"
           }`}
         />
-        {isFrontDeskOpen(now)
+        {open
           ? "Front desk open"
           : "Front desk closed"}{" "}
         · Accra (GMT)

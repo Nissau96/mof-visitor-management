@@ -1,5 +1,6 @@
 import {
   Archive,
+  CalendarDays,
   Building2,
   ChevronDown,
   ChevronLeft,
@@ -737,6 +738,14 @@ export default function StaffLayout() {
               label="Visitor Cards"
               onNavigate={closeMobile}
               to="/staff/cards"
+            />
+
+            <SidebarLink
+              collapsed={collapsed}
+              icon={CalendarDays}
+              label="Meetings"
+              onNavigate={closeMobile}
+              to="/staff/meetings"
             />
 
           </SidebarGroup>
