@@ -8,6 +8,8 @@ import {
   MOF_DIVISIONS,
 } from "../../src/constants/visitorOptions.js";
 import {
+  findRepeatedGuestPhones,
+  MAX_VISIT_PARTY_SIZE,
   normalizePhone,
   visitorRegistrationSchema,
 } from "../../src/validation/visitorRegistration.js";
@@ -117,5 +119,127 @@ describe("visitorRegistrationSchema", () => {
       });
 
     expect(result.success).toBe(false);
+  });
+
+  it("defaults to no guests", () => {
+    const result =
+      visitorRegistrationSchema.parse(
+        validRegistration,
+      );
+
+    expect(result.guests).toEqual([]);
+  });
+
+  it("normalizes guests with their full names", () => {
+    const result =
+      visitorRegistrationSchema.safeParse({
+        ...validRegistration,
+        guests: [
+          {
+            firstName: " Ama ",
+            lastName: "Mensah",
+            phone: "024 111 2233",
+          },
+        ],
+      });
+
+    expect(result.success).toBe(true);
+    expect(result.data.guests).toEqual([
+      {
+        firstName: "Ama",
+        fullName: "Ama Mensah",
+        lastName: "Mensah",
+        phone: "+233241112233",
+      },
+    ]);
+  });
+
+  it("requires each guest's name and phone", () => {
+    const result =
+      visitorRegistrationSchema.safeParse({
+        ...validRegistration,
+        guests: [
+          {
+            firstName: "",
+            lastName: "",
+            phone: "",
+          },
+        ],
+      });
+
+    expect(result.success).toBe(false);
+    expect(
+      result.error.issues.map((issue) =>
+        issue.path.join("."),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "guests.0.firstName",
+        "guests.0.lastName",
+        "guests.0.phone",
+      ]),
+    );
+  });
+
+  it("rejects a guest phone already used in the group", () => {
+    const guest = {
+      firstName: "Ama",
+      lastName: "Mensah",
+      phone: "0241112233",
+    };
+
+    const result =
+      visitorRegistrationSchema.safeParse({
+        ...validRegistration,
+        guests: [
+          { ...guest, phone: "+233240000000" },
+          guest,
+          { ...guest, phone: "233241112233" },
+        ],
+      });
+
+    expect(result.success).toBe(false);
+    expect(
+      result.error.issues.map((issue) =>
+        issue.path.join("."),
+      ),
+    ).toEqual(["guests.0.phone", "guests.2.phone"]);
+  });
+
+  it(`limits a group to ${MAX_VISIT_PARTY_SIZE} people`, () => {
+    const guests = Array.from(
+      { length: MAX_VISIT_PARTY_SIZE },
+      (_, index) => ({
+        firstName: "Guest",
+        lastName: `Number ${index}`,
+        phone: `02411100${String(index).padStart(2, "0")}`,
+      }),
+    );
+
+    expect(
+      visitorRegistrationSchema.safeParse({
+        ...validRegistration,
+        guests: guests.slice(1),
+      }).success,
+    ).toBe(true);
+
+    expect(
+      visitorRegistrationSchema.safeParse({
+        ...validRegistration,
+        guests,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("findRepeatedGuestPhones", () => {
+  it("compares phones after normalizing them", () => {
+    expect(
+      findRepeatedGuestPhones("024 000 0000", [
+        { phone: "0241112233" },
+        { phone: "+233 24 000 0000" },
+        { phone: "233241112233" },
+      ]),
+    ).toEqual([1, 2]);
   });
 });

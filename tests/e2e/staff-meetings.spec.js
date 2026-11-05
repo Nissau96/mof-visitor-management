@@ -5,6 +5,7 @@ import {
 import {
   expectNoWcagViolations,
 } from "./support/accessibility.js";
+import { chooseOption } from "./support/select.js";
 import {
   installMockStaffAuthentication,
   signInAsStaff,
@@ -22,7 +23,8 @@ function meeting(index, overrides = {}) {
     cancelledAt: null,
     endsAt: "11:00",
     endsOn: TODAY,
-    hostDivision: "Synthetic Budget Division",
+    hostAgency: "Ministry of Finance (MoF)",
+    hostDivision: "Budget Office",
     meetingId: `00000000-0000-4000-8000-00000000070${index}`,
     recurrenceDays: [],
     scheduleType: "single",
@@ -154,6 +156,9 @@ test.describe("meetings page", () => {
     const details = page.getByRole("dialog", { name: "Synthetic Meeting 1" });
 
     await expect(details.getByText("Conference Room B")).toBeVisible();
+    await expect(
+      details.getByText("Ministry of Finance (MoF) · Budget Office"),
+    ).toBeVisible();
 
     await expectNoWcagViolations(page, { include: "[role=dialog]" });
 
@@ -188,6 +193,13 @@ test.describe("meetings page", () => {
     await dialog.getByLabel(/^Start time/).fill("10:00");
     await dialog.getByLabel(/^Venue/).fill("Room 4");
 
+    // Division appears only for the Ministry of Finance.
+    await expect(dialog.getByRole("button", { name: /^Division/ })).toHaveCount(0);
+    await chooseOption(dialog, "Agency (optional)", "Ministry of Finance (MoF)");
+    await dialog.getByRole("button", { name: "Add meeting" }).click();
+    await expect(dialog.getByText("Select the hosting division.")).toBeVisible();
+    await chooseOption(dialog, /Division/, "Ministry Headquarters");
+
     // Let the day buttons finish their colour transition before axe
     // samples them.
     await page.waitForTimeout(300);
@@ -199,6 +211,8 @@ test.describe("meetings page", () => {
       .poll(() => state.saveRequests.at(-1))
       .toMatchObject({
         meeting: {
+          hostAgency: "Ministry of Finance (MoF)",
+          hostDivision: "Ministry Headquarters",
           meetingTower: "tower_1",
           recurrenceDays: [2, 4],
           scheduleType: "weekly",

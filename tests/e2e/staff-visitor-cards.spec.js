@@ -43,6 +43,21 @@ const PENDING = [
     visitId: "00000000-0000-4000-8000-000000000101",
     visitorType: null,
   },
+  {
+    destinationAgency: "Ghana Investment Promotion Centre (GIPC)",
+    fullName: "Synthetic Group Guest",
+    groupLeadName: "Synthetic Pending Visitor",
+    organization: "",
+    personVisiting: "Synthetic Host",
+    phone: "+233200000009",
+    purpose: "",
+    referenceCode: "VIS-PEND01-2",
+    status: "pending_admission",
+    submittedAt: iso(-1),
+    tower: "tower_1",
+    visitId: "00000000-0000-4000-8000-000000000102",
+    visitorType: null,
+  },
 ];
 
 const CHECKED_IN = [
@@ -230,6 +245,9 @@ test.describe("visitor cards page", () => {
     ).toBeVisible();
     await expect(
       visible("Pending admission"),
+    ).toBeVisible();
+    await expect(
+      visible("Guest of Synthetic Pending Visitor"),
     ).toBeVisible();
 
     await expectNoWcagViolations(browserPage);

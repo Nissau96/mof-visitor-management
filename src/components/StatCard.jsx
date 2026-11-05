@@ -30,7 +30,7 @@ export default function StatCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-2xl p-3 shadow-sm sm:p-4 md:rounded-3xl md:p-6 lg:p-5 xl:p-6 ${className} ${
+      className={`card-float relative overflow-hidden rounded-2xl p-3 shadow-sm sm:p-4 md:rounded-3xl md:p-6 lg:p-5 xl:p-6 ${className} ${
         featured
           ? "bg-brand-800 text-[#ffffff]"
           : alert

@@ -1568,7 +1568,7 @@ function MetricCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl border p-4 shadow-sm sm:p-5 ${
+      className={`card-float relative overflow-hidden rounded-3xl border p-4 shadow-sm sm:p-5 ${
         featured
           ? "border-brand-800 bg-brand-800 text-white"
           : "border-slate-200 bg-white"

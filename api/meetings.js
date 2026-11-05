@@ -13,6 +13,7 @@ import {
   requireActiveStaff,
   requireStaffTowerScope,
 } from "./_lib/staffAuth.js";
+import { MINISTRY_OF_FINANCE_AGENCY } from "../src/constants/visitorOptions.js";
 import { readWeeklyQrAccess } from "../src/server/weeklyQrAccess.js";
 import {
   meetingDeleteSchema,
@@ -91,7 +92,12 @@ const STAFF_OPERATIONS = Object.freeze({
         meeting.scheduleType === "single"
           ? meeting.startsOn
           : meeting.endsOn || null,
-      p_host_division: meeting.hostDivision,
+      p_host_agency: meeting.hostAgency,
+      // Only Ministry of Finance meetings have a division.
+      p_host_division:
+        meeting.hostAgency === MINISTRY_OF_FINANCE_AGENCY
+          ? meeting.hostDivision
+          : "",
       p_meeting_id: meeting.meetingId,
       p_meeting_tower: meeting.meetingTower,
       p_recurrence_days:

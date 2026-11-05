@@ -64,7 +64,8 @@ function createHandler({
 const BASE_MEETING = {
   endsAt: "11:30",
   endsOn: "",
-  hostDivision: "Budget Division",
+  hostAgency: "Ministry of Finance (MoF)",
+  hostDivision: "Ministry Headquarters",
   meetingId: null,
   meetingTower: "tower_1",
   recurrenceDays: [],
@@ -151,12 +152,31 @@ describe("staff meeting operations", () => {
       expect.objectContaining({
         p_ends_at: "11:30",
         p_ends_on: "2026-11-03",
+        p_host_agency: "Ministry of Finance (MoF)",
+        p_host_division: "Ministry Headquarters",
         p_meeting_id: null,
         p_meeting_tower: "tower_1",
         p_recurrence_days: [],
         p_schedule_type: "single",
         p_starts_on: "2026-11-03",
       }),
+    );
+  });
+
+  it("drops the division for agencies outside the Ministry", async () => {
+    const { handler, rpc } = createHandler();
+
+    const response = await handler.fetch(
+      createRequest("staff-save", {
+        meeting: { ...BASE_MEETING, hostAgency: "GIPC", hostDivision: "Budget Office" },
+        tower: "tower_1",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "save_staff_meeting",
+      expect.objectContaining({ p_host_agency: "GIPC", p_host_division: "" }),
     );
   });
 
@@ -221,6 +241,24 @@ describe("meeting form rules", () => {
     expect(result.error.issues[0].message).toBe(
       "Select the last day of the meeting.",
     );
+  });
+
+  it("requires a listed division for Ministry of Finance meetings", () => {
+    for (const hostDivision of ["", "Budget Division"]) {
+      const result = meetingFormSchema.safeParse({ ...BASE_MEETING, hostDivision });
+
+      expect(result.success).toBe(false);
+      expect(result.error.issues[0]).toMatchObject({
+        message: "Select the hosting division.",
+        path: ["hostDivision"],
+      });
+    }
+  });
+
+  it("rejects an unknown agency", () => {
+    expect(
+      meetingFormSchema.safeParse({ ...BASE_MEETING, hostAgency: "Synthetic Agency" }).success,
+    ).toBe(false);
   });
 
   it("requires the end time to follow the start time", () => {

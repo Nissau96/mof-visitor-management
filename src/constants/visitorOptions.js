@@ -57,6 +57,13 @@ export const MOF_DIVISIONS = [
   "Unclaimed Fund Division",
 ];
 
+// Divisions a meeting can be hosted by. Headquarters is for meetings
+// only; visitor registration keeps MOF_DIVISIONS.
+export const MEETING_HOST_DIVISIONS = [
+  "Ministry Headquarters",
+  ...MOF_DIVISIONS,
+];
+
 export const VISIT_PURPOSES = [
   MEETING_PURPOSE,
   "Follow up",

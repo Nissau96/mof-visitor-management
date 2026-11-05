@@ -11,6 +11,7 @@ import {
   TriangleAlert,
   UserCheck,
   UserPlus,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -494,6 +495,23 @@ function MobileDetail({
   );
 }
 
+// Guests registered with a group show who brought them, so reception
+// can admit the group together.
+function GuestOfNote({ className = "", leadName }) {
+  if (!leadName) {
+    return null;
+  }
+
+  return (
+    <p
+      className={`flex items-center gap-1.5 text-xs font-semibold text-slate-600 ${className}`}
+    >
+      <UsersRound aria-hidden="true" className="size-3.5 shrink-0" />
+      Guest of {leadName}
+    </p>
+  );
+}
+
 function PendingAdmissionsTable({
   onAssign,
   records,
@@ -510,6 +528,11 @@ function PendingAdmissionsTable({
               key={record.visitId}
             >
               <MobileCardHeader row={row} />
+
+              <GuestOfNote
+                className="mt-3"
+                leadName={record.groupLeadName}
+              />
 
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <MobileDetail label="Destination">
@@ -589,6 +612,10 @@ function PendingAdmissionsTable({
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
                     <VisitorName row={row} />
+                    <GuestOfNote
+                      className="mt-1 justify-center"
+                      leadName={record.groupLeadName}
+                    />
                   </td>
                   <td className="min-w-60 px-4 py-4">
                     <ContactDetails

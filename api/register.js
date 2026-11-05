@@ -165,7 +165,7 @@ async function registerVisitor(
 
   const { data, error } =
     await getAdminClient().rpc(
-      "register_first_visit",
+      "register_first_visit_with_guests",
       {
         p_consent_version:
           PRIVACY_NOTICE_VERSION,
@@ -177,6 +177,12 @@ async function registerVisitor(
           input.division || "",
         p_email: input.email || "",
         p_full_name: input.fullName,
+        p_guests: input.guests.map(
+          (guest) => ({
+            fullName: guest.fullName,
+            phone: guest.phone,
+          }),
+        ),
         p_meeting_id:
           input.meetingId ===
           CUSTOM_MEETING_OPTION
@@ -190,6 +196,20 @@ async function registerVisitor(
         p_purpose: input.purpose,
       },
     );
+
+  const guestConflict =
+    /^GUEST_ALREADY_CHECKED_IN:(\d+)$/.exec(
+      error?.message || "",
+    );
+
+  if (guestConflict) {
+    return json(
+      {
+        error: `Guest ${guestConflict[1]} is already checked in. Remove them from this registration or ask reception for help.`,
+      },
+      409,
+    );
+  }
 
   if (error?.code === "23505") {
     return json(
@@ -225,6 +245,8 @@ async function registerVisitor(
 
   return json(
     {
+      guestCount:
+        result.guest_count ?? 0,
       reference: result.reference_code,
     },
     201,

@@ -13,9 +13,6 @@ import { chooseOption } from "./support/select.js";
 const MEETING_ID =
   "00000000-0000-4000-8000-000000000013";
 
-const PRIVACY_ACKNOWLEDGEMENT =
-  /I acknowledge that I have read and understood privacy notice version 2\.0/i;
-
 async function fulfillJson(
   route,
   body,
@@ -35,7 +32,7 @@ async function openRegistration(page) {
 
   await expect(
     page.getByRole("heading", {
-      name: "Visitor time-in details",
+      name: "Register your visit",
     }),
   ).toBeVisible();
 }
@@ -54,12 +51,20 @@ async function fillVisitorDetails(page) {
     .fill("024 111 2233");
 
   await page
-    .getByLabel("Email address (optional)")
+    .getByLabel("Email (optional)")
     .fill("SYNTHETIC@EXAMPLE.INVALID");
 
   await page
-    .getByLabel("Your organisation (optional)")
+    .getByLabel("Organisation (optional)")
     .fill("Quality Test Organisation");
+
+  await page
+    .getByRole("button", { name: "Continue to visit details" })
+    .click();
+
+  await expect(
+    page.getByRole("heading", { name: "Visit details" }),
+  ).toBeVisible();
 }
 
 async function fillNonMeetingVisit(page) {
@@ -110,10 +115,8 @@ test.describe("first-time visitor workflow", () => {
     await fillVisitorDetails(page);
     await fillNonMeetingVisit(page);
 
-    await page
-      .getByLabel(PRIVACY_ACKNOWLEDGEMENT)
-      .check();
-
+    // Let the submit button finish turning teal before axe samples it.
+    await page.waitForTimeout(300);
     await expectNoWcagViolations(page);
 
     await page
@@ -156,7 +159,183 @@ expect(
     await expectNoWcagViolations(page);
   });
 
-  test("blocks submission without privacy acknowledgement", async ({
+  test("counts required details and shows the privacy notice", async ({
+    page,
+  }) => {
+    await openRegistration(page);
+
+    const progress = page.getByRole("progressbar", {
+      name: /required details/,
+    });
+
+    await expect(progress).toHaveAccessibleName("0 of 5 required details");
+
+    await fillVisitorDetails(page);
+    await fillNonMeetingVisit(page);
+
+    // A purpose adds "Person being visited" to the count.
+    await expect(progress).toHaveAccessibleName("6 of 6 required details");
+
+    const noticeButton = page.getByRole("button", {
+      name: "Read the privacy notice",
+    });
+
+    await noticeButton.click();
+
+    const dialog = page.getByRole("dialog", { name: "Privacy notice" });
+
+    await expect(dialog.getByRole("region", { name: "Full privacy notice" })).toBeFocused();
+    await expect(dialog.getByText("Who is responsible")).toBeVisible();
+    await expectNoWcagViolations(page, { include: "[role=dialog]" });
+
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(noticeButton).toBeFocused();
+  });
+
+  test("moves between the two steps without losing details", async ({
+    page,
+  }) => {
+    await openRegistration(page);
+
+    const steps = page.getByRole("list", { name: "Registration steps" });
+    const continueButton = page.getByRole("button", {
+      name: "Continue to visit details",
+    });
+
+    await expect(steps.locator("[aria-current=step]")).toContainText("Your details");
+
+    // Step 1 must be valid before moving on.
+    await continueButton.click();
+    await expect(page.locator("#firstName-error")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Visit details" })).toBeHidden();
+
+    await fillVisitorDetails(page);
+
+    await expect(steps.locator("[aria-current=step]")).toContainText("Visit details");
+    await expect(page.getByLabel("First name")).toBeHidden();
+    await expectNoWcagViolations(page);
+
+    await page.getByRole("button", { name: "Previous step" }).click();
+
+    await expect(page.getByLabel("First name")).toHaveValue("Synthetic");
+    await expect(page.getByLabel("Phone number")).toHaveValue("024 111 2233");
+  });
+
+  test("registers a group with a card for each guest", async ({
+    page,
+  }) => {
+    let registrationPayload = null;
+
+    await page.route(
+      "**/api/register",
+      async (route) => {
+        registrationPayload =
+          route.request().postDataJSON();
+
+        await fulfillJson(
+          route,
+          {
+            guestCount: 2,
+            reference: "VIS-E2E1003",
+          },
+          201,
+        );
+      },
+    );
+
+    await openRegistration(page);
+
+    const progress = page.getByRole("progressbar", {
+      name: /required details/,
+    });
+    const addPerson = page.getByRole("button", { name: "Add a person" });
+    const removePerson = page.getByRole("button", {
+      name: "Remove a person",
+    });
+
+    await expect(removePerson).toHaveAttribute("aria-disabled", "true");
+
+    await addPerson.click();
+    await addPerson.click();
+    await addPerson.click();
+
+    await expect(page.getByRole("group", { name: "Guest 4" })).toBeVisible();
+    await expect(progress).toHaveAccessibleName("0 of 14 required details");
+
+    // Fewer people drops the last guest; Remove drops a specific one.
+    await removePerson.click();
+    await expect(page.getByRole("group", { name: "Guest 4" })).toHaveCount(0);
+
+    await page.getByLabel("First name").first().fill("Synthetic");
+    await page.getByLabel("Last name").first().fill("Visitor");
+    await page.getByLabel("Phone number").first().fill("024 111 2233");
+
+    const guestTwo = page.getByRole("group", { name: "Guest 2" });
+    const guestThree = page.getByRole("group", { name: "Guest 3" });
+
+    await guestTwo.getByLabel("First name").fill("Ama");
+    await guestTwo.getByLabel("Last name").fill("Mensah");
+    await guestTwo.getByLabel("Phone number").fill("0241112233");
+    await guestThree.getByLabel("First name").fill("Kofi");
+    await guestThree.getByLabel("Last name").fill("Owusu");
+    await guestThree.getByLabel("Phone number").fill("0244445566");
+
+    await expect(progress).toHaveAccessibleName("9 of 11 required details");
+
+    // Every person needs their own phone.
+    await page
+      .getByRole("button", { name: "Continue to visit details" })
+      .click();
+
+    await expect(page.locator("#guest-0-phone-error")).toHaveText(
+      /different mobile number/,
+    );
+    await expect(guestTwo.getByLabel("Phone number")).toBeFocused();
+
+    await guestTwo.getByLabel("Phone number").fill("0247778899");
+    await expectNoWcagViolations(page);
+
+    await page
+      .getByRole("button", { name: "Continue to visit details" })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: "Visit details" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("you confirm you and your guests agree"),
+    ).toBeVisible();
+
+    await fillNonMeetingVisit(page);
+
+    await page
+      .getByRole("button", { name: "Register and check in" })
+      .click();
+
+    await expect(
+      page.getByLabel("Visit reference VIS-E2E1003"),
+    ).toBeVisible();
+    await expect(page.getByText("For you and 2 guests")).toBeVisible();
+
+    expect(registrationPayload.guests).toEqual([
+      {
+        firstName: "Ama",
+        fullName: "Ama Mensah",
+        lastName: "Mensah",
+        phone: "+233247778899",
+      },
+      {
+        firstName: "Kofi",
+        fullName: "Kofi Owusu",
+        lastName: "Owusu",
+        phone: "+233244445566",
+      },
+    ]);
+  });
+
+  test("does not submit while required details are missing", async ({
     page,
   }) => {
     let registrationCalls = 0;
@@ -178,7 +357,6 @@ expect(
 
     await openRegistration(page);
     await fillVisitorDetails(page);
-    await fillNonMeetingVisit(page);
 
     await page
       .getByRole("button", {
@@ -186,11 +364,7 @@ expect(
       })
       .click();
 
-    await expect(
-      page.locator("#consent-error"),
-    ).toHaveText(
-      "Acknowledge the privacy notice before continuing.",
-    );
+    await expect(page.locator("#agency-error")).toBeVisible();
 
     expect(registrationCalls).toBe(0);
   });
@@ -266,9 +440,6 @@ expect(
     "Stage 13 Quality Meeting",
   );
 
-    await page
-      .getByLabel(PRIVACY_ACKNOWLEDGEMENT)
-      .check();
 
     await page
       .getByRole("button", {

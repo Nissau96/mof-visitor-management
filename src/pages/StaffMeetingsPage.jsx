@@ -27,6 +27,7 @@ import {
   useForm,
   useWatch,
 } from "react-hook-form";
+import { ControlledAppSelect } from "../components/AppSelect.jsx";
 import AdminDialog, {
   DIALOG_BUTTON,
   DIALOG_CANCEL_BUTTON,
@@ -50,7 +51,13 @@ import LoadingState from "../components/LoadingState.jsx";
 import SegmentedButton from "../components/SegmentedButton.jsx";
 import SegmentedChoice from "../components/SegmentedChoice.jsx";
 import StatCard from "../components/StatCard.jsx";
-import { getTowerLabel } from "../constants/visitorOptions.js";
+import { toOptions } from "../constants/selectOptions.js";
+import {
+  MEETING_HOST_DIVISIONS,
+  MINISTRY_OF_FINANCE_AGENCY,
+  VISIT_AGENCIES,
+  getTowerLabel,
+} from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError } from "../lib/api.js";
 import { getAccraIsoDate } from "../lib/accraDate.js";
@@ -923,9 +930,9 @@ function MeetingTable({ meetings, onAction, tab }) {
                 <h3 className="wrap-break-word font-black text-slate-950">
                   {meeting.title}
                 </h3>
-                {meeting.hostDivision ? (
+                {formatHost(meeting) ? (
                   <p className="mt-0.5 text-sm text-slate-600">
-                    {meeting.hostDivision}
+                    {formatHost(meeting)}
                   </p>
                 ) : null}
               </div>
@@ -1009,9 +1016,9 @@ function MeetingTable({ meetings, onAction, tab }) {
                   <p className="font-bold text-slate-950">
                     {meeting.title}
                   </p>
-                  {meeting.hostDivision ? (
+                  {formatHost(meeting) ? (
                     <p className="mt-0.5 text-sm text-slate-600">
-                      {meeting.hostDivision}
+                      {formatHost(meeting)}
                     </p>
                   ) : null}
                 </td>
@@ -1226,11 +1233,25 @@ function MeetingCalendar({
   );
 }
 
+// "Agency · Division". Older meetings may only have a free-text division.
+function formatHost(meeting) {
+  return [meeting.hostAgency, meeting.hostDivision]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+const AGENCY_CHOICES = [
+  { label: "No agency", value: "" },
+  ...toOptions(VISIT_AGENCIES),
+];
+
+const HOST_DIVISION_CHOICES = toOptions(MEETING_HOST_DIVISIONS);
+
 function MeetingDetailsDialog({ meeting, onClose, onEdit }) {
   return (
     <AdminDialog
       closeLabel="Close meeting details"
-      description={meeting.hostDivision || undefined}
+      description={formatHost(meeting) || undefined}
       eyebrow="Meeting"
       onClose={onClose}
       title={meeting.title}
@@ -1387,6 +1408,7 @@ function MeetingDialog({
     formState: { errors, isDirty },
     handleSubmit,
     register,
+    setValue,
   } = useForm({
     defaultValues: {
       endsAt: meeting?.endsAt || "",
@@ -1394,7 +1416,13 @@ function MeetingDialog({
         meeting && meeting.scheduleType !== "single"
           ? meeting.endsOn || ""
           : "",
-      hostDivision: meeting?.hostDivision || "",
+      hostAgency: meeting?.hostAgency || "",
+      // Older free-text divisions are not in the list, so the select
+      // starts empty for them.
+      hostDivision:
+        meeting?.hostAgency === MINISTRY_OF_FINANCE_AGENCY
+          ? meeting.hostDivision || ""
+          : "",
       meetingId: meeting?.meetingId || null,
       meetingTower:
         fixedTower || meeting?.tower || "tower_1",
@@ -1409,10 +1437,12 @@ function MeetingDialog({
     shouldFocusError: true,
   });
 
-  const [scheduleType, title] = useWatch({
+  const [hostAgency, scheduleType, title] = useWatch({
     control,
-    name: ["scheduleType", "title"],
+    name: ["hostAgency", "scheduleType", "title"],
   });
+
+  const ministryHost = hostAgency === MINISTRY_OF_FINANCE_AGENCY;
 
   const ready = creating
     ? Boolean(title.trim())
@@ -1635,42 +1665,67 @@ function MeetingDialog({
             />
           )}
 
+          <Field
+            error={errors.venue?.message}
+            id="meeting-venue"
+            label="Venue or room (optional)"
+          >
+            <input
+              aria-describedby={errors.venue ? "meeting-venue-error" : undefined}
+              aria-invalid={Boolean(errors.venue)}
+              autoComplete="off"
+              className={DIALOG_INPUT}
+              disabled={submitting}
+              id="meeting-venue"
+              maxLength="120"
+              placeholder="e.g. Conference Room B"
+              {...register("venue")}
+            />
+          </Field>
+
           <div className="grid gap-5 sm:grid-cols-2">
             <Field
-              error={errors.venue?.message}
-              id="meeting-venue"
-              label="Venue or room (optional)"
+              error={errors.hostAgency?.message}
+              id="meeting-host-agency"
+              label="Agency (optional)"
             >
-              <input
-                aria-describedby={errors.venue ? "meeting-venue-error" : undefined}
-                aria-invalid={Boolean(errors.venue)}
-                autoComplete="off"
-                className={DIALOG_INPUT}
+              <ControlledAppSelect
+                control={control}
+                describedBy={errors.hostAgency ? "meeting-host-agency-error" : undefined}
                 disabled={submitting}
-                id="meeting-venue"
-                maxLength="120"
-                placeholder="e.g. Conference Room B"
-                {...register("venue")}
+                id="meeting-host-agency"
+                invalid={Boolean(errors.hostAgency)}
+                labelledBy="meeting-host-agency-label"
+                name="hostAgency"
+                onValueChange={() =>
+                  setValue("hostDivision", "", { shouldDirty: true })
+                }
+                options={AGENCY_CHOICES}
+                placeholder="Select an agency"
               />
             </Field>
 
-            <Field
-              error={errors.hostDivision?.message}
-              id="meeting-host-division"
-              label="Host division (optional)"
-            >
-              <input
-                aria-describedby={errors.hostDivision ? "meeting-host-division-error" : undefined}
-                aria-invalid={Boolean(errors.hostDivision)}
-                autoComplete="off"
-                className={DIALOG_INPUT}
-                disabled={submitting}
+            {ministryHost ? (
+              <Field
+                error={errors.hostDivision?.message}
                 id="meeting-host-division"
-                maxLength="160"
-                placeholder="e.g. Budget Division"
-                {...register("hostDivision")}
-              />
-            </Field>
+                label="Division"
+                required
+              >
+                <ControlledAppSelect
+                  control={control}
+                  describedBy={errors.hostDivision ? "meeting-host-division-error" : undefined}
+                  disabled={submitting}
+                  id="meeting-host-division"
+                  invalid={Boolean(errors.hostDivision)}
+                  labelledBy="meeting-host-division-label"
+                  name="hostDivision"
+                  options={HOST_DIVISION_CHOICES}
+                  placeholder="Select a division"
+                  required
+                />
+              </Field>
+            ) : null}
           </div>
         </DialogBody>
 

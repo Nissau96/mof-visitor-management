@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  MEETING_HOST_DIVISIONS,
+  MINISTRY_OF_FINANCE_AGENCY,
+  VISIT_AGENCIES,
+} from "../constants/visitorOptions.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -99,7 +104,12 @@ export const meetingFormSchema = z
   .object({
     endsAt: optionalTimeSchema,
     endsOn: z.string().trim().default(""),
-    hostDivision: optionalTextSchema(160, "Host division"),
+    hostAgency: z
+      .union([z.literal(""), z.enum(VISIT_AGENCIES)], {
+        message: "Select a valid agency.",
+      })
+      .default(""),
+    hostDivision: z.string().trim().default(""),
     meetingId: meetingIdSchema.nullable().default(null),
     meetingTower: z.enum(["tower_1", "tower_2"], {
       message: "Select the meeting tower.",
@@ -122,6 +132,17 @@ export const meetingFormSchema = z
     venue: optionalTextSchema(120, "Venue"),
   })
   .superRefine((value, context) => {
+    if (
+      value.hostAgency === MINISTRY_OF_FINANCE_AGENCY &&
+      !MEETING_HOST_DIVISIONS.includes(value.hostDivision)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Select the hosting division.",
+        path: ["hostDivision"],
+      });
+    }
+
     if (value.scheduleType !== "single") {
       if (
         value.endsOn &&

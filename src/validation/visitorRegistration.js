@@ -40,41 +40,83 @@ export function normalizePhone(value) {
   return compact;
 }
 
+// The lead visitor plus up to nine guests.
+export const MAX_VISIT_PARTY_SIZE = 10;
+
+function nameField(requiredMessage, label) {
+  return z
+    .string()
+    .trim()
+    .min(1, requiredMessage)
+    .max(60, `${label} must not exceed 60 characters.`)
+    .transform(normalizeName);
+}
+
+function phoneField(requiredMessage) {
+  return z
+    .string()
+    .trim()
+    .min(8, requiredMessage)
+    .max(30, "Mobile number is too long.")
+    .transform(normalizePhone)
+    .refine(
+      (value) => /^\+[1-9]\d{7,14}$/.test(value),
+      "Enter a valid mobile number, for example +233 24 000 0000.",
+    );
+}
+
+export const REPEATED_PHONE_MESSAGE =
+  "Each person needs a different mobile number.";
+
+// Guest visits are matched to visitor profiles by phone, so every
+// person in a group needs their own number. Returns the indexes of
+// guests whose phone repeats the lead's or an earlier guest's.
+export function findRepeatedGuestPhones(phone, guests) {
+  const seen = new Set([normalizePhone(phone)]);
+
+  return guests.flatMap((guest, index) => {
+    const guestPhone = normalizePhone(guest.phone);
+    const repeated = seen.has(guestPhone);
+
+    seen.add(guestPhone);
+
+    return repeated ? [index] : [];
+  });
+}
+
+function fullNameOf({ firstName, lastName }) {
+  return normalizeName(`${firstName} ${lastName}`);
+}
+
+const guestSchema = z.object({
+  firstName: nameField(
+    "Enter the guest's first name.",
+    "First name",
+  ),
+  lastName: nameField(
+    "Enter the guest's last name.",
+    "Last name",
+  ),
+  phone: phoneField(
+    "Enter the guest's mobile number.",
+  ),
+});
+
 export const visitorRegistrationSchema = z
   .object({
-    firstName: z
-      .string()
-      .trim()
-      .min(1, "Enter your first name.")
-      .max(
-        60,
-        "First name must not exceed 60 characters.",
-      )
-      .transform(normalizeName),
+    firstName: nameField(
+      "Enter your first name.",
+      "First name",
+    ),
 
-    lastName: z
-      .string()
-      .trim()
-      .min(1, "Enter your last name.")
-      .max(
-        60,
-        "Last name must not exceed 60 characters.",
-      )
-      .transform(normalizeName),
+    lastName: nameField(
+      "Enter your last name.",
+      "Last name",
+    ),
 
-    phone: z
-      .string()
-      .trim()
-      .min(
-        8,
-        "Enter your mobile number, including the country code.",
-      )
-      .max(30, "Mobile number is too long.")
-      .transform(normalizePhone)
-      .refine(
-        (value) => /^\+[1-9]\d{7,14}$/.test(value),
-        "Enter a valid mobile number, for example +233 24 000 0000.",
-      ),
+    phone: phoneField(
+      "Enter your mobile number, including the country code.",
+    ),
 
     email: z
       .string()
@@ -101,17 +143,21 @@ export const visitorRegistrationSchema = z
 
     ...visitDetailsShape,
 
+    guests: z
+      .array(guestSchema)
+      .max(
+        MAX_VISIT_PARTY_SIZE - 1,
+        `A group can have up to ${MAX_VISIT_PARTY_SIZE} people.`,
+      )
+      .default([]),
+
     consent: z.boolean().refine((value) => value, {
       message:
         "Acknowledge the privacy notice before continuing.",
     }),
   })
   .superRefine((data, context) => {
-    const fullName = normalizeName(
-      `${data.firstName} ${data.lastName}`,
-    );
-
-    if (fullName.length > 120) {
+    if (fullNameOf(data).length > 120) {
       context.addIssue({
         code: "custom",
         message:
@@ -120,12 +166,36 @@ export const visitorRegistrationSchema = z
       });
     }
 
+    data.guests.forEach((guest, index) => {
+      if (fullNameOf(guest).length > 120) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Combined first and last name must not exceed 120 characters.",
+          path: ["guests", index, "lastName"],
+        });
+      }
+    });
+
+    findRepeatedGuestPhones(
+      data.phone,
+      data.guests,
+    ).forEach((index) => {
+      context.addIssue({
+        code: "custom",
+        message: REPEATED_PHONE_MESSAGE,
+        path: ["guests", index, "phone"],
+      });
+    });
+
     validateVisitDetails(data, context);
   })
   .transform((data) => ({
     ...data,
     ...normalizeVisitDetails(data),
-    fullName: normalizeName(
-      `${data.firstName} ${data.lastName}`,
-    ),
+    fullName: fullNameOf(data),
+    guests: data.guests.map((guest) => ({
+      ...guest,
+      fullName: fullNameOf(guest),
+    })),
   }));

@@ -4,13 +4,15 @@ import { useId } from "react";
 // Modal shell for administration forms: eyebrow, title, optional
 // description and a close button above a divider. Put the form inside
 // and use DialogBody and DialogFooter so the actions sit on their own
-// divided strip. Escape closes the dialog unless it is busy.
+// divided strip. Escape closes the dialog unless it is busy. An optional
+// icon sits in a tile beside the title.
 export default function AdminDialog({
   busy = false,
   children,
   closeLabel = "Close dialog",
   description,
   eyebrow,
+  icon: Icon,
   onClose,
   title,
 }) {
@@ -35,28 +37,39 @@ export default function AdminDialog({
         role="dialog"
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 pb-5 pt-6 sm:px-7">
-          <div className="min-w-0">
-            {eyebrow ? (
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-brand-700">
-                {eyebrow}
-              </p>
-            ) : null}
-
-            <h2
-              className="mt-1 text-2xl font-black tracking-tight text-slate-950"
-              id={titleId}
-            >
-              {title}
-            </h2>
-
-            {description ? (
-              <p
-                className="mt-2 text-sm leading-6 text-slate-600"
-                id={descriptionId}
+          <div className="flex min-w-0 items-start gap-4">
+            {Icon ? (
+              <span
+                aria-hidden="true"
+                className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7f4] text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]"
               >
-                {description}
-              </p>
+                <Icon className="size-6" />
+              </span>
             ) : null}
+
+            <div className="min-w-0">
+              {eyebrow ? (
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-brand-700">
+                  {eyebrow}
+                </p>
+              ) : null}
+
+              <h2
+                className="mt-1 text-2xl font-black tracking-tight text-slate-950"
+                id={titleId}
+              >
+                {title}
+              </h2>
+
+              {description ? (
+                <p
+                  className="mt-2 text-sm leading-6 text-slate-600"
+                  id={descriptionId}
+                >
+                  {description}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <button
