@@ -4,6 +4,10 @@ import {
   validateVisitDetails,
   visitDetailsShape,
 } from "./visitDetails.js";
+import {
+  optionalEmailField,
+  optionalOrganizationField,
+} from "./visitorRegistration.js";
 
 export const returningVisitCheckInSchema = z
   .object({
@@ -26,6 +30,10 @@ export const returningVisitCheckInSchema = z
           "Acknowledge the current privacy notice before continuing.",
       },
     ),
+
+    // Only offered, and only saved, where the profile has none.
+    email: optionalEmailField,
+    organization: optionalOrganizationField,
 
     ...visitDetailsShape,
   })

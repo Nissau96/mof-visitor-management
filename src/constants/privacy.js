@@ -1,7 +1,7 @@
-export const PRIVACY_NOTICE_VERSION = "2.0";
+export const PRIVACY_NOTICE_VERSION = "2.1";
 
 export const PRIVACY_NOTICE_EFFECTIVE_DATE =
-  "14 August 2026";
+  "19 November 2026";
 
 export const PRIVACY_CONTACT_EMAIL =
   "info@mofep.gov.gh";

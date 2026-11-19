@@ -66,7 +66,11 @@ export default function AppSelect({
         placeholder={placeholder}
         required={required}
         size={size || (filter ? "2xl" : "3xl")}
-        triggerClassName={filter ? undefined : "rounded-xl"}
+        // contain-inline-size: a long choice is cut short with "…"
+        // instead of stretching the form wider than the screen.
+        triggerClassName={
+          filter ? undefined : "rounded-xl contain-inline-size"
+        }
         value={value ?? ""}
       />
     </div>

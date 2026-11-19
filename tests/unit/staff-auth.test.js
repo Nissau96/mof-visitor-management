@@ -136,7 +136,7 @@ describe("requireActiveStaff", () => {
     );
 
     expect(select).toHaveBeenCalledWith(
-      "user_id, full_name, role, active, password_change_required, temporary_password_expires_at, password_setup_completed_at",
+      "user_id, full_name, role, active, password_change_required, temporary_password_expires_at, password_setup_completed_at, sign_in_method, access_expires_at, is_nsp",
     );
 
     expect(eq).toHaveBeenCalledWith(
@@ -147,10 +147,13 @@ describe("requireActiveStaff", () => {
     expect(result).toEqual({
       profile: {
         active: true,
+        accessExpiresAt: null,
         fullName: "Test Receptionist",
+        isNsp: false,
         passwordChangeRequired: false,
         passwordSetupCompletedAt: null,
         role: "receptionist",
+        signInMethod: "password",
         temporaryPasswordExpiresAt: null,
         userId: USER_ID,
       },
@@ -339,10 +342,13 @@ describe("requireActiveStaff", () => {
 
     expect(result.profile).toEqual({
       active: true,
+      accessExpiresAt: null,
       fullName: "Test Administrator",
+      isNsp: false,
       passwordChangeRequired: false,
       passwordSetupCompletedAt: null,
       role: "admin",
+      signInMethod: "password",
       temporaryPasswordExpiresAt: null,
       userId: USER_ID,
     });
@@ -400,10 +406,13 @@ describe("requireActiveStaff", () => {
 
     expect(result.profile).toEqual({
       active: true,
+      accessExpiresAt: null,
       fullName: "Test Receptionist",
+      isNsp: false,
       passwordChangeRequired: true,
       passwordSetupCompletedAt: null,
       role: "receptionist",
+      signInMethod: "password",
       temporaryPasswordExpiresAt:
         expiry,
       userId: USER_ID,

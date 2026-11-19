@@ -2,8 +2,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
   Ban,
+  CalendarCheck,
   CalendarClock,
+  CalendarCog,
   CalendarDays,
+  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
@@ -18,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useState,
@@ -41,22 +45,27 @@ import {
   OUTLINE_BUTTON,
   SearchPill,
   StateChip,
-  SuccessBanner,
   TABLE_HEAD_CELL,
 } from "../components/AdminRecords.jsx";
+import BookingRequestsPanel from "../components/BookingRequestsPanel.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import ListPagination from "../components/ListPagination.jsx";
+import MeetingDetailsDialog from "../components/MeetingDetailsDialog.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import SegmentedButton from "../components/SegmentedButton.jsx";
 import SegmentedChoice from "../components/SegmentedChoice.jsx";
 import StatCard from "../components/StatCard.jsx";
+import WifiAccessField from "../components/WifiAccessField.jsx";
 import { toOptions } from "../constants/selectOptions.js";
 import {
   MEETING_HOST_DIVISIONS,
+  MEETING_WIFI_OPTIONS,
   MINISTRY_OF_FINANCE_AGENCY,
   VISIT_AGENCIES,
+  getFloorOptions,
   getTowerLabel,
+  resolveDestinationFloor,
 } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError } from "../lib/api.js";
@@ -69,6 +78,8 @@ import {
 } from "../lib/meetingApi.js";
 import {
   WEEKDAYS,
+  addDays,
+  dayOfWeek,
   formatDate,
   formatSchedule,
   formatTimeRange,
@@ -81,6 +92,7 @@ import {
   meetingFormSchema,
   meetingListSchema,
 } from "../validation/meetings.js";
+import { toast } from "../lib/toast.js";
 
 const PAGE_SIZE = 10;
 
@@ -123,10 +135,87 @@ const agendaFormatter = new Intl.DateTimeFormat("en-GB", {
   weekday: "long",
 });
 
+// After the next paint, so a schedule that was hidden behind the
+// "Booked Meetings" switch is on screen first.
 function scrollToSchedule(options) {
-  document
-    .getElementById(RECORDS_ID)
-    ?.scrollIntoView(options);
+  window.requestAnimationFrame(() => {
+    document
+      .getElementById(RECORDS_ID)
+      ?.scrollIntoView(options);
+  });
+}
+
+const weekDay = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  timeZone: "UTC",
+  weekday: "short",
+});
+
+const weekDayMonth = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+  weekday: "short",
+});
+
+// "Mon 16 – Sun 22 Nov": the week the "This week" count covers (Monday
+// to Sunday, as in get_staff_meetings).
+function describeThisWeek(today) {
+  const monday = addDays(today, -((dayOfWeek(today) + 6) % 7));
+  const sunday = addDays(monday, 6);
+  const sameMonth = monday.slice(0, 7) === sunday.slice(0, 7);
+
+  return `${(sameMonth ? weekDay : weekDayMonth).format(toDate(monday))} – ${weekDayMonth.format(toDate(sunday))}`.replace(/,/g, "");
+}
+
+function plural(count, one, many) {
+  return `${Number(count).toLocaleString()} ${count === 1 ? one : many}`;
+}
+
+// Big two-way switch between the bookings made through /book and the
+// meeting schedule visitors choose from.
+function SectionTab({ active, controls, count, description, icon: Icon, label, onClick }) {
+  return (
+    <button
+      aria-controls={controls}
+      aria-pressed={active}
+      className={`flex min-h-16 min-w-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-left focus-visible:ring-4 focus-visible:ring-brand-200 sm:gap-4 sm:px-4 ${
+        active
+          ? "bg-brand-800 text-white shadow-sm"
+          : "text-slate-900 hover:bg-slate-50"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        className={`grid size-10 shrink-0 place-items-center rounded-xl max-sm:hidden ${
+          active ? "bg-white/15 text-white" : "bg-brand-50 text-brand-800"
+        }`}
+      >
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black leading-tight sm:text-base">{label}</span>
+        <span
+          className={`mt-0.5 block text-xs leading-snug max-sm:hidden sm:text-sm ${
+            active ? "text-white/80" : "text-slate-600"
+          }`}
+        >
+          {description}
+        </span>
+      </span>
+      {Number.isInteger(count) ? (
+        <span
+          className={`grid min-w-7 shrink-0 place-items-center rounded-full px-2 text-xs font-black leading-7 ${
+            active ? "bg-white text-brand-800" : "bg-slate-100 text-slate-800 dark:bg-[#2a3a52] dark:text-slate-100"
+          }`}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 function towerName(tower) {
@@ -180,10 +269,13 @@ export default function StaffMeetingsPage() {
   const [requestError, setRequestError] =
     useState("");
 
-  const [successMessage, setSuccessMessage] =
-    useState("");
-
   const [dialog, setDialog] = useState(null);
+
+  // "booked" (meetings booked through /book) or "schedule".
+  const [section, setSection] = useState("booked");
+
+  const [bookingCounts, setBookingCounts] =
+    useState({});
 
   const [dialogError, setDialogError] =
     useState("");
@@ -320,6 +412,7 @@ export default function StaffMeetingsPage() {
   }
 
   function changeTab(nextTab) {
+    setSection("schedule");
     setViewMode("table");
     setTab(nextTab);
     setPage(1);
@@ -327,6 +420,8 @@ export default function StaffMeetingsPage() {
   }
 
   function changeViewMode(nextMode) {
+    setSection("schedule");
+
     if (nextMode !== viewMode) {
       setViewMode(nextMode);
       setRequestStatus("loading");
@@ -369,10 +464,10 @@ export default function StaffMeetingsPage() {
     scrollToSchedule({ block: "start" });
   }
 
-  function openDialog(type, meeting = null) {
+  // day: the calendar day a meeting was opened from, if any.
+  function openDialog(type, meeting = null, day = "") {
     setDialogError("");
-    setSuccessMessage("");
-    setDialog({ meeting, type });
+    setDialog({ day, meeting, type });
   }
 
   function closeDialog() {
@@ -390,7 +485,7 @@ export default function StaffMeetingsPage() {
       const data = await action();
 
       setDialog(null);
-      setSuccessMessage(message(data));
+      toast.success("Meeting updated", message(data));
       reload();
     } catch (error) {
       if (
@@ -460,6 +555,18 @@ export default function StaffMeetingsPage() {
     result?.scope?.canManage,
   );
 
+  // Receptionists and administrators review meetings booked through /book.
+  const reviewsBookings =
+    profile?.role === "receptionist" ||
+    profile?.role === "admin";
+
+  const showBooked =
+    reviewsBookings && section === "booked";
+
+  const endExpiredSession = useCallback(() => {
+    void signOut().catch(() => undefined);
+  }, [signOut]);
+
   const statCards = summary
     ? [
         {
@@ -478,7 +585,7 @@ export default function StaffMeetingsPage() {
           count: Number(summary.thisWeekCount).toLocaleString(),
           icon: CalendarDays,
           id: "week",
-          note: "Shown on the calendar",
+          note: describeThisWeek(getAccraIsoDate()),
           noteTone: "brand",
           onOpen: () =>
             showInSchedule(() => {
@@ -492,7 +599,7 @@ export default function StaffMeetingsPage() {
           count: Number(summary.recurringCount).toLocaleString(),
           icon: Repeat,
           id: "recurring",
-          note: `${Number(summary.cancelledCount).toLocaleString()} cancelled`,
+          note: plural(summary.cancelledCount, "cancelled meeting", "cancelled meetings"),
           onOpen: () =>
             showInSchedule(() => changeTab("upcoming")),
           shortTitle: "Recurring",
@@ -505,11 +612,7 @@ export default function StaffMeetingsPage() {
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
       <header className="flex flex-col gap-4 px-1 pt-2 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
-            Reception
-          </p>
-
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             Meetings
           </h1>
 
@@ -548,11 +651,6 @@ export default function StaffMeetingsPage() {
         </div>
       </header>
 
-      <SuccessBanner
-        message={successMessage}
-        onDismiss={() => setSuccessMessage("")}
-      />
-
       {statCards.length ? (
         <section
           aria-label="Meeting statistics"
@@ -581,13 +679,53 @@ export default function StaffMeetingsPage() {
         </section>
       ) : null}
 
-      {!result && loading ? (
+      {reviewsBookings ? (
+        <>
+          <div
+            aria-label="Meetings section"
+            className="mt-4 grid grid-cols-2 gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm"
+            role="group"
+          >
+            <SectionTab
+              active={section === "booked"}
+              controls="booked-meetings"
+              count={bookingCounts.approved}
+              description="Requests from staff via the booking link"
+              icon={CalendarCheck}
+              label="Booked Meetings"
+              onClick={() => setSection("booked")}
+            />
+            <SectionTab
+              active={section === "schedule"}
+              controls={RECORDS_ID}
+              count={result ? result.pagination.totalCount : undefined}
+              description="Meetings visitors can pick at reception"
+              icon={List}
+              label="Meeting Schedule"
+              onClick={() => setSection("schedule")}
+            />
+          </div>
+
+          <div className="mt-4" hidden={!showBooked} id="booked-meetings">
+            <BookingRequestsPanel
+              accessToken={accessToken}
+              mode="schedule"
+              onApproved={reload}
+              onCounts={setBookingCounts}
+              onSessionExpired={endExpiredSession}
+              tower={requestTower}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {!result && loading && !showBooked ? (
         <div className="mt-6">
           <LoadingState message="Loading meetings…" />
         </div>
       ) : null}
 
-      {requestStatus === "error" ? (
+      {requestStatus === "error" && !showBooked ? (
         <div className="mt-6">
           <ErrorMessage
             message={requestError}
@@ -602,6 +740,7 @@ export default function StaffMeetingsPage() {
           aria-busy={loading}
           aria-labelledby="meeting-schedule-heading"
           className="mt-4 scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          hidden={showBooked}
           id={RECORDS_ID}
         >
           <div className="flex flex-col gap-4 p-4 sm:p-6">
@@ -738,8 +877,8 @@ export default function StaffMeetingsPage() {
                 meetings={result.meetings}
                 month={month}
                 onChangeMonth={changeMonth}
-                onOpen={(meeting) =>
-                  openDialog("details", meeting)
+                onOpen={(meeting, day) =>
+                  openDialog("details", meeting, day)
                 }
               />
             ) : (
@@ -777,9 +916,15 @@ export default function StaffMeetingsPage() {
 
       {dialog?.type === "details" ? (
         <MeetingDetailsDialog
+          accessToken={accessToken}
+          day={dialog.day}
           meeting={dialog.meeting}
+          onCancelMeeting={() => openDialog("cancel", dialog.meeting)}
           onClose={closeDialog}
           onEdit={() => openDialog("edit", dialog.meeting)}
+          onRestore={() => openDialog("restore", dialog.meeting)}
+          onSessionExpired={endExpiredSession}
+          tower={requestTower}
         />
       ) : null}
 
@@ -886,6 +1031,19 @@ function MeetingStatus({ meeting }) {
   );
 }
 
+// The title opens the meeting's details.
+function MeetingTitleButton({ meeting, onAction }) {
+  return (
+    <button
+      className="rounded text-left hover:text-brand-800 hover:underline focus-visible:ring-4 focus-visible:ring-brand-200"
+      onClick={() => onAction("details", meeting)}
+      type="button"
+    >
+      {meeting.title}
+    </button>
+  );
+}
+
 function MeetingTable({ meetings, onAction, tab }) {
   if (meetings.length === 0) {
     return (
@@ -928,7 +1086,10 @@ function MeetingTable({ meetings, onAction, tab }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="wrap-break-word font-black text-slate-950">
-                  {meeting.title}
+                  <MeetingTitleButton
+                    meeting={meeting}
+                    onAction={onAction}
+                  />
                 </h3>
                 {formatHost(meeting) ? (
                   <p className="mt-0.5 text-sm text-slate-600">
@@ -1014,7 +1175,10 @@ function MeetingTable({ meetings, onAction, tab }) {
               <tr className="hover:bg-slate-50" key={meeting.meetingId}>
                 <td className="py-4 pl-6 pr-3">
                   <p className="font-bold text-slate-950">
-                    {meeting.title}
+                    <MeetingTitleButton
+                      meeting={meeting}
+                      onAction={onAction}
+                    />
                   </p>
                   {formatHost(meeting) ? (
                     <p className="mt-0.5 text-sm text-slate-600">
@@ -1059,12 +1223,12 @@ function MeetingTable({ meetings, onAction, tab }) {
   );
 }
 
-function MeetingChip({ meeting, onOpen }) {
+function MeetingChip({ day, meeting, onOpen }) {
   return (
     <button
       aria-label={`${meeting.title}${meeting.startsAt ? ` at ${meeting.startsAt}` : ""}`}
       className="block w-full truncate rounded-lg bg-brand-50 px-2 py-1 text-left text-xs font-semibold text-brand-900 transition hover:bg-brand-100 focus-visible:ring-4 focus-visible:ring-brand-200"
-      onClick={() => onOpen(meeting)}
+      onClick={() => onOpen(meeting, day)}
       title={meeting.title}
       type="button"
     >
@@ -1181,6 +1345,7 @@ function MeetingCalendar({
                 <div className="grid gap-1">
                   {dayMeetings.slice(0, 3).map((meeting) => (
                     <MeetingChip
+                      day={day}
                       key={meeting.meetingId}
                       meeting={meeting}
                       onOpen={onOpen}
@@ -1218,6 +1383,7 @@ function MeetingCalendar({
                 <div className="mt-2 grid gap-1.5">
                   {dayMeetings.map((meeting) => (
                     <MeetingChip
+                      day={day}
                       key={meeting.meetingId}
                       meeting={meeting}
                       onOpen={onOpen}
@@ -1240,69 +1406,11 @@ function formatHost(meeting) {
     .join(" · ");
 }
 
-const AGENCY_CHOICES = [
-  { label: "No agency", value: "" },
-  ...toOptions(VISIT_AGENCIES),
-];
+// Every meeting has a host; visitors only see meetings hosted where
+// they are going.
+const AGENCY_CHOICES = toOptions(VISIT_AGENCIES);
 
 const HOST_DIVISION_CHOICES = toOptions(MEETING_HOST_DIVISIONS);
-
-function MeetingDetailsDialog({ meeting, onClose, onEdit }) {
-  return (
-    <AdminDialog
-      closeLabel="Close meeting details"
-      description={formatHost(meeting) || undefined}
-      eyebrow="Meeting"
-      onClose={onClose}
-      title={meeting.title}
-    >
-      <DialogBody>
-        <dl className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-          {[
-            ["Schedule", formatSchedule(meeting)],
-            ["Time", formatTimeRange(meeting) || "Not set"],
-            ["Tower", towerName(meeting.tower)],
-            ["Venue", meeting.venue || "Not set"],
-            [
-              "Visitors registered",
-              String(meeting.visitorCount),
-            ],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs font-bold text-slate-500">
-                {label}
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </DialogBody>
-
-      <DialogFooter>
-        <button
-          className={DIALOG_CANCEL_BUTTON}
-          onClick={onClose}
-          type="button"
-        >
-          Close
-        </button>
-
-        {meeting.canManage ? (
-          <button
-            className={DIALOG_PRIMARY_BUTTON}
-            onClick={onEdit}
-            type="button"
-          >
-            <Pencil aria-hidden="true" className="size-4" />
-            Edit meeting
-          </button>
-        ) : null}
-      </DialogFooter>
-    </AdminDialog>
-  );
-}
 
 function ConfirmMeetingDialog({
   error,
@@ -1317,6 +1425,8 @@ function ConfirmMeetingDialog({
       action: "Cancel meeting",
       body: "Visitors will no longer see this meeting when they register. It stays on record and can be restored later.",
       busy: "Cancelling…",
+      headerTone: "warning",
+      icon: Ban,
       title: "Cancel this meeting?",
       tone: "bg-amber-600 text-white hover:bg-amber-700",
     },
@@ -1324,6 +1434,8 @@ function ConfirmMeetingDialog({
       action: "Delete meeting",
       body: "No visitor has registered for this meeting, so it can be removed completely. This cannot be undone.",
       busy: "Deleting…",
+      headerTone: "danger",
+      icon: Trash2,
       title: "Delete this meeting?",
       tone: "bg-red-700 text-white hover:bg-red-800",
     },
@@ -1331,6 +1443,8 @@ function ConfirmMeetingDialog({
       action: "Restore meeting",
       body: "Visitors will be able to select this meeting again on its scheduled days.",
       busy: "Restoring…",
+      headerTone: "brand",
+      icon: RotateCcw,
       title: "Restore this meeting?",
       tone: "bg-brand-800 text-white hover:bg-brand-900",
     },
@@ -1341,8 +1455,10 @@ function ConfirmMeetingDialog({
       busy={submitting}
       closeLabel="Close confirmation"
       eyebrow="Meetings"
+      icon={copy.icon}
       onClose={onCancel}
       title={copy.title}
+      tone={copy.headerTone}
     >
       <DialogBody>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1416,6 +1532,7 @@ function MeetingDialog({
         meeting && meeting.scheduleType !== "single"
           ? meeting.endsOn || ""
           : "",
+      floor: meeting?.floor || "",
       hostAgency: meeting?.hostAgency || "",
       // Older free-text divisions are not in the list, so the select
       // starts empty for them.
@@ -1432,17 +1549,32 @@ function MeetingDialog({
       startsOn: meeting?.startsOn || getAccraIsoDate(),
       title: meeting?.title || "",
       venue: meeting?.venue || "",
+      // Meetings saved before Wi-Fi was asked count as not needed.
+      wifiAccess: meeting
+        ? meeting.wifiRequested
+          ? "yes"
+          : "no"
+        : "",
     },
     resolver: zodResolver(meetingFormSchema),
     shouldFocusError: true,
   });
 
-  const [hostAgency, scheduleType, title] = useWatch({
+  const [hostAgency, scheduleType, title, meetingTower] = useWatch({
     control,
-    name: ["hostAgency", "scheduleType", "title"],
+    name: ["hostAgency", "scheduleType", "title", "meetingTower"],
   });
 
   const ministryHost = hostAgency === MINISTRY_OF_FINANCE_AGENCY;
+
+  // The floor starts from the host's own floor (empty for Ministry
+  // Headquarters) and can be changed, for example to a conference room.
+  function prefillFloor(agency, division) {
+    setValue("floor", resolveDestinationFloor(agency, division), {
+      shouldDirty: true,
+      shouldValidate: Boolean(errors.floor),
+    });
+  }
 
   const ready = creating
     ? Boolean(title.trim())
@@ -1453,6 +1585,7 @@ function MeetingDialog({
       busy={submitting}
       closeLabel="Close meeting form"
       eyebrow="Meetings"
+      icon={creating ? CalendarPlus : CalendarCog}
       onClose={onCancel}
       title={creating ? "New meeting" : "Edit meeting"}
     >
@@ -1687,7 +1820,8 @@ function MeetingDialog({
             <Field
               error={errors.hostAgency?.message}
               id="meeting-host-agency"
-              label="Agency (optional)"
+              label="Host agency"
+              required
             >
               <ControlledAppSelect
                 control={control}
@@ -1697,9 +1831,10 @@ function MeetingDialog({
                 invalid={Boolean(errors.hostAgency)}
                 labelledBy="meeting-host-agency-label"
                 name="hostAgency"
-                onValueChange={() =>
-                  setValue("hostDivision", "", { shouldDirty: true })
-                }
+                onValueChange={(agency) => {
+                  setValue("hostDivision", "", { shouldDirty: true });
+                  prefillFloor(agency, "");
+                }}
                 options={AGENCY_CHOICES}
                 placeholder="Select an agency"
               />
@@ -1720,12 +1855,46 @@ function MeetingDialog({
                   invalid={Boolean(errors.hostDivision)}
                   labelledBy="meeting-host-division-label"
                   name="hostDivision"
+                  onValueChange={(division) =>
+                    prefillFloor(MINISTRY_OF_FINANCE_AGENCY, division)
+                  }
                   options={HOST_DIVISION_CHOICES}
                   placeholder="Select a division"
                   required
                 />
               </Field>
             ) : null}
+          </div>
+
+          <div className="grid items-start gap-5 sm:grid-cols-2">
+            <Field
+              description="Filled in from the host. Change it for a conference room."
+              error={errors.floor?.message}
+              id="meeting-floor"
+              label="Floor"
+              required
+            >
+              <ControlledAppSelect
+                control={control}
+                describedBy={`meeting-floor-description${errors.floor ? " meeting-floor-error" : ""}`}
+                disabled={submitting}
+                id="meeting-floor"
+                invalid={Boolean(errors.floor)}
+                labelledBy="meeting-floor-label"
+                name="floor"
+                options={getFloorOptions(meetingTower)}
+                placeholder="Select a floor"
+              />
+            </Field>
+
+            <WifiAccessField
+              control={control}
+              description="One answer for every guest at this meeting."
+              error={errors.wifiAccess}
+              id="meeting-wifi-access"
+              label="Wi-Fi for guests"
+              options={MEETING_WIFI_OPTIONS}
+            />
           </div>
         </DialogBody>
 

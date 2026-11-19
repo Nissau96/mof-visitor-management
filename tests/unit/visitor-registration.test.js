@@ -27,6 +27,7 @@ const validRegistration = {
   personVisiting: "Test Officer",
   phone: "024 000 0000",
   purpose: "Official",
+  wifiAccess: "no",
 };
 
 describe("normalizePhone", () => {

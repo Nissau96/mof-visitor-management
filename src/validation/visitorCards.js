@@ -136,6 +136,10 @@ export const visitorAdmissionSchema = z
       "A valid visitor-card identifier is required.",
     ),
 
+    // Guests pre-registered through a meeting booking confirm the
+    // privacy notice at the desk; the API requires it for them.
+    privacyConfirmed: z.boolean().optional(),
+
     tower: requiredTowerSchema,
 
     visitId: uuidSchema(

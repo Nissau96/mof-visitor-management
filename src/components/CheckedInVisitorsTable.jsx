@@ -1,7 +1,9 @@
 import {
+  ArrowUpRight,
   CircleAlert,
   CircleCheck,
   Clock,
+  CalendarCheck,
   Crown,
   LogOut,
   Mail,
@@ -97,24 +99,16 @@ export function PurposePill({ purpose }) {
   }
 
   return (
-    <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 ring-1 ring-blue-200">
+    <span className="inline-flex whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 ring-1 ring-blue-200">
       {purpose}
     </span>
   );
 }
 
 export function TowerPill({ tower }) {
-  const towerTwo = tower === "tower_2";
-
   return (
-    <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${
-        towerTwo
-          ? "bg-brand-800 text-[#ffffff]"
-          : "text-brand-800 ring-1 ring-brand-600"
-      }`}
-    >
-      <MapPin aria-hidden="true" className="size-3" />
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-800 ring-1 ring-brand-600">
+      <MapPin aria-hidden="true" className="size-3.5" />
       {getTowerLabel(tower)}
     </span>
   );
@@ -175,15 +169,35 @@ export function Destination({ agency, detail }) {
   );
 }
 
+// VIP cards (MOF-VIP025, MOF-VIP025-R1) are burgundy so reception can
+// spot them at a glance; regular cards stay teal.
+const VIP_CARD_PATTERN = /^MOF-VIP/i;
+
+function CardNumberPill({ cardNumber }) {
+  const vip = VIP_CARD_PATTERN.test(cardNumber);
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-0.5 font-mono text-xs font-bold ring-1 ${
+        vip
+          ? "bg-[#fbeef2] text-[#7a1f3d] ring-[#e8b4c4] dark:bg-[#3a1220]! dark:text-[#f4a8c0]! dark:ring-[#6b2a40]!"
+          : "text-brand-800 ring-brand-300"
+      }`}
+      title={vip ? "VIP visitor card" : undefined}
+    >
+      {cardNumber}
+      {vip ? <span className="sr-only"> (VIP card)</span> : null}
+    </span>
+  );
+}
+
 function CardCell({ cardNumber, tower }) {
   return (
     <div className="grid justify-items-center gap-1.5">
       {cardNumber ? (
-        <span className="inline-flex rounded-full px-2.5 py-0.5 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-300">
-          {cardNumber}
-        </span>
+        <CardNumberPill cardNumber={cardNumber} />
       ) : (
-        <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-amber-300">
+        <span className="inline-flex whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-amber-300">
           Not assigned
         </span>
       )}
@@ -224,7 +238,7 @@ function CardStatusPill({ row }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${status.className}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ring-1 ${status.className}`}
     >
       <Icon aria-hidden="true" className="size-3.5" />
       {status.label}
@@ -253,34 +267,95 @@ function CheckoutButton({ fullWidth = false, onCheckout, row }) {
     : `Check out ${row.fullName}`;
 
   return (
-    <button
+    <TableActionButton
       aria-label={label}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 ${
-        fullWidth ? "w-full" : ""
-      }`}
       disabled={blocked}
+      fullWidth={fullWidth}
+      icon={LogOut}
       onClick={() => onCheckout(row.source)}
       title={label}
-      type="button"
     >
-      <LogOut aria-hidden="true" className="size-4" />
       Check out
+    </TableActionButton>
+  );
+}
+
+// The row's main action: a filled pill with a round arrow chip.
+export function TableActionButton({
+  children,
+  fullWidth = false,
+  icon: Icon,
+  ...props
+}) {
+  return (
+    <button
+      className={`group inline-flex min-h-11 items-center justify-between gap-3 whitespace-nowrap rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] py-1.5 pl-5 pr-1.5 text-sm font-bold text-[#ffffff] shadow-md shadow-[#115e59]/25 transition-shadow hover:shadow-lg hover:shadow-[#115e59]/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none ${
+        fullWidth ? "w-full" : ""
+      }`}
+      type="button"
+      {...props}
+    >
+      <span className="inline-flex items-center gap-2">
+        {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
+        {children}
+      </span>
+      <span
+        aria-hidden="true"
+        className="grid size-8 place-items-center rounded-full bg-[#ffffff]/15 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-disabled:translate-x-0 group-disabled:translate-y-0 group-disabled:bg-slate-300/40"
+      >
+        <ArrowUpRight className="size-4" />
+      </span>
     </button>
+  );
+}
+
+// Column headings shared by the visitor tables.
+export function TableHead({ columns }) {
+  return (
+    <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+      <tr>
+        {columns.map((label) => (
+          <th className="whitespace-nowrap px-4 py-4 font-bold" key={label} scope="col">
+            {label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+// Marks a guest who was pre-registered through a meeting booking, so
+// reception knows their details are already on file.
+export function BookedGuestBadge({ booked }) {
+  if (!booked) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label="Booked meeting guest"
+      className="inline-grid size-7 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-800 ring-1 ring-brand-300"
+      role="img"
+      title="Booked meeting guest"
+    >
+      <CalendarCheck aria-hidden="true" className="size-3.5" />
+    </span>
   );
 }
 
 export function VisitorName({ row }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="font-bold text-slate-950">{row.fullName}</span>
       <VisitorTypeIcon type={row.visitorType} />
+      <span className="font-bold text-slate-950">{row.fullName}</span>
+      <BookedGuestBadge booked={row.bookedGuest} />
     </span>
   );
 }
 
 export function ReferencePill({ reference }) {
   return (
-    <span className="inline-flex rounded-full bg-brand-50 px-2.5 py-1 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-100">
+    <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-200">
       {reference}
     </span>
   );
@@ -333,9 +408,7 @@ function CheckedInCard({ onCheckout, row }) {
           <dt className="text-xs font-semibold text-slate-500">Card</dt>
           <dd className="mt-1 flex flex-wrap gap-1.5">
             {row.cardNumber ? (
-              <span className="inline-flex rounded-full px-2.5 py-0.5 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-300">
-                {row.cardNumber}
-              </span>
+              <CardNumberPill cardNumber={row.cardNumber} />
             ) : null}
             <TowerPill tower={row.tower} />
           </dd>
@@ -392,58 +465,46 @@ export default function CheckedInVisitorsTable({ onCheckout, rows }) {
 
       <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-300 border-collapse text-center">
-          <thead className="border-y border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-            <tr>
-              {COLUMNS.map((label) => (
-                <th
-                  className="whitespace-nowrap px-4 py-3 font-bold"
-                  key={label}
-                  scope="col"
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={COLUMNS} />
 
           <tbody className="divide-y divide-slate-200 bg-white text-sm">
             {rows.map((row) => (
               <tr
-                className="align-middle transition hover:bg-slate-50"
+                className="align-middle transition-colors hover:bg-slate-50"
                 key={row.id}
               >
-                <td className="whitespace-nowrap px-4 py-4">
+                <td className="whitespace-nowrap px-4 py-5">
                   <ReferencePill reference={row.reference} />
                 </td>
-                <td className="whitespace-nowrap px-4 py-4">
+                <td className="whitespace-nowrap px-4 py-5">
                   <VisitorName row={row} />
                 </td>
-                <td className="min-w-60 px-4 py-4">
+                <td className="min-w-60 px-4 py-5">
                   <ContactDetails
                     email={row.email}
                     organization={row.organization}
                     phone={row.phone}
                   />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-5">
                   <PurposePill purpose={row.purpose} />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-5">
                   <CardCell cardNumber={row.cardNumber} tower={row.tower} />
                 </td>
-                <td className="min-w-40 px-4 py-4">
+                <td className="min-w-40 px-4 py-5">
                   <Destination
                     agency={row.destinationAgency}
                     detail={row.destinationDetail}
                   />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-5">
                   <TimeStack value={row.checkedInAt} />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-5">
                   <CardStatusPill row={row} />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-5">
                   <CheckoutButton onCheckout={onCheckout} row={row} />
                 </td>
               </tr>

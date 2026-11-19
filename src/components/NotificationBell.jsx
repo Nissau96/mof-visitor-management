@@ -7,16 +7,13 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { Link } from "react-router-dom";
 import { getTowerLabel } from "../constants/visitorOptions.js";
-import { apiRequest } from "../lib/api.js";
 
-const POLL_INTERVAL_MS = 60_000;
 
 const timeFormatter = new Intl.DateTimeFormat(
   "en-GH",
@@ -71,7 +68,7 @@ function describe(notification) {
     case "pending_admission":
       return {
         detail: `${where} · Registered ${formatTime(notification.occurredAt)}`,
-        href: "/staff",
+        href: "/staff?view=pending",
         icon: Clock,
         title: `${notification.visitorName} is waiting for admission`,
         tone: "bg-blue-50 text-blue-700",
@@ -79,7 +76,7 @@ function describe(notification) {
     case "vip_arrival":
       return {
         detail: `${where} · Checked in ${formatTime(notification.occurredAt)}`,
-        href: "/staff",
+        href: "/staff?view=checked-in",
         icon: Star,
         title: `VIP arrival: ${notification.visitorName}`,
         tone: "bg-violet-50 text-violet-700",
@@ -115,18 +112,16 @@ function describe(notification) {
   }
 }
 
+// The list comes from useStaffNotifications in the staff layout, which
+// also feeds the side-menu badges; onReload fetches it again.
 export default function NotificationBell({
-  accessToken,
-  tower,
+  loadError,
+  notifications,
+  onReload,
   userId,
 }) {
   const storageKey =
     `mof-notifications-seen:${userId}`;
-
-  const [
-    notifications,
-    setNotifications,
-  ] = useState([]);
 
   const [
     seenAt,
@@ -146,111 +141,7 @@ export default function NotificationBell({
     setOpen,
   ] = useState(false);
 
-  const [
-    loadError,
-    setLoadError,
-  ] = useState(false);
-
   const containerRef = useRef(null);
-
-  const load = useCallback(
-    (signal) =>
-      apiRequest(
-        "/api/staff/notifications",
-        {
-          body: JSON.stringify({
-            tower,
-          }),
-          headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
-          },
-          method: "POST",
-          signal,
-        },
-      )
-        .then((result) => {
-          if (
-            !Array.isArray(
-              result?.notifications,
-            )
-          ) {
-            throw new Error(
-              "Invalid notifications response.",
-            );
-          }
-
-          setNotifications(
-            result.notifications,
-          );
-          setLoadError(false);
-
-          return result.notifications;
-        })
-        .catch((error) => {
-          if (
-            error?.name !==
-            "AbortError"
-          ) {
-            setLoadError(true);
-          }
-
-          return null;
-        }),
-    [accessToken, tower],
-  );
-
-  // Poll only while the tab is visible to stay within the hosting
-  // plan's function-invocation budget.
-  useEffect(() => {
-    if (!accessToken) {
-      return undefined;
-    }
-
-    let controller = null;
-    let timer = null;
-
-    function stop() {
-      controller?.abort();
-      window.clearInterval(timer);
-      timer = null;
-    }
-
-    function poll() {
-      controller?.abort();
-      controller = new AbortController();
-      void load(controller.signal);
-    }
-
-    function sync() {
-      stop();
-
-      if (
-        document.visibilityState ===
-        "visible"
-      ) {
-        poll();
-        timer = window.setInterval(
-          poll,
-          POLL_INTERVAL_MS,
-        );
-      }
-    }
-
-    sync();
-    document.addEventListener(
-      "visibilitychange",
-      sync,
-    );
-
-    return () => {
-      stop();
-      document.removeEventListener(
-        "visibilitychange",
-        sync,
-      );
-    };
-  }, [accessToken, load]);
 
   useEffect(() => {
     if (!open) {
@@ -322,7 +213,7 @@ export default function NotificationBell({
     setOpen(true);
     markAllRead(notifications);
 
-    void load().then((items) => {
+    void onReload().then((items) => {
       if (items) {
         markAllRead(items);
       }

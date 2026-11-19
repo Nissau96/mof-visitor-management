@@ -1,4 +1,7 @@
-import { requireActiveStaff } from "./_lib/staffAuth.js";
+import {
+  recordStaffAuditEvent,
+  requireActiveStaff,
+} from "./_lib/staffAuth.js";
 import {
   RateLimitExceededError,
   enforceRateLimit,
@@ -18,7 +21,64 @@ import {
   adminStaffListSchema,
   adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
+  accessEndDateToTimestamp,
 } from "../src/validation/adminManagement.js";
+
+// A password account that is not an administrator (the emergency
+// account) is an Intern/NSP account: receptionist duties, no reports.
+function isNspAccount({ role, signInMethod }) {
+  return signInMethod === "password" && role !== "admin";
+}
+
+// A specific message for the access end date; anything else keeps the
+// endpoint's general message.
+function getStaffValidationError(parsed, fallback) {
+  const endDateIssue = parsed.error?.issues?.find(
+    (issue) => issue.path?.[0] === "accessEndDate",
+  );
+
+  return new HttpError(
+    endDateIssue?.message || fallback,
+    400,
+  );
+}
+
+// Adds signInMethod and accessExpiresAt to staff rows returned by the
+// staff RPCs, which predate those columns.
+async function withSignInSettings(adminClient, staff) {
+  const ids = staff
+    .map((member) => member?.userId)
+    .filter(Boolean);
+
+  if (!ids.length) {
+    return staff;
+  }
+
+  const { data, error } = await adminClient
+    .from("staff_profiles")
+    .select("user_id, sign_in_method, access_expires_at, is_nsp")
+    .in("user_id", ids);
+
+  if (error) {
+    throw new HttpError(
+      "Staff sign-in settings could not be loaded. Please try again.",
+      500,
+    );
+  }
+
+  const settings = new Map(
+    (data || []).map((row) => [row.user_id, row]),
+  );
+
+  return staff.map((member) => ({
+    ...member,
+    accessExpiresAt:
+      settings.get(member.userId)?.access_expires_at ?? null,
+    isNsp: settings.get(member.userId)?.is_nsp === true,
+    signInMethod:
+      settings.get(member.userId)?.sign_in_method ?? "password",
+  }));
+}
 import {
   adminVisitorCardCreationSchema,
   adminVisitorCardInventorySchema,
@@ -29,8 +89,10 @@ import {
   createTemporaryPasswordExpiry,
   sendStaffInvitationEmail,
 } from "../src/server/staffInvitation.js";
+import { sendTestEmail } from "../src/server/emailTest.js";
 
 const OPERATION_BY_PATH = new Map([
+  ["/api/admin/email/test", "email-test"],
   [
     "/api/admin/cards/assign-tower",
     "card-tower-assign",
@@ -68,6 +130,8 @@ const OPERATION_BY_PATH = new Map([
 ]);
 
 const UNEXPECTED_ERROR_MESSAGES = {
+  "email-test":
+    "The test email could not be sent. Please try again.",
   "card-create":
     "Visitor cards could not be added to the inventory. Please try again.",
   "card-inventory":
@@ -103,6 +167,12 @@ export const ADMIN_WRITE_RATE_LIMITS =
       limit: 60,
       scope:
         "admin-visitor-card-tower-assign",
+      windowSeconds: 10 * 60,
+    }),
+
+    "email-test": Object.freeze({
+      limit: 5,
+      scope: "admin-email-test",
       windowSeconds: 10 * 60,
     }),
 
@@ -373,7 +443,7 @@ async function getStaffAccountTarget(
   } = await adminClient
     .from("staff_profiles")
     .select(
-      "user_id, full_name, role, active, password_change_required",
+      "user_id, full_name, role, active, password_change_required, sign_in_method",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -430,6 +500,9 @@ async function getStaffAccountTarget(
         .password_change_required ===
       true,
     role: staffProfile.role,
+    signInMethod:
+      staffProfile.sign_in_method ||
+      "password",
     userId: staffProfile.user_id,
   };
 }
@@ -573,8 +646,10 @@ async function handleStaffList(request) {
     );
   }
 
+  const adminClient = getAdminClient();
+
   const { data, error } =
-    await getAdminClient().rpc(
+    await adminClient.rpc(
       "get_admin_staff",
       {
         p_active: parsed.data.status,
@@ -607,9 +682,12 @@ async function handleStaffList(request) {
         totalCount: 0,
         totalPages: 0,
       },
-      staff: Array.isArray(data?.staff)
-        ? data.staff
-        : [],
+      staff: await withSignInSettings(
+        adminClient,
+        Array.isArray(data?.staff)
+          ? data.staff
+          : [],
+      ),
       // Whole-table counts; null until the summary migration is applied.
       summary:
         data?.summary &&
@@ -644,17 +722,22 @@ async function handleStaffInvite(request) {
     );
 
   if (!parsed.success) {
-    throw new HttpError(
+    throw getStaffValidationError(
+      parsed,
       "The staff invitation is invalid.",
-      400,
     );
   }
 
   const adminClient =
     getAdminClient();
 
+  // Microsoft accounts get no app password and no email: the person's
+  // first "Sign in with Microsoft" links to this account by email.
+  const microsoft =
+    parsed.data.signInMethod === "microsoft";
+
   const temporaryPassword =
-    createTemporaryPassword();
+    microsoft ? null : createTemporaryPassword();
 
   const temporaryPasswordExpiresAt =
     createTemporaryPasswordExpiry();
@@ -667,7 +750,9 @@ async function handleStaffInvite(request) {
       .createUser({
         email: parsed.data.email,
         email_confirm: true,
-        password: temporaryPassword,
+        ...(microsoft
+          ? {}
+          : { password: temporaryPassword }),
         user_metadata: {
           full_name:
             parsed.data.fullName,
@@ -749,12 +834,25 @@ async function handleStaffInvite(request) {
   } = await adminClient
     .from("staff_profiles")
     .update({
-      password_change_required: true,
+      password_change_required: !microsoft,
       password_setup_completed_at:
         null,
       temporary_password_expires_at:
-        temporaryPasswordExpiresAt
-          .toISOString(),
+        microsoft
+          ? null
+          : temporaryPasswordExpiresAt
+              .toISOString(),
+      ...(parsed.data.signInMethod
+        ? {
+            access_expires_at:
+              accessEndDateToTimestamp(
+                parsed.data.accessEndDate,
+              ),
+            is_nsp: isNspAccount(parsed.data),
+            sign_in_method:
+              parsed.data.signInMethod,
+          }
+        : {}),
     })
     .eq(
       "user_id",
@@ -777,6 +875,23 @@ async function handleStaffInvite(request) {
     throw new HttpError(
       "Temporary-password protection could not be configured. Please try again.",
       500,
+    );
+  }
+
+  if (microsoft) {
+    return json(
+      {
+        invitationSent: false,
+        staff: {
+          ...staffProfile,
+          accessExpiresAt:
+            accessEndDateToTimestamp(
+              parsed.data.accessEndDate,
+            ),
+          signInMethod: "microsoft",
+        },
+      },
+      201,
     );
   }
 
@@ -863,6 +978,13 @@ async function handleStaffPasswordReissue(
   if (!target.active) {
     throw new HttpError(
       "Activate this staff account before reissuing its temporary password.",
+      409,
+    );
+  }
+
+  if (target.signInMethod === "microsoft") {
+    throw new HttpError(
+      "This person signs in with Microsoft, so there is no app password to reissue.",
       409,
     );
   }
@@ -1134,14 +1256,16 @@ async function handleStaffUpdate(request) {
     adminStaffUpdateSchema.safeParse(body);
 
   if (!parsed.success) {
-    throw new HttpError(
+    throw getStaffValidationError(
+      parsed,
       "The staff information is invalid.",
-      400,
     );
   }
 
+  const adminClient = getAdminClient();
+
   const { data, error } =
-    await getAdminClient().rpc(
+    await adminClient.rpc(
       "update_admin_staff",
       {
         p_active: parsed.data.active,
@@ -1168,9 +1292,69 @@ async function handleStaffUpdate(request) {
     );
   }
 
+  // Sign-in settings sit outside update_admin_staff; an older client
+  // that sends neither field leaves them unchanged.
+  if (
+    parsed.data.signInMethod !== undefined ||
+    parsed.data.accessEndDate !== undefined
+  ) {
+    const changes = {
+      ...(parsed.data.signInMethod
+        ? {
+            is_nsp: isNspAccount(parsed.data),
+            sign_in_method: parsed.data.signInMethod,
+          }
+        : {}),
+      ...(parsed.data.accessEndDate !== undefined
+        ? {
+            access_expires_at: accessEndDateToTimestamp(
+              parsed.data.accessEndDate,
+            ),
+          }
+        : {}),
+    };
+
+    const { data: updated, error: settingsError } =
+      await adminClient
+        .from("staff_profiles")
+        .update(changes)
+        .eq("user_id", parsed.data.userId)
+        .select("user_id")
+        .maybeSingle();
+
+    if (
+      settingsError ||
+      updated?.user_id !== parsed.data.userId
+    ) {
+      throw new HttpError(
+        "The staff details were saved, but the sign-in settings could not be. Please try again.",
+        500,
+      );
+    }
+
+    await recordStaffAuditEvent(adminClient, {
+      action: "staff_sign_in_settings_updated",
+      actorId: profile.userId,
+      details: {
+        accessExpiresAt:
+          "access_expires_at" in changes
+            ? changes.access_expires_at
+            : undefined,
+        isNsp: changes.is_nsp,
+        signInMethod: changes.sign_in_method ?? undefined,
+        staffUserId: parsed.data.userId,
+      },
+    });
+  }
+
+  const [staff] = await withSignInSettings(
+    adminClient,
+    [data],
+  );
+
   return json(
     {
-      staff: data,
+      staff,
     },
     200,
   );
@@ -1426,7 +1610,44 @@ async function handleVisitorCardTowerAssign(
 }
 
 
+// Sends a test email to the signed-in Super Administrator only, so the
+// button cannot be used to send mail to anyone else.
+export async function handleEmailTest(
+  request,
+  {
+    getAdminClientForRequest = getAdminClient,
+    requireActiveStaffForRequest = requireActiveStaff,
+    enforceRateLimitForRequest = enforceRateLimit,
+    sendTestEmailForRequest = sendTestEmail,
+  } = {},
+) {
+  const { profile } = await requireActiveStaffForRequest(request, ["admin"]);
+
+  await enforceAdminWriteRateLimit(
+    request,
+    "email-test",
+    profile.userId,
+    enforceRateLimitForRequest,
+  );
+
+  const { data, error } = await getAdminClientForRequest()
+    .auth.admin.getUserById(profile.userId);
+  const email = data?.user?.email;
+
+  if (error || !email) {
+    throw new HttpError(
+      "Your account's email address could not be found.",
+      500,
+    );
+  }
+
+  const result = await sendTestEmailForRequest({ to: email });
+
+  return json(result, 200);
+}
+
 const OPERATION_HANDLERS = new Map([
+  ["email-test", handleEmailTest],
   [
     "card-create",
     handleVisitorCardCreate,

@@ -105,6 +105,29 @@
   }
 }
 
+/* Dialog bodies scroll on their own between a fixed header and footer,
+   with a thin rounded scrollbar that sits inside the rounded card. */
+@utility scroll-pane {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-slate-300) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+/* Toasts slide down into place. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Hover float for cards: lift (translate) then a gentle bob (transform),
    so the two never fight. Only for mouse users who allow motion. */
 @keyframes card-bob {
@@ -131,6 +154,34 @@
       box-shadow: 0 18px 36px -16px rgb(15 23 42 / 0.28);
       animation: card-bob 2.4s ease-in-out 220ms infinite;
     }
+  }
+}
+
+/* Chart colours. Recharts reads them through var(), so charts follow
+   the light and dark theme without re-rendering. */
+:root {
+  --chart-primary: #0f766e;
+  --chart-primary-strong: #115e59;
+  --chart-secondary: #5eead4;
+  --chart-soft: #ccfbf1;
+  --chart-area: rgb(15 118 110 / 0.12);
+  --chart-previous: #94a3b8;
+  --chart-grid: #e2e8f0;
+  --chart-text: #475569;
+  --chart-heat-0: #f1f5f9;
+  --chart-heat-1: #ccfbf1;
+  --chart-heat-2: #5eead4;
+  --chart-heat-3: #14b8a6;
+  --chart-heat-4: #0f766e;
+  --chart-heat-5: #134e4a;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+}
+
+/* Printed reports: only the report rendered into #print-root shows. */
+@media print {
+  body:has(#print-root:not(:empty)) > *:not(#print-root) {
+    display: none !important;
   }
 }
 

@@ -147,6 +147,111 @@ test.describe(
       );
     });
 
+    test("sets up and removes kiosk tablets from the sidebar", async ({
+      page,
+    }) => {
+      const kioskRequests = [];
+
+      await installMockStaffAuthentication(page);
+      await installMockWeeklyQr(page);
+      await page.route(/\/api\/staff\/session\?kiosks?=/, async (route) => {
+        const request = route.request();
+
+        kioskRequests.push({
+          body: request.postDataJSON(),
+          method: request.method(),
+          url: request.url(),
+        });
+
+        if (request.method() === "GET") {
+          await route.fulfill({
+            contentType: "application/json",
+            json: {
+              kiosks: [
+                {
+                  createdAt: "2026-11-04T09:00:00.000Z",
+                  createdByName: "Synthetic Receptionist",
+                  expiresAt: "2027-11-04T09:00:00.000Z",
+                  id: "00000000-0000-4000-8000-0000000000a1",
+                  label: "Tower 2 lobby",
+                  lastSeenAt: "2026-11-05T10:00:00.000Z",
+                },
+              ],
+            },
+          });
+          return;
+        }
+
+        await route.fulfill({
+          contentType: "application/json",
+          json:
+            request.method() === "DELETE"
+              ? { removed: true }
+              : { kiosk: { expiresAt: "2027-11-06T09:00:00.000Z" } },
+          status: request.method() === "POST" ? 201 : 200,
+        });
+      });
+
+      await signInAsStaff(page, {
+        destination: "/staff/weekly-qr",
+      });
+
+      await expect(
+        page.getByRole("heading", { name: "Weekly visitor QR code" }),
+      ).toBeVisible();
+
+      const menuButton = page.getByRole("button", {
+        name: "Open navigation menu",
+      });
+
+      if (await menuButton.isVisible()) {
+        await menuButton.click();
+      }
+
+      await page
+        .getByRole("button", { name: "Set up kiosk" })
+        .filter({ visible: true })
+        .first()
+        .click();
+
+      const dialog = page.getByRole("dialog", { name: "Set up kiosk" });
+
+      await expect(dialog.getByText("Tower 2 lobby")).toBeVisible();
+      await expectNoWcagViolations(page, { include: "[role=dialog]" });
+
+      // Remove a lost tablet.
+      await dialog
+        .getByRole("button", { name: "Remove Tower 2 lobby" })
+        .click();
+      await dialog.getByRole("button", { name: "Remove tablet" }).click();
+      await expect(dialog.getByText("No tablets are set up yet.")).toBeVisible();
+      expect(kioskRequests.at(-1)).toMatchObject({
+        method: "DELETE",
+        url: expect.stringContaining(
+          "kiosk=00000000-0000-4000-8000-0000000000a1",
+        ),
+      });
+
+      // Set up this device; it needs a name first.
+      await dialog
+        .getByRole("button", { name: "Set up and sign out" })
+        .click();
+      await expect(dialog.getByRole("alert")).toContainText(
+        "2 to 60 characters",
+      );
+
+      await dialog.getByLabel("Tablet name").fill("Tower 1 reception");
+      await dialog
+        .getByRole("button", { name: "Set up and sign out" })
+        .click();
+
+      await expect(page).toHaveURL(/\/visit\/kiosk$/);
+      expect(kioskRequests.at(-1)).toMatchObject({
+        body: { label: "Tower 1 reception" },
+        method: "POST",
+      });
+    });
+
     test("copies the full access link and downloads the poster", async ({
       context,
       page,

@@ -1,0 +1,22 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "arial",
+        "files": [
+          "src/server/meetingBookingEmail.js"
+        ],
+        "createdAt": "2026-11-17T14:24:49.825Z",
+        "reason": "HTML email: clients cannot load web fonts; matches the existing staff invitation email stack"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "arial",
+        "createdAt": "2026-11-19T18:50:01.003Z"
+      }
+    ]
+  }
+}

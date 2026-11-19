@@ -5,6 +5,8 @@ import { useId } from "react";
 export default function SegmentedChoice({
   description,
   disabled = false,
+  // Keep the options side by side on phones too; for two short labels.
+  inline = false,
   legend,
   name,
   onChange,
@@ -30,7 +32,11 @@ export default function SegmentedChoice({
       </legend>
 
       <div
-        className="grid gap-1 rounded-[1.75rem] bg-slate-100 p-1 sm:auto-cols-fr sm:grid-flow-col sm:rounded-full"
+        className={`grid gap-1 bg-slate-100 p-1 ${
+          inline
+            ? "auto-cols-fr grid-flow-col rounded-full"
+            : "rounded-[1.75rem] sm:auto-cols-fr sm:grid-flow-col sm:rounded-full"
+        }`}
       >
         {options.map((option) => {
           const checked = option.value === value;

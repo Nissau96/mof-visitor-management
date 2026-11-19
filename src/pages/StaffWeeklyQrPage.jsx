@@ -10,7 +10,6 @@ import {
   Printer,
   RefreshCw,
   ShieldCheck,
-  Smartphone,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import ministrySeal from "../assets/images/mof-seal.webp";
@@ -23,22 +22,15 @@ import {
   apiRequest,
 } from "../lib/api.js";
 import { getAccraIsoDate } from "../lib/accraDate.js";
+import {
+  createQrDataUrl,
+  formatWeekRange,
+  fromIsoDate,
+} from "../lib/weeklyQr.js";
 import { renderPosterPng } from "../lib/weeklyQrPoster.js";
+import ReceptionPoster from "../components/ReceptionPoster.jsx";
 
 const DAY_MS = 86_400_000;
-
-// Week dates arrive as YYYY-MM-DD in Accra time (UTC+0); noon UTC keeps
-// formatting on the right calendar day.
-function fromIsoDate(isoDate) {
-  return new Date(`${isoDate}T12:00:00.000Z`);
-}
-
-const shortDayFormatter = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-  weekday: "short",
-});
 
 const longDayFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
@@ -51,15 +43,6 @@ const weekdayFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
   weekday: "short",
 });
-
-// "Mon 19 Oct to Sun 25 Oct 2026"
-function formatWeekRange(weeklyQr) {
-  const end = fromIsoDate(weeklyQr.weekEndsOn);
-
-  return `${shortDayFormatter.format(
-    fromIsoDate(weeklyQr.weekStartsOn),
-  )} to ${shortDayFormatter.format(end)} ${end.getUTCFullYear()}`;
-}
 
 // "Sunday 25 Oct"
 function formatLongDay(isoDate) {
@@ -155,37 +138,6 @@ function normalizeWeeklyQr(result) {
     weekStartsOn:
       weeklyQr.weekStartsOn,
   };
-}
-
-async function createQrDataUrl(accessUrl) {
-  const qrModule =
-    await import("qrcode");
-
-  const qrCode =
-    qrModule.default || qrModule;
-
-  if (
-    typeof qrCode.toDataURL !==
-    "function"
-  ) {
-    throw new Error(
-      "The QR renderer is unavailable.",
-    );
-  }
-
-  return await qrCode.toDataURL(
-    accessUrl,
-    {
-      color: {
-        dark: "#0f172a",
-        light: "#ffffff",
-      },
-      errorCorrectionLevel: "M",
-      margin: 4,
-      type: "image/png",
-      width: 768,
-    },
-  );
 }
 
 export default function StaffWeeklyQrPage() {
@@ -504,62 +456,6 @@ export default function StaffWeeklyQrPage() {
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-// Explicit colours (not brand/white utilities) keep the poster identical
-// in light mode, dark mode and print.
-function ReceptionPoster({ qrDataUrl, weeklyQr }) {
-  return (
-    <div className="overflow-hidden rounded-3xl bg-[#134e4a] text-[#ffffff] [print-color-adjust:exact] print:mx-auto print:max-w-[170mm] print:break-inside-avoid">
-      <div className="relative isolate overflow-hidden px-6 pb-6 pt-7 text-center print:pb-4 print:pt-5">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -left-24 -top-24 -z-10 size-72 rounded-full border-[16px] border-[#ffffff14]"
-        >
-          <span className="absolute inset-8 rounded-full border-[12px] border-[#ffffff12]" />
-          <span className="absolute inset-[4.5rem] rounded-full border-[8px] border-[#ffffff0f]" />
-        </span>
-
-        <img
-          alt="Ministry of Finance, Republic of Ghana seal"
-          className="mx-auto size-24 sm:size-28 print:size-20"
-          src={ministrySeal}
-        />
-
-        <h3 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-          Visitor Registration
-        </h3>
-
-        <p className="mt-2 text-[#ccfbf1] sm:text-lg">
-          Scan to access the visitor management application.
-        </p>
-      </div>
-
-      <div className="bg-[#0f403c] px-6 pb-8 pt-6 text-center print:pb-5 print:pt-4">
-        <p className="inline-flex items-center gap-2 text-xl font-black sm:text-2xl">
-          <Smartphone aria-hidden="true" className="size-6" />
-          Scan QR Code
-        </p>
-
-        <div className="mx-auto mt-5 w-full max-w-xs rounded-[2rem] bg-[#e6f6f4] p-4 sm:max-w-sm sm:p-5 print:mt-3 print:max-w-[80mm]">
-          <img
-            alt={`Weekly visitor QR code, valid ${formatWeekRange(weeklyQr)}`}
-            className="aspect-square w-full [image-rendering:pixelated]"
-            src={qrDataUrl}
-          />
-        </div>
-      </div>
-
-      {/* The PEER artwork is transparent with white lettering, so it sits on teal. */}
-      <div className="bg-[#134e4a]">
-        <img
-          alt="PEER: Professional, Ethical, Efficient, Responsive"
-          className="mx-auto aspect-[2/1] w-full max-w-2xl object-cover print:max-w-[150mm]"
-          src={peerValues}
-        />
-      </div>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import {
   LoaderCircle,
   Pencil,
   RefreshCw,
+  UserRoundPen,
+  UserRoundPlus,
   Users,
 } from "lucide-react";
 import {
@@ -32,7 +34,6 @@ import {
   OUTLINE_BUTTON,
   SearchPill,
   StateChip,
-  SuccessBanner,
   TABLE_HEAD_CELL,
 } from "../components/AdminRecords.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
@@ -51,6 +52,7 @@ import {
   adminHostListSchema,
   adminHostSaveSchema,
 } from "../validation/adminManagement.js";
+import { toast } from "../lib/toast.js";
 
 const PAGE_SIZE = 10;
 
@@ -206,9 +208,6 @@ export default function AdminHostsPage() {
     useState("");
 
   const [searchError, setSearchError] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
     useState("");
 
   const [filters, setFilters] =
@@ -383,7 +382,6 @@ export default function AdminHostsPage() {
 
   function openCreateHost() {
     setEditorError("");
-    setSuccessMessage("");
     setEditor({
       host: null,
       mode: "create",
@@ -392,7 +390,6 @@ export default function AdminHostsPage() {
 
   function openEditHost(host) {
     setEditorError("");
-    setSuccessMessage("");
     setEditor({
       host,
       mode: "edit",
@@ -437,7 +434,8 @@ export default function AdminHostsPage() {
         values.hostId === null;
 
       setEditor(null);
-      setSuccessMessage(
+      toast.success(
+        "Host directory updated",
         created
           ? `${result.host.fullName} was added successfully.`
           : `${result.host.fullName} was updated successfully.`,
@@ -562,11 +560,6 @@ export default function AdminHostsPage() {
           </button>
         </div>
       </header>
-
-      <SuccessBanner
-        message={successMessage}
-        onDismiss={() => setSuccessMessage("")}
-      />
 
       {statCards.length ? (
         <section
@@ -957,6 +950,7 @@ function HostEditor({
       busy={saving}
       closeLabel="Close host editor"
       eyebrow="Host administration"
+      icon={creating ? UserRoundPlus : UserRoundPen}
       onClose={onCancel}
       title={creating ? "Add host" : "Edit host"}
     >

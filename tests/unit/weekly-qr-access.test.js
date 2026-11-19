@@ -289,7 +289,7 @@ describe("weekly QR access", () => {
     );
   });
 
-  it("reads and validates the weekly token from the access cookie", () => {
+  it("reads and validates the weekly token from the access cookie", async () => {
     const weeklyAccess =
       createWeeklyQrToken(WEDNESDAY);
 
@@ -304,7 +304,7 @@ describe("weekly QR access", () => {
     );
 
     const access =
-      readWeeklyQrAccess(
+      await readWeeklyQrAccess(
         request,
         WEDNESDAY,
       );

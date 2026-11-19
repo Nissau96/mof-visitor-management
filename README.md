@@ -2,7 +2,7 @@
 
 A simple, secure and mobile-first visitor registration and check-in application built with React.js, JavaScript, Tailwind CSS, Supabase and Vercel.
 
-The implemented stages allow first-time visitors to register and check in. Returning visitors can locate a masked visitor record, verify ownership using their registered mobile number, enter current visit details and receive a new visit reference.
+The implemented stages allow first-time visitors to register and check in. Returning visitors find their own record with their registered mobile number and first name, enter current visit details and receive a new visit reference. No other visitor's details are shown.
 
 > Project status: Stage 14 completed; Stage 15 controlled technical pilot implementation in progress
 >
@@ -64,12 +64,10 @@ The weekly QR code opens the visitor landing route and exchanges its short-lived
 
 1. Scan the current weekly visitor QR code displayed at reception.
 2. Select **I have visited before**.
-3. Search using at least three characters from the registered name.
-4. Select the appropriate masked result.
-5. Enter the complete mobile number used during registration.
-6. Review the verified visitor profile.
-7. Enter the current visit details.
-8. Submit the check-in and receive a new visit reference.
+3. Enter the mobile number and first name used during registration.
+4. Review the verified visitor profile.
+5. Enter the current visit details.
+6. Submit the check-in and receive a new visit reference.
 
 ### Reception staff
 

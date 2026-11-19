@@ -8,7 +8,7 @@ import { json } from "../api/_lib/http.js";
 const EXPECTED_CONTENT_SECURITY_POLICY =
   "default-src 'self'; " +
   "base-uri 'self'; " +
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co; " +
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://login.microsoftonline.com; " +
   "font-src 'self' data:; " +
   "form-action 'self'; " +
   "frame-ancestors 'none'; " +
@@ -37,6 +37,47 @@ const EXPECTED_REWRITES = [
     source: "/api/staff/notifications",
     destination:
       "/api/staff/dashboard?operation=notifications",
+  },
+  {
+    source: "/api/staff/invites/create",
+    destination: "/api/meetings?operation=invite-create",
+  },
+  {
+    source: "/api/staff/invites/list",
+    destination: "/api/meetings?operation=invite-list",
+  },
+  {
+    source: "/api/staff/invites/cancel",
+    destination: "/api/meetings?operation=invite-cancel",
+  },
+  {
+    source: "/api/staff/bookings/find",
+    destination: "/api/meetings?operation=booking-find",
+  },
+  {
+    source: "/api/bookings/invites/create",
+    destination: "/api/meetings?operation=booker-invite-create",
+  },
+  {
+    source: "/api/bookings/invites/list",
+    destination: "/api/meetings?operation=booker-invite-list",
+  },
+  {
+    source: "/api/bookings/invites/cancel",
+    destination: "/api/meetings?operation=booker-invite-cancel",
+  },
+  {
+    source: "/api/invites/view",
+    destination: "/api/register?operation=invite-view",
+  },
+  {
+    source: "/api/invites/submit",
+    destination: "/api/register?operation=invite-submit",
+  },
+  {
+    source: "/api/admin/email/test",
+    destination:
+      "/api/admin?operation=email-test",
   },
   {
     source: "/api/admin/hosts/list",
@@ -187,6 +228,35 @@ const EXPECTED_REWRITES = [
       "/api/meetings?operation=staff-delete",
   },
   {
+    source:
+      "/api/staff/meetings/visitors",
+    destination:
+      "/api/meetings?operation=staff-visitors",
+  },
+  ...[
+    ["/api/staff/meetings/bookings", "booking-requests"],
+    ["/api/staff/meetings/bookings/decide", "booking-decide"],
+    ["/api/bookings/mine", "booker-list"],
+    ["/api/bookings/submit", "booker-submit"],
+    ["/api/bookings/guests", "booker-guests"],
+    ["/api/bookings/cancel", "booker-cancel"],
+    ["/api/bookings/wifi", "booker-wifi"],
+    ["/api/staff/wifi/list", "wifi-list"],
+    ["/api/staff/wifi/update", "wifi-update"],
+    ["/api/staff/wifi/grant", "wifi-grant"],
+    ["/api/staff/wifi/secret", "wifi-secret"],
+    ["/api/staff/wifi/resend", "wifi-resend"],
+    ["/api/staff/wifi/count", "wifi-count"],
+  ].map(([source, operation]) => ({
+    source,
+    destination: `/api/meetings?operation=${operation}`,
+  })),
+  {
+    source: "/api/returning/send-code",
+    destination:
+      "/api/returning/verify?operation=send-code",
+  },
+  {
     source: "/visit",
     destination: "/index.html",
   },
@@ -208,6 +278,14 @@ const EXPECTED_REWRITES = [
   },
   {
     source: "/admin/:path*",
+    destination: "/index.html",
+  },
+  {
+    source: "/book",
+    destination: "/index.html",
+  },
+  {
+    source: "/book/:path*",
     destination: "/index.html",
   },
 ];
@@ -474,7 +552,7 @@ const vercelFunctionCount =
 
 assert.equal(
   vercelFunctionCount,
-  11,
+  10,
   "The project must remain within the Vercel Hobby Function limit.",
 );
 

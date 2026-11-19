@@ -3,6 +3,7 @@ import { z } from "zod";
 const staffRoleSchema = z.enum([
   "receptionist",
   "client_service_head",
+  "it_network_admin",
   "admin",
 ]);
 
@@ -53,6 +54,58 @@ const pageSizeSchema = z.coerce
   .min(1)
   .max(10)
   .default(10);
+
+const staffSignInMethodSchema = z.enum([
+  "microsoft",
+  "password",
+]);
+
+// The end date is the day access stops, at 00:00 Accra (UTC+0). It
+// must be after today, so a new date never cuts someone off at once.
+const staffAccessEndDateSchema = z
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .regex(
+        /^\d{4}-\d{2}-\d{2}$/,
+        "Enter the date access ends.",
+      )
+      .refine(
+        (value) =>
+          !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
+          value > new Date().toISOString().slice(0, 10),
+        "Choose a date after today.",
+      ),
+    z.null(),
+  ])
+  .optional()
+  .transform((value) =>
+    value === undefined ? undefined : value || null,
+  );
+
+// Password accounts other than an administrator (the emergency
+// account) are Intern/NSP accounts, whose access must end on a set date.
+function requireInternEndDate(value, context) {
+  if (
+    value.signInMethod === "password" &&
+    value.role !== "admin" &&
+    !value.accessEndDate
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Choose the date this Intern/NSP account's access ends.",
+      path: ["accessEndDate"],
+    });
+  }
+}
+
+export function accessEndDateToTimestamp(accessEndDate) {
+  return accessEndDate
+    ? `${accessEndDate}T00:00:00.000Z`
+    : null;
+}
 
 export const adminHostListSchema = z
   .object({
@@ -111,6 +164,7 @@ export const adminStaffListSchema = z
         "all",
         "receptionist",
         "client_service_head",
+        "it_network_admin",
         "admin",
       ])
       .default("all"),
@@ -151,8 +205,13 @@ export const adminStaffInviteSchema = z
       ),
 
     role: staffRoleSchema,
+
+    accessEndDate: staffAccessEndDateSchema,
+    signInMethod:
+      staffSignInMethodSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(requireInternEndDate);
 
 export const adminStaffUpdateSchema = z
   .object({
@@ -173,8 +232,13 @@ export const adminStaffUpdateSchema = z
     role: staffRoleSchema,
 
     userId: staffUserIdSchema,
+
+    accessEndDate: staffAccessEndDateSchema,
+    signInMethod:
+      staffSignInMethodSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(requireInternEndDate);
 
 export const adminStaffPasswordReissueSchema =
   z

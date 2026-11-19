@@ -1,4 +1,3 @@
-import process from "node:process";
 import {
   HttpError,
   json,
@@ -6,56 +5,23 @@ import {
   readJsonBody,
 } from "../_lib/http.js";
 import {
+  readSessionAuthentication,
+  recordStaffAuditEvent,
   requireActiveStaff,
 } from "../_lib/staffAuth.js";
+import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import {
   getAdminClient,
 } from "../_lib/supabase.js";
 import {
+  createKioskDeviceCookie,
   createWeeklyQrAccessUrl,
   createWeeklyQrToken,
+  getLocalVisitorApplicationUrl,
 } from "../../src/server/weeklyQrAccess.js";
 import {
   staffPasswordSetupSchema,
 } from "../../src/validation/adminManagement.js";
-
-function getLocalVisitorApplicationUrl(
-  request,
-) {
-  const vercelEnvironment =
-    process.env.VERCEL_ENV || "";
-
-  if (
-    vercelEnvironment &&
-    vercelEnvironment !== "development"
-  ) {
-    return undefined;
-  }
-
-  let requestUrl;
-
-  try {
-    requestUrl = new URL(request.url);
-  } catch {
-    return undefined;
-  }
-
-  const localHostname =
-    requestUrl.hostname === "localhost" ||
-    requestUrl.hostname === "127.0.0.1";
-
-  if (
-    requestUrl.protocol !== "http:" ||
-    !localHostname
-  ) {
-    return undefined;
-  }
-
-  return new URL(
-    "/visit",
-    requestUrl.origin,
-  ).toString();
-}
 
 function getPasswordCompletionError(
   error,
@@ -98,6 +64,193 @@ function getPasswordCompletionError(
   );
 }
 
+const FRESH_SIGN_IN_SECONDS = 10 * 60;
+
+async function recordFreshSignIn(
+  request,
+  { getAdminClientForRequest, profile, tower },
+) {
+  let authentication;
+
+  try {
+    authentication = readSessionAuthentication(
+      readBearerAccessToken(request),
+    );
+  } catch {
+    return;
+  }
+
+  const ageSeconds =
+    Math.floor(Date.now() / 1_000) - authentication.timestamp;
+
+  if (ageSeconds < 0 || ageSeconds > FRESH_SIGN_IN_SECONDS) {
+    return;
+  }
+
+  await recordStaffAuditEvent(getAdminClientForRequest(), {
+    action: "staff_signed_in",
+    actorId: profile.userId,
+    details: {
+      method: profile.signInMethod ?? "password",
+      tower: VISIT_TOWER_VALUES.includes(tower) ? tower : null,
+    },
+  });
+}
+
+function readBearerAccessToken(request) {
+  const match = (request.headers.get("authorization") || "").match(
+    /^Bearer\s+([^\s]+)$/i,
+  );
+
+  return match?.[1] || "";
+}
+
+const KIOSK_DEVICE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Reception kiosk tablets, for receptionists and administrators:
+//   GET    ?kiosks=1      list the tablets that still work
+//   POST   ?kiosk=1       set up this browser as a tablet named {label}
+//   DELETE ?kiosk=<id>    remove a lost or stolen tablet
+async function handleKioskDevices(
+  request,
+  kioskParameter,
+  {
+    getAdminClientForRequest,
+    requireActiveStaffForRequest,
+  },
+) {
+  const { profile } =
+    await requireActiveStaffForRequest(
+      request,
+      ["receptionist", "admin"],
+      { getAdminClientForRequest },
+    );
+
+  const adminClient =
+    getAdminClientForRequest();
+
+  if (request.method === "GET") {
+    const { data, error } =
+      await adminClient.rpc(
+        "list_kiosk_devices",
+      );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablets could not be loaded.",
+      );
+    }
+
+    return json(
+      {
+        kiosks: (data || []).map(
+          (device) => ({
+            createdAt: device.created_at,
+            createdByName:
+              device.created_by_name || "",
+            expiresAt: device.expires_at,
+            id: device.id,
+            label: device.label,
+            lastSeenAt:
+              device.last_seen_at,
+          }),
+        ),
+      },
+      200,
+    );
+  }
+
+  if (request.method === "POST") {
+    if (kioskParameter !== "1") {
+      throw new HttpError(
+        "The kiosk request is invalid.",
+        400,
+      );
+    }
+
+    const body = await readJsonBody(request);
+    const label =
+      typeof body?.label === "string"
+        ? body.label.trim()
+        : "";
+
+    if (label.length < 2 || label.length > 60) {
+      throw new HttpError(
+        "Name the tablet in 2 to 60 characters.",
+        400,
+      );
+    }
+
+    const kioskDevice =
+      createKioskDeviceCookie(request);
+
+    const { error } = await adminClient.rpc(
+      "register_kiosk_device",
+      {
+        p_actor_id: profile.userId,
+        p_device_id: kioskDevice.deviceId,
+        p_expires_at: kioskDevice.expiresAt,
+        p_label: label,
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablet could not be saved.",
+      );
+    }
+
+    return json(
+      {
+        kiosk: {
+          expiresAt: kioskDevice.expiresAt,
+          id: kioskDevice.deviceId,
+          label,
+        },
+      },
+      201,
+      {
+        "Set-Cookie": kioskDevice.cookie,
+      },
+    );
+  }
+
+  if (
+    request.method === "DELETE" &&
+    KIOSK_DEVICE_ID.test(kioskParameter)
+  ) {
+    const { data, error } =
+      await adminClient.rpc(
+        "revoke_kiosk_device",
+        {
+          p_actor_id: profile.userId,
+          p_device_id: kioskParameter,
+        },
+      );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablet could not be removed.",
+      );
+    }
+
+    if (data !== true) {
+      throw new HttpError(
+        "That kiosk tablet was not found or has already been removed.",
+        404,
+      );
+    }
+
+    return json({ removed: true }, 200);
+  }
+
+  throw new HttpError(
+    "The kiosk request is invalid.",
+    400,
+  );
+}
+
 export function createStaffSessionHandler({
   getAdminClientForRequest =
     getAdminClient,
@@ -109,9 +262,11 @@ export function createStaffSessionHandler({
       if (
         request.method !== "GET" &&
         request.method !== "POST" &&
-        request.method !== "PUT"
+        request.method !== "PUT" &&
+        request.method !== "DELETE"
       ) {
         return methodNotAllowed([
+          "DELETE",
           "GET",
           "POST",
           "PUT",
@@ -119,6 +274,34 @@ export function createStaffSessionHandler({
       }
 
       try {
+        const searchParams =
+          new URL(request.url).searchParams;
+
+        const kioskParameter =
+          searchParams.get("kiosk") ??
+          (searchParams.get("kiosks") === "1"
+            ? "list"
+            : null);
+
+        if (kioskParameter !== null) {
+          return await handleKioskDevices(
+            request,
+            kioskParameter,
+            {
+              getAdminClientForRequest,
+              requireActiveStaffForRequest,
+            },
+          );
+        }
+
+        if (request.method === "DELETE") {
+          return methodNotAllowed([
+            "GET",
+            "POST",
+            "PUT",
+          ]);
+        }
+
         if (request.method === "GET") {
           const { profile } =
             await requireActiveStaffForRequest(
@@ -128,17 +311,35 @@ export function createStaffSessionHandler({
                 allowPasswordChangeRequired:
                   true,
                 getAdminClientForRequest,
+                recordRefusals: true,
               },
             );
+
+          // The browser adds ?signedIn=1 on the first check after a
+          // new sign-in; only sessions authenticated in the last few
+          // minutes are recorded, so a replayed URL adds nothing.
+          if (searchParams.get("signedIn") === "1") {
+            await recordFreshSignIn(request, {
+              getAdminClientForRequest,
+              profile,
+              tower: searchParams.get("tower") || "",
+            });
+          }
 
           return json(
             {
               profile: {
+                accessExpiresAt:
+                  profile.accessExpiresAt ?? null,
                 fullName:
                   profile.fullName,
+                isNsp:
+                  profile.isNsp === true,
                 passwordChangeRequired:
                   profile.passwordChangeRequired,
                 role: profile.role,
+                signInMethod:
+                  profile.signInMethod ?? "password",
                 temporaryPasswordExpiresAt:
                   profile.temporaryPasswordExpiresAt,
               },

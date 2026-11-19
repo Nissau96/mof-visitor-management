@@ -1,6 +1,7 @@
 import {
   MOF_DIVISIONS,
   VISIT_AGENCIES,
+  VISIT_AGENCY_LABELS,
 } from "./visitorOptions.js";
 
 // Option lists for AppSelect. Filter lists start with an explicit
@@ -12,6 +13,12 @@ export function toOptions(values) {
     value,
   }));
 }
+
+// Visitor forms show full agency names; staff screens use the codes.
+export const VISIT_AGENCY_OPTIONS = VISIT_AGENCIES.map((value) => ({
+  label: VISIT_AGENCY_LABELS[value] || value,
+  value,
+}));
 
 export const AGENCY_FILTER_OPTIONS = [
   { label: "All agencies", value: "" },

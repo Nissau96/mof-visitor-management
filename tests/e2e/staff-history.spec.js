@@ -413,5 +413,59 @@ test.describe(
         2,
       );
     });
+
+    test("lists a visit cancelled before check-in", async ({
+      page,
+    }) => {
+      await installMockStaffAuthentication(page);
+
+      await page.route(
+        "**/api/staff/history",
+        async (route) => {
+          await route.fulfill({
+            contentType: "application/json",
+            json: {
+              generatedAt: "2026-11-11T08:30:00.000Z",
+              pagination: {
+                page: 1,
+                pageSize: PAGE_SIZE,
+                totalCount: 1,
+                totalPages: 1,
+              },
+              towerScope: null,
+              visits: [
+                {
+                  ...HISTORY_VISITS[0],
+                  checkedInAt: null,
+                  checkedOutAt: null,
+                  fullName: "Synthetic Cancelled Visitor",
+                  status: "cancelled",
+                },
+              ],
+            },
+            status: 200,
+          });
+        },
+      );
+
+      await signInAsStaff(page, {
+        destination: "/staff/history",
+      });
+
+      await expect(
+        page
+          .getByText("Synthetic Cancelled Visitor", { exact: true })
+          .filter({ visible: true }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByText("Cancelled before check-in")
+          .filter({ visible: true })
+          .first(),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Visit history unavailable"),
+      ).toHaveCount(0);
+    });
   },
 );

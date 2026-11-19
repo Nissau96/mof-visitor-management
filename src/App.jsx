@@ -71,6 +71,22 @@ const StaffLoginPage = lazy(() =>
   import("./pages/StaffLoginPage.jsx"),
 );
 
+const MicrosoftSignInCallbackPage = lazy(() =>
+  import("./pages/MicrosoftSignInCallbackPage.jsx"),
+);
+
+const BookingLayout = lazy(() =>
+  import("./layouts/BookingLayout.jsx"),
+);
+
+const BookMeetingPage = lazy(() =>
+  import("./pages/BookMeetingPage.jsx"),
+);
+
+const MyBookingsPage = lazy(() =>
+  import("./pages/MyBookingsPage.jsx"),
+);
+
 const StaffSetupPage = lazy(() =>
   import("./pages/StaffSetupPage.jsx"),
 );
@@ -81,10 +97,46 @@ const StaffVisitHistoryPage = lazy(() =>
   ),
 );
 
+const StaffReportsPage = lazy(() =>
+  import("./pages/StaffReportsPage.jsx"),
+);
+
+const StaffVisitorLinksPage = lazy(() =>
+  import("./pages/StaffVisitorLinksPage.jsx"),
+);
+
+const BookInvitePage = lazy(() =>
+  import("./pages/BookInvitePage.jsx"),
+);
+
+const VisitorInvitePage = lazy(() =>
+  import("./pages/VisitorInvitePage.jsx"),
+);
+
+const StaffWifiPage = lazy(() =>
+  import("./pages/StaffWifiPage.jsx"),
+);
+
+// Intern/NSP accounts do receptionist work but cannot generate reports;
+// the server refuses their report requests too.
+function ReportsRoute() {
+  const { profile } = useAuth();
+
+  return profile?.isNsp ? (
+    <Navigate replace to="/staff" />
+  ) : (
+    <StaffReportsPage />
+  );
+}
+
 const StaffWeeklyQrPage = lazy(() =>
   import(
     "./pages/StaffWeeklyQrPage.jsx"
   ),
+);
+
+const VisitorKioskPage = lazy(() =>
+  import("./pages/VisitorKioskPage.jsx"),
 );
 
 const VisitorLandingPage = lazy(() =>
@@ -104,6 +156,11 @@ function StaffIndexPage() {
         to="/staff/cards"
       />
     );
+  }
+
+  // The IT network team only works Wi-Fi requests.
+  if (profile?.role === "it_network_admin") {
+    return <Navigate replace to="/staff/wifi" />;
   }
 
   return <StaffHomePage />;
@@ -133,9 +190,25 @@ export default function App() {
         />
 
         <Route
+          element={<MicrosoftSignInCallbackPage />}
+          path="staff/auth/microsoft"
+        />
+
+        <Route
           element={<StaffSetupPage />}
           path="staff/setup"
         />
+
+        {/* Ministry staff book meetings for their guests. */}
+        <Route element={<BookingLayout />} path="book">
+          <Route index element={<BookMeetingPage />} />
+          <Route element={<MyBookingsPage />} path="mine" />
+          <Route element={<BookInvitePage />} path="invite" />
+          <Route
+            element={<Navigate replace to="/book" />}
+            path="*"
+          />
+        </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route
@@ -149,15 +222,48 @@ export default function App() {
 
             <Route
               element={
-                <StaffVisitorCardsPage />
+                <ProtectedRoute
+                  allowedRoles={[
+                    "receptionist",
+                    "client_service_head",
+                    "admin",
+                  ]}
+                />
               }
-              path="cards"
-            />
+            >
+              <Route
+                element={
+                  <StaffVisitorCardsPage />
+                }
+                path="cards"
+              />
+
+              <Route
+                element={<StaffMeetingsPage />}
+                path="meetings"
+              />
+
+              <Route
+                element={<StaffVisitorLinksPage />}
+                path="visitor-links"
+              />
+            </Route>
 
             <Route
-              element={<StaffMeetingsPage />}
-              path="meetings"
-            />
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "it_network_admin",
+                    "admin",
+                  ]}
+                />
+              }
+            >
+              <Route
+                element={<StaffWifiPage />}
+                path="wifi"
+              />
+            </Route>
 
             <Route
               element={
@@ -174,6 +280,11 @@ export default function App() {
                   <StaffVisitHistoryPage />
                 }
                 path="history"
+              />
+
+              <Route
+                element={<ReportsRoute />}
+                path="reports"
               />
 
               <Route
@@ -222,14 +333,26 @@ export default function App() {
           <Route
             index
             element={
-              <Navigate replace to="/visit" />
+              <Navigate replace to="/visit/kiosk" />
             }
+          />
+
+          {/* Booking links are opened away from the building, so they
+              do not need the weekly QR pass. */}
+          <Route
+            path="invite/:token"
+            element={<VisitorInvitePage />}
           />
 
           <Route element={<VisitorAccessGate />}>
             <Route
               path="visit"
               element={<VisitorLandingPage />}
+            />
+
+            <Route
+              path="visit/kiosk"
+              element={<VisitorKioskPage />}
             />
 
             <Route

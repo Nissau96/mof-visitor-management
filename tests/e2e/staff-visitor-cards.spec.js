@@ -64,7 +64,7 @@ const CHECKED_IN = [
   {
     assignmentStatus: "assigned",
     canCheckout: true,
-    cardNumber: "MOF-V101",
+    cardNumber: "MOF-VIP101",
     checkedInAt: iso(-2),
     destinationAgency: "Ministry of Finance (MoF)",
     destinationDivision: "Synthetic Division",
@@ -189,6 +189,14 @@ async function expectNoHorizontalOverflow(browserPage) {
   ).toBe(false);
 }
 
+// The page opens on Checked-in when anyone is checked in, as in the
+// default mock; tests about admissions switch to Pending first.
+async function openPendingTab(browserPage) {
+  await browserPage
+    .getByRole("tab", { name: /Pending admissions/ })
+    .click();
+}
+
 test.describe("visitor cards page", () => {
   test("shows stat cards and all three views without accessibility or overflow problems", async ({
     page: browserPage,
@@ -239,6 +247,21 @@ test.describe("visitor cards page", () => {
         .getByText(text, { exact: true })
         .filter({ visible: true })
         .first();
+
+    // Visitors are checked in, so the page opens on that tab.
+    await expect(
+      browserPage.getByRole("tab", { name: /Checked-in visitors/ }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    // VIP cards are burgundy; regular cards stay teal.
+    await expect(
+      browserPage
+        .getByTitle("VIP visitor card")
+        .filter({ visible: true })
+        .first(),
+    ).toHaveText(/MOF-VIP101/);
+
+    await openPendingTab(browserPage);
 
     await expect(
       visible("Synthetic Pending Visitor"),
@@ -294,6 +317,35 @@ test.describe("visitor cards page", () => {
 
     await expectNoWcagViolations(browserPage);
     await expectNoHorizontalOverflow(browserPage);
+  });
+
+  test("opens on pending admissions when nobody is checked in", async ({
+    page: browserPage,
+  }) => {
+    await installMockStaffAuthentication(browserPage);
+    await installMockCardsApi(browserPage);
+    await browserPage.route(
+      "**/api/staff/cards/checked-in",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/json",
+          json: { pagination: page(0), visitors: [] },
+          status: 200,
+        });
+      },
+    );
+
+    await signInAsStaff(browserPage, { destination: "/staff/cards" });
+
+    await expect(
+      browserPage.getByRole("tab", { name: /Pending admissions/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(
+      browserPage
+        .getByText("Synthetic Pending Visitor", { exact: true })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
   });
 
   test("lists checked-in visitors who have no card", async ({
@@ -358,6 +410,232 @@ test.describe("visitor cards page", () => {
         })
         .filter({ visible: true }),
     ).toBeDisabled();
+  });
+
+  test("finds a card as the receptionist types and admits the visitor", async ({
+    page: browserPage,
+  }) => {
+    const searches = [];
+    const admissions = [];
+
+    await installMockStaffAuthentication(browserPage, {
+      fullName: "Synthetic Administrator",
+      role: "admin",
+    });
+    await installMockCardsApi(browserPage);
+    await browserPage.route(
+      "**/api/staff/cards/search",
+      async (route) => {
+        const body = route.request().postDataJSON();
+        const prefix = body.cardType === "vip" ? "MOF-VIP" : "MOF-V";
+
+        searches.push(body);
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            cards: [
+              {
+                cardId: `synthetic-${body.cardType}-card`,
+                cardNumber: `${prefix}${body.lastThreeDigits}`,
+                cardType: body.cardType,
+                status: "available",
+                tower: body.tower,
+              },
+            ],
+          },
+          status: 200,
+        });
+      },
+    );
+    await browserPage.route(
+      "**/api/staff/cards/admit",
+      async (route) => {
+        const body = route.request().postDataJSON();
+
+        admissions.push(body);
+        await route.fulfill({
+          contentType: "application/json",
+          json: {
+            admitted: true,
+            cardAssignment: {
+              cardId: body.cardId,
+              cardNumber: "MOF-VIP268",
+            },
+            visit: {
+              status: "checked_in",
+              visitId: body.visitId,
+            },
+          },
+          status: 200,
+        });
+      },
+    );
+
+    await signInAsStaff(browserPage, {
+      destination: "/staff/cards",
+    });
+    await openPendingTab(browserPage);
+
+    await browserPage
+      .getByRole("button", {
+        name: "Assign card to Synthetic Pending Visitor",
+      })
+      .filter({ visible: true })
+      .first()
+      .click();
+
+    const dialog = browserPage.getByRole("dialog", {
+      name: "Assign visitor card",
+    });
+
+    await expect(dialog.getByText("VIS-PEND01")).toBeVisible();
+    await expect(dialog.getByText("GIPC · Synthetic Host")).toBeVisible();
+
+    const admit = dialog.getByRole("button", {
+      name: "Assign card and admit",
+    });
+
+    await expect(admit).toBeDisabled();
+
+    // Three digits search without pressing the search button.
+    await dialog.getByLabel("Last three digits").fill("268");
+    await expect(dialog.getByText("MOF-V268")).toBeVisible();
+    await expect(admit).toBeEnabled();
+
+    await expectNoWcagViolations(browserPage, {
+      include: "[role=dialog]",
+    });
+
+    // Switching the card type searches again.
+    await dialog.getByText("VIP", { exact: true }).click();
+    await expect(dialog.getByText("MOF-VIP268")).toBeVisible();
+    expect(searches.at(-1)).toMatchObject({
+      cardType: "vip",
+      lastThreeDigits: "268",
+      tower: "tower_1",
+    });
+
+    await admit.click();
+
+    await expect(dialog).toHaveCount(0);
+    // The confirmation arrives as a dismissable toast.
+    const toast = browserPage.getByRole("status").filter({
+      hasText: "Visitor card updated",
+    });
+
+    await expect(toast).toContainText(
+      "Synthetic Pending Visitor was admitted with MOF-VIP268.",
+    );
+    await expectNoWcagViolations(browserPage, {
+      include: "[aria-label=Notifications]",
+    });
+    await toast
+      .getByRole("button", { name: "Dismiss Visitor card updated" })
+      .click();
+    await expect(toast).toHaveCount(0);
+    expect(admissions).toEqual([
+      expect.objectContaining({
+        cardId: "synthetic-vip-card",
+        visitId: "00000000-0000-4000-8000-000000000101",
+      }),
+    ]);
+  });
+
+  test("marks booked meeting guests and confirms the privacy notice before admitting them", async ({
+    page: browserPage,
+  }) => {
+    const admissions = [];
+    const bookedGuest = {
+      ...PENDING[0],
+      bookedGuest: true,
+      email: null,
+      fullName: "Synthetic Booked Guest",
+      personVisiting: null,
+      purpose: "Meeting",
+      referenceCode: "MTG-A1B2C3-1",
+      visitId: "00000000-0000-4000-8000-000000000109",
+    };
+
+    await installMockStaffAuthentication(browserPage);
+    await installMockCardsApi(browserPage);
+    await browserPage.route("**/api/staff/cards/pending", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        json: { admissions: [bookedGuest], pagination: page(1) },
+        status: 200,
+      });
+    });
+    await browserPage.route("**/api/staff/cards/search", async (route) => {
+      const body = route.request().postDataJSON();
+
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          cards: [
+            {
+              cardId: "synthetic-regular-card",
+              cardNumber: `MOF-V${body.lastThreeDigits}`,
+              cardType: "regular",
+              status: "available",
+              tower: body.tower,
+            },
+          ],
+        },
+        status: 200,
+      });
+    });
+    await browserPage.route("**/api/staff/cards/admit", async (route) => {
+      const body = route.request().postDataJSON();
+
+      admissions.push(body);
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          admitted: true,
+          cardAssignment: { cardId: body.cardId, cardNumber: "MOF-V268" },
+          visit: { status: "checked_in", visitId: body.visitId },
+        },
+        status: 200,
+      });
+    });
+
+    await signInAsStaff(browserPage, { destination: "/staff/cards" });
+    await openPendingTab(browserPage);
+
+    await expect(
+      browserPage
+        .getByRole("img", { name: "Booked meeting guest" })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+
+    await browserPage
+      .getByRole("button", { name: "Assign card to Synthetic Booked Guest" })
+      .filter({ visible: true })
+      .first()
+      .click();
+
+    const dialog = browserPage.getByRole("dialog", { name: "Assign visitor card" });
+    const admit = dialog.getByRole("button", { name: "Assign card and admit" });
+
+    await dialog.getByLabel("Last three digits").fill("268");
+    await expect(dialog.getByText("MOF-V268")).toBeVisible();
+
+    // The card alone is not enough for a booked guest.
+    await expect(admit).toBeDisabled();
+    await expectNoWcagViolations(browserPage, { include: "[role=dialog]" });
+
+    await dialog.getByRole("checkbox", { name: /privacy notice/ }).check();
+    await expect(admit).toBeEnabled();
+    await admit.click();
+
+    await expect(dialog).toHaveCount(0);
+    expect(admissions).toEqual([
+      expect.objectContaining({
+        privacyConfirmed: true,
+        visitId: "00000000-0000-4000-8000-000000000109",
+      }),
+    ]);
   });
 
   test("gives client service heads a read-only checked-in count", async ({

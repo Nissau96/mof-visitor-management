@@ -22,17 +22,52 @@ import buildingBackground from "../assets/images/building-bg.jpeg";
 import ministryLogo from "../assets/images/Asset-8.svg";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
+import SegmentedChoice from "../components/SegmentedChoice.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import { TOWER_OPTIONS } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
+import { MICROSOFT_SIGN_IN_ENABLED } from "../lib/featureFlags.js";
+import {
+  openMicrosoftPopup,
+  readMicrosoftError,
+} from "../lib/microsoftSignIn.js";
+import { wasSignedOutForInactivity } from "../lib/staffIdle.js";
 import { staffLoginSchema } from "../validation/staffLogin.js";
 
 const inputClassName =
   "min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70";
 
+const AUDIENCE_CHOICES = Object.freeze([
+  Object.freeze({ label: "Ministry staff", value: "staff" }),
+  Object.freeze({ label: "Intern/NSP", value: "nsp" }),
+]);
+
+const MODE_DESCRIPTIONS = Object.freeze({
+  emergency:
+    "For the emergency administrator account, when Microsoft sign-in is unavailable.",
+  microsoft:
+    "Select your current reception tower, then sign in with your Ministry work email.",
+  nsp: "Select your current reception tower, then sign in with the email address and password you were given.",
+  password:
+    "Enter your credentials and select your current reception tower.",
+});
+
 function TowerIcon(props) {
   return <MapPin {...props} className="size-4 text-slate-400" />;
 }
+
+// Microsoft's four-square mark, as its sign-in button guidelines ask.
+function MicrosoftMark() {
+  return (
+    <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 21 21">
+      <path d="M0 0h10v10H0z" fill="#f25022" />
+      <path d="M11 0h10v10H11z" fill="#7fba00" />
+      <path d="M0 11h10v10H0z" fill="#00a4ef" />
+      <path d="M11 11h10v10H11z" fill="#ffb900" />
+    </svg>
+  );
+}
+
 
 function getSafeDestination(locationState) {
   const destination = locationState?.from;
@@ -52,9 +87,30 @@ function getSafeDestination(locationState) {
 export default function StaffLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
+  // Every visit starts on "Ministry staff"; reception PCs are shared,
+  // so the last person's choice is not remembered.
+  const [audience, setAudience] = useState("staff");
+  const [redirecting, setRedirecting] = useState(false);
+  const [idleSignOut] = useState(wasSignedOutForInactivity);
 
   const location = useLocation();
   const navigate = useNavigate();
+  const microsoftError = readMicrosoftError(location.search);
+
+  // /staff/login?emergency=1 is the emergency administrator's password
+  // sign-in, kept off the main form.
+  const emergency =
+    new URLSearchParams(location.search).get("emergency") === "1";
+
+  const mode = !MICROSOFT_SIGN_IN_ENABLED
+    ? "password"
+    : emergency
+      ? "emergency"
+      : audience === "nsp"
+        ? "nsp"
+        : "microsoft";
+
+  const showPasswordForm = mode !== "microsoft";
 
   const {
     authMessage,
@@ -62,14 +118,17 @@ export default function StaffLoginPage() {
     profile,
     session,
     signIn,
+    signInWithMicrosoft,
     status,
   } = useAuth();
 
   const {
     control,
     formState: { errors, isSubmitting },
+    getValues,
     handleSubmit,
     register,
+    trigger,
   } = useForm({
     defaultValues: {
       email: "",
@@ -103,6 +162,45 @@ export default function StaffLoginPage() {
       );
     }
   }
+
+  async function startMicrosoftSignIn() {
+    setSubmissionError("");
+    clearAuthMessage();
+
+    // The popup has to open in the click itself, before any await, or
+    // the browser blocks it; so the tower is checked synchronously.
+    const tower = getValues("tower");
+
+    if (!tower) {
+      void trigger("tower");
+      return;
+    }
+
+    const popup = openMicrosoftPopup();
+
+    setRedirecting(true);
+
+    try {
+      const result = await signInWithMicrosoft({ popup, tower });
+
+      // Signed in: the auth state change moves this page on. Closed or
+      // timed out: back to the form.
+      if (result?.status === "cancelled") {
+        setRedirecting(false);
+      }
+    } catch (error) {
+      setRedirecting(false);
+      setSubmissionError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Microsoft sign-in could not be started. Please try again.",
+      );
+    }
+  }
+
+  const busy = isSubmitting || redirecting;
+  const signInError =
+    submissionError || authMessage || microsoftError;
 
   if (status === "loading") {
     return (
@@ -170,22 +268,31 @@ export default function StaffLoginPage() {
                   className="text-2xl font-semibold tracking-tight text-slate-950"
                   id="staff-login-heading"
                 >
-                  Sign In
+                  {mode === "emergency" ? "Emergency sign-in" : "Sign In"}
                 </h1>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Enter your credentials and select your
-                  current reception tower.
+                  {MODE_DESCRIPTIONS[mode]}
                 </p>
               </div>
 
-              {submissionError || authMessage ? (
+              {signInError ? (
                 <div className="mt-6">
                   <ErrorMessage
-                    message={submissionError || authMessage}
+                    message={signInError}
                     title="Sign-in unsuccessful"
                   />
                 </div>
+              ) : idleSignOut ? (
+                <p
+                  className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"
+                  role="status"
+                >
+                  <span className="font-bold text-slate-950">
+                    You were signed out after 25 minutes without activity.
+                  </span>{" "}
+                  Sign in again to continue.
+                </p>
               ) : null}
 
               <form
@@ -194,6 +301,21 @@ export default function StaffLoginPage() {
                 noValidate
                 onSubmit={handleSubmit(submitLogin)}
               >
+                {MICROSOFT_SIGN_IN_ENABLED && !emergency ? (
+                  <SegmentedChoice
+                    disabled={busy}
+                    inline
+                    legend="Sign in as"
+                    name="staff-sign-in-as"
+                    onChange={(value) => {
+                      setAudience(value);
+                      setSubmissionError("");
+                    }}
+                    options={AUDIENCE_CHOICES}
+                    value={audience}
+                  />
+                ) : null}
+
                 <Field
                   description="Select your assigned tower."
                   error={errors.tower?.message}
@@ -220,7 +342,7 @@ export default function StaffLoginPage() {
                           }
                           aria-invalid={Boolean(errors.tower)}
                           aria-labelledby="staff-tower-label"
-                          disabled={isSubmitting}
+                          disabled={busy}
                           id="staff-tower"
                           name={field.name}
                           onChange={(option) => {
@@ -239,114 +361,150 @@ export default function StaffLoginPage() {
                   />
                 </Field>
 
-                <Field
-                  error={errors.email?.message}
-                  id="staff-email"
-                  label="Email address"
-                  required
-                >
-                  <div className="relative">
-                    <Mail
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
-                    />
-
-                    <input
-                      aria-describedby={
-                        errors.email
-                          ? "staff-email-error"
-                          : undefined
-                      }
-                      aria-invalid={Boolean(errors.email)}
-                      autoCapitalize="none"
-                      autoComplete="email"
-                      className={`${inputClassName} pl-10`}
-                      disabled={isSubmitting}
-                      id="staff-email"
-                      inputMode="email"
-                      placeholder="Enter your email address"
-                      spellCheck="false"
-                      type="email"
-                      {...register("email")}
-                    />
-                  </div>
-                </Field>
-
-                <Field
-                  error={errors.password?.message}
-                  id="staff-password"
-                  label="Password"
-                  required
-                >
-                  <div className="relative">
-                    <LockKeyhole
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
-                    />
-
-                    <input
-                      aria-describedby={
-                        errors.password
-                          ? "staff-password-error"
-                          : undefined
-                      }
-                      aria-invalid={Boolean(errors.password)}
-                      autoComplete="current-password"
-                      className={`${inputClassName} pl-10 pr-12`}
-                      disabled={isSubmitting}
-                      id="staff-password"
-                      placeholder="Enter your password"
-                      type={showPassword ? "text" : "password"}
-                      {...register("password")}
-                    />
-
-                    <button
-                      aria-controls="staff-password"
-                      aria-label={
-                        showPassword
-                          ? "Hide password"
-                          : "Show password"
-                      }
-                      className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed"
-                      disabled={isSubmitting}
-                      onClick={() =>
-                        setShowPassword((current) => !current)
-                      }
-                      type="button"
-                    >
-                      {showPassword ? (
-                        <EyeOff
-                          aria-hidden="true"
-                          className="size-4"
-                        />
-                      ) : (
-                        <Eye
-                          aria-hidden="true"
-                          className="size-4"
-                        />
-                      )}
-                    </button>
-                  </div>
-                </Field>
-
-                <button
-                  className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-black bg-[#171717] px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-black focus-visible:ring-4 focus-visible:ring-brand-600/30 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={isSubmitting}
-                  type="submit"
-                >
-                  {isSubmitting ? (
-                    <>
+                {mode === "microsoft" ? (
+                  <button
+                    className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-lg border border-black bg-[#171717] px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-black focus-visible:ring-4 focus-visible:ring-brand-600/30 disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={busy}
+                    onClick={startMicrosoftSignIn}
+                    type="button"
+                  >
+                    {redirecting ? (
                       <LoaderCircle
                         aria-hidden="true"
                         className="size-4 animate-spin"
                       />
-                      Signing in…
-                    </>
-                  ) : (
-                    "Sign in"
-                  )}
-                </button>
+                    ) : (
+                      <MicrosoftMark />
+                    )}
+                    {redirecting
+                      ? "Finish signing in in the Microsoft window…"
+                      : "Sign in with Work Email"}
+                  </button>
+                ) : null}
+
+                {showPasswordForm ? (
+                  <div className="grid gap-4">
+                    <Field
+                      error={errors.email?.message}
+                      id="staff-email"
+                      label="Email address"
+                      required
+                    >
+                      <div className="relative">
+                        <Mail
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                        />
+
+                        <input
+                          aria-describedby={
+                            errors.email
+                              ? "staff-email-error"
+                              : undefined
+                          }
+                          aria-invalid={Boolean(errors.email)}
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          className={`${inputClassName} pl-10`}
+                          disabled={isSubmitting}
+                          id="staff-email"
+                          inputMode="email"
+                          placeholder="Enter your email address"
+                          spellCheck="false"
+                          type="email"
+                          {...register("email")}
+                        />
+                      </div>
+                    </Field>
+
+                    <Field
+                      error={errors.password?.message}
+                      id="staff-password"
+                      label="Password"
+                      required
+                    >
+                      <div className="relative">
+                        <LockKeyhole
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                        />
+
+                        <input
+                          aria-describedby={
+                            errors.password
+                              ? "staff-password-error"
+                              : undefined
+                          }
+                          aria-invalid={Boolean(errors.password)}
+                          autoComplete="current-password"
+                          className={`${inputClassName} pl-10 pr-12`}
+                          disabled={isSubmitting}
+                          id="staff-password"
+                          placeholder="Enter your password"
+                          type={showPassword ? "text" : "password"}
+                          {...register("password")}
+                        />
+
+                        <button
+                          aria-controls="staff-password"
+                          aria-label={
+                            showPassword
+                              ? "Hide password"
+                              : "Show password"
+                          }
+                          className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed"
+                          disabled={isSubmitting}
+                          onClick={() =>
+                            setShowPassword((current) => !current)
+                          }
+                          type="button"
+                        >
+                          {showPassword ? (
+                            <EyeOff
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                          ) : (
+                            <Eye
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                          )}
+                        </button>
+                      </div>
+                    </Field>
+
+                    <button
+                      className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-black bg-[#171717] px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-black focus-visible:ring-4 focus-visible:ring-brand-600/30 disabled:cursor-not-allowed disabled:opacity-70"
+                      disabled={isSubmitting}
+                      type="submit"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <LoaderCircle
+                            aria-hidden="true"
+                            className="size-4 animate-spin"
+                          />
+                          Signing in…
+                        </>
+                      ) : (
+                        "Sign in"
+                      )}
+                    </button>
+                  </div>
+                ) : null}
               </form>
+
+              {mode === "emergency" ? (
+                <div className="mt-4 text-center">
+                  <Link
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:text-brand-800"
+                    to="/staff/login"
+                  >
+                    Back to the usual sign-in
+                  </Link>
+                </div>
+              ) : null}
 
               {/* <div className="mt-6 border-t border-slate-100 pt-4 text-center">
                 <Link

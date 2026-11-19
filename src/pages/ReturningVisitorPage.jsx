@@ -1,61 +1,77 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  BadgeCheck,
+  ArrowLeft,
   Building2,
+  CalendarCheck,
   CalendarDays,
-  CheckCircle2,
+  Check,
+  Clock3,
   LoaderCircle,
-  LockKeyhole,
+  Mail,
   Phone,
-  Search,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useForm,
   useWatch,
 } from "react-hook-form";
-import { Link } from "react-router-dom";
 import { ControlledAppSelect } from "../components/AppSelect.jsx";
-import { toOptions } from "../constants/selectOptions.js";
+import {
+  toOptions,
+  VISIT_AGENCY_OPTIONS,
+} from "../constants/selectOptions.js";
+import useHostedMeetings from "../hooks/useHostedMeetings.js";
+import WifiAccessField from "../components/WifiAccessField.jsx";
+import useCountdown, { formatCountdown } from "../hooks/useCountdown.js";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
+import CheckInSuccess from "../components/CheckInSuccess.jsx";
 import LoadingState from "../components/LoadingState.jsx";
-import PageHeader from "../components/PageHeader.jsx";
-import PrivacyNotice from "../components/PrivacyNotice.jsx";
-import { PRIVACY_NOTICE_VERSION } from "../constants/privacy.js";
+import PrivacyAgreement from "../components/PrivacyNotice.jsx";
+import RecordSearchIllustration from "../components/RecordSearchIllustration.jsx";
+import ReturningCodeLookup from "../components/ReturningCodeLookup.jsx";
+import {
+  FormSection,
+  IconInput,
+  RequiredProgress,
+  SecondaryStepButton,
+  StepButton,
+  StepIndicator,
+  VisitorCardHeader,
+  VisitorCardShell,
+  VisitorPrivacyFootnote,
+} from "../components/VisitorFlow.jsx";
 import {
   CUSTOM_MEETING_OPTION,
   MEETING_PURPOSE,
   MINISTRY_OF_FINANCE_AGENCY,
   MOF_DIVISIONS,
-  VISIT_AGENCIES,
   VISIT_PURPOSES,
 } from "../constants/visitorOptions.js";
 import {
   ApiError,
   apiRequest,
 } from "../lib/api.js";
-import { formatMeetingOption } from "../lib/meetingSchedule.js";
-import {
-  returningVisitorSearchSchema,
-  returningVisitorVerificationSchema,
-} from "../validation/returningVisitor.js";
+import { getAccraIsoDate } from "../lib/accraDate.js";
+import { formatMeetingDetails } from "../lib/meetingSchedule.js";
+import SelectedMeeting from "../components/SelectedMeeting.jsx";
 import { returningVisitCheckInSchema } from "../validation/returningVisit.js";
 
-const inputClassName =
-  "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
+const STEPS = ["Find your record", "Visit details"];
 
 const EMPTY_VISIT = {
+  email: "",
+  organization: "",
   agency: "",
   customMeetingTitle: "",
   division: "",
   meetingId: "",
   personVisiting: "",
-  privacyAcknowledged: false,
   purpose: "",
   verificationToken: "",
+  wifiAccess: "",
 };
 
 function describedBy(id, hasDescription, error) {
@@ -78,190 +94,84 @@ function getRequestError(error, fallbackMessage) {
 }
 
 export default function ReturningVisitorPage() {
-  const [lookup, setLookup] = useState({
-    hasMore: false,
-    results: [],
-    submitted: false,
-  });
-
-  const [selectedResult, setSelectedResult] =
-    useState(null);
-
   const [verification, setVerification] =
     useState(null);
 
   const [reference, setReference] = useState("");
-  const [searchError, setSearchError] = useState("");
-  const [verificationError, setVerificationError] =
-    useState("");
   const [workflowNotice, setWorkflowNotice] =
     useState("");
+  // The number stays filled in when the visitor goes back a step.
+  const [lastPhone, setLastPhone] = useState("");
+  // Step 1 answers: the number, plus the code when SMS codes are on.
+  const [lookupProgress, setLookupProgress] = useState({
+    done: 0,
+    total: 1,
+  });
+  const [lookupKey, setLookupKey] = useState(0);
 
-  const searchForm = useForm({
-    defaultValues: {
-      query: "",
-    },
-    resolver: zodResolver(
-      returningVisitorSearchSchema,
-    ),
+  const step = verification ? 2 : 1;
+
+  // Visit-detail answers come up from the step 2 form.
+  const [visitProgress, setVisitProgress] = useState({
+    done: 0,
+    total: 3,
   });
 
-  const verificationForm = useForm({
-    defaultValues: {
-      lookupToken: "",
-      phone: "",
-    },
-    resolver: zodResolver(
-      returningVisitorVerificationSchema,
-    ),
-  });
+  const progress = {
+    done:
+      (step === 2 ? lookupProgress.total : lookupProgress.done) +
+      (step === 2 ? visitProgress.done : 0),
+    total: lookupProgress.total + visitProgress.total,
+  };
 
-  function resetWorkflow() {
-    setLookup({
-      hasMore: false,
-      results: [],
-      submitted: false,
+  // Each new step's heading takes focus, as on the first-visit form.
+  const shownStep = useRef(1);
+
+  useEffect(() => {
+    if (shownStep.current === step) {
+      return;
+    }
+
+    shownStep.current = step;
+
+    requestAnimationFrame(() => {
+      const heading = document.getElementById(
+        `returning-step-${step}`,
+      );
+
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
     });
+  }, [step]);
 
-    setSelectedResult(null);
+  function handleVerified(response, phone) {
+    setWorkflowNotice("");
+    setLastPhone(phone);
+    setVerification(response);
+  }
+
+  function startOver(notice = "") {
     setVerification(null);
     setReference("");
-    setSearchError("");
-    setVerificationError("");
-
-    searchForm.reset({
-      query: "",
-    });
-
-    verificationForm.reset({
-      lookupToken: "",
-      phone: "",
-    });
+    setWorkflowNotice(notice);
+    setLastPhone("");
+    setLookupKey((key) => key + 1);
   }
 
-  async function handleSearch(values) {
-    setSearchError("");
-    setVerificationError("");
-    setWorkflowNotice("");
-    setSelectedResult(null);
+  // Back to step 1 with the number filled in; a new code is needed.
+  function goBack() {
     setVerification(null);
-
-    verificationForm.reset({
-      lookupToken: "",
-      phone: "",
-    });
-
-    setLookup({
-      hasMore: false,
-      results: [],
-      submitted: false,
-    });
-
-    try {
-      const response = await apiRequest(
-        "/api/returning/search",
-        {
-          body: JSON.stringify(values),
-          method: "POST",
-        },
-      );
-
-      setLookup({
-        hasMore: Boolean(response.hasMore),
-        results: Array.isArray(response.results)
-          ? response.results
-          : [],
-        submitted: true,
-      });
-    } catch (error) {
-      setSearchError(
-        getRequestError(
-          error,
-          "Visitor records could not be searched. Please try again.",
-        ),
-      );
-    }
-  }
-
-  function handleSelectResult(result) {
-    setSelectedResult(result);
-    setVerification(null);
-    setVerificationError("");
-    setWorkflowNotice("");
-
-    verificationForm.reset({
-      lookupToken: result.lookupToken,
-      phone: "",
-    });
-  }
-
-  async function handleVerification(values) {
-    setVerificationError("");
-    setWorkflowNotice("");
-
-    try {
-      const response = await apiRequest(
-        "/api/returning/verify",
-        {
-          body: JSON.stringify(values),
-          method: "POST",
-        },
-      );
-
-      if (
-        !response?.profile?.fullName ||
-        !response?.verificationToken
-      ) {
-        throw new Error(
-          "The visitor record could not be verified. Please try again.",
-        );
-      }
-
-      setVerification(response);
-
-      window.scrollTo({
-        behavior: "smooth",
-        top: 0,
-      });
-    } catch (error) {
-      setVerificationError(
-        getRequestError(
-          error,
-          "The visitor record could not be verified. Please try again.",
-        ),
-      );
-    }
-  }
-
-  function handleDifferentRecord() {
-    setSelectedResult(null);
-    setVerification(null);
-    setVerificationError("");
-    setWorkflowNotice("");
-
-    verificationForm.reset({
-      lookupToken: "",
-      phone: "",
-    });
-  }
-
-  function handleNewSearch() {
-    resetWorkflow();
-    setWorkflowNotice("");
+    setLookupKey((key) => key + 1);
   }
 
   function handleVerificationExpired(message) {
-    resetWorkflow();
-
-    setWorkflowNotice(
+    startOver(
       message ||
-        "Your verification expired. Search for your visitor record and verify your mobile number again.",
+        "Your verification expired. Enter your mobile number to get a new code.",
     );
-
-    window.scrollTo({
-      behavior: "smooth",
-      top: 0,
-    });
   }
 
   function handleCheckInSuccess(visitReference) {
@@ -273,17 +183,6 @@ export default function ReturningVisitorPage() {
     });
   }
 
-  const searchErrors = searchForm.formState.errors;
-
-  const verificationErrors =
-    verificationForm.formState.errors;
-
-  const searching =
-    searchForm.formState.isSubmitting;
-
-  const verifying =
-    verificationForm.formState.isSubmitting;
-
   if (reference) {
     return (
       <ReturningCheckInSuccess
@@ -293,570 +192,117 @@ export default function ReturningVisitorPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <PageHeader
-        backTo="/visit"
-        description="Find your masked visitor record, verify your registered mobile number and provide today’s visit details."
+    <VisitorCardShell>
+      <VisitorCardHeader
+        description="Confirm your mobile number with a code we send by SMS, then add today’s visit."
         eyebrow="Returning visitor"
+        illustration={
+          <RecordSearchIllustration className="hidden w-full sm:block" />
+        }
         title="Continue your visit"
+      >
+        <RequiredProgress
+          done={progress.done}
+          idPrefix="returning"
+          total={progress.total}
+        />
+      </VisitorCardHeader>
+
+      <StepIndicator
+        label="Check-in steps"
+        step={step}
+        steps={STEPS}
       />
 
-      {workflowNotice ? (
-        <div
-          className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
-          role="status"
-        >
-          <ShieldCheck
-            aria-hidden="true"
-            className="mt-0.5 size-5 shrink-0"
-          />
-
-          <p>{workflowNotice}</p>
-        </div>
-      ) : null}
-
-      {verification ? (
-        <VerifiedVisitorCheckIn
-          onNewSearch={handleNewSearch}
-          onSuccess={handleCheckInSuccess}
-          onVerificationExpired={
-            handleVerificationExpired
-          }
-          verification={verification}
-        />
-      ) : (
-        <>
-          <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-            <div className="flex items-start gap-4">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-800">
-                <Search
-                  aria-hidden="true"
-                  className="size-6"
-                />
-              </span>
-
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">
-                  Secure lookup
-                </h2>
-
-                <p className="mt-2 leading-7 text-slate-600">
-                  Enter at least three characters from your
-                  registered name. Results are masked and do
-                  not display complete contact information.
-                </p>
-              </div>
-            </div>
-
-            <form
-              className="mt-8 grid gap-6"
-              noValidate
-              onSubmit={searchForm.handleSubmit(
-                handleSearch,
-              )}
-            >
-              <Field
-                description="Use part of the first name or last name entered during your first visit."
-                error={searchErrors.query?.message}
-                id="returning-query"
-                label="Name search"
-                required
-              >
-                <div className="relative">
-                  <Search
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-                  />
-
-                  <input
-                    aria-describedby={describedBy(
-                      "returning-query",
-                      true,
-                      searchErrors.query,
-                    )}
-                    aria-invalid={Boolean(
-                      searchErrors.query,
-                    )}
-                    autoComplete="name"
-                    className={`${inputClassName} pl-12`}
-                    disabled={searching}
-                    id="returning-query"
-                    placeholder="For example, Ibrahim"
-                    spellCheck="false"
-                    type="search"
-                    {...searchForm.register("query")}
-                  />
-                </div>
-              </Field>
-
-              <button
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-bold text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-                disabled={searching}
-                type="submit"
-              >
-                {searching ? (
-                  <>
-                    <LoaderCircle
-                      aria-hidden="true"
-                      className="size-5 animate-spin"
-                    />
-                    Searching…
-                  </>
-                ) : (
-                  <>
-                    <Search
-                      aria-hidden="true"
-                      className="size-5"
-                    />
-                    Search records
-                  </>
-                )}
-              </button>
-            </form>
-
-            {searchError ? (
-              <div className="mt-6">
-                <ErrorMessage
-                  message={searchError}
-                  title="Search could not be completed"
-                />
-              </div>
-            ) : null}
-          </section>
-
-          {lookup.submitted ? (
-            <SearchResults
-              lookup={lookup}
-              onNewSearch={handleNewSearch}
-              onSelect={handleSelectResult}
-              selectedResult={selectedResult}
-            />
-          ) : null}
-
-          {selectedResult ? (
-            <VerificationForm
-              errors={verificationErrors}
-              form={verificationForm}
-              onDifferentRecord={
-                handleDifferentRecord
-              }
-              onSubmit={handleVerification}
-              selectedResult={selectedResult}
-              verifying={verifying}
-              verificationError={
-                verificationError
-              }
-            />
-          ) : null}
-
-          <div className="mt-6 flex items-start gap-3 rounded-2xl bg-slate-100 p-4 text-sm leading-6 text-slate-700">
+      <div className="mt-5 grid gap-5">
+        {workflowNotice ? (
+          <div
+            className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
+            role="status"
+          >
             <ShieldCheck
               aria-hidden="true"
-              className="mt-0.5 size-5 shrink-0 text-brand-800"
+              className="mt-0.5 size-5 shrink-0"
             />
 
-            <p>
-              Selecting a result does not reveal the visitor
-              profile until the registered mobile number has
-              been verified.
-            </p>
+            <p>{workflowNotice}</p>
           </div>
-        </>
-      )}
-    </div>
-  );
-}
+        ) : null}
 
-function SearchResults({
-  lookup,
-  onNewSearch,
-  onSelect,
-  selectedResult,
-}) {
-  return (
-    <section
-      aria-labelledby="search-results-heading"
-      aria-live="polite"
-      className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8"
-    >
-      <h2
-        className="text-xl font-black text-slate-950"
-        id="search-results-heading"
-      >
-        Search results
-      </h2>
-
-      {lookup.results.length === 0 ? (
-        <div className="mt-5 rounded-2xl bg-slate-50 p-5">
-          <p className="font-bold text-slate-950">
-            No matching visitor record was found.
-          </p>
-
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Check the spelling or search with another part
-            of your registered name.
-          </p>
-
-          <button
-            className="mt-4 min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-            onClick={onNewSearch}
-            type="button"
+        {step === 1 ? (
+          <FormSection
+            description="Use the mobile number from your first visit."
+            icon={ShieldCheck}
+            idPrefix="returning"
+            number={1}
+            title="Find your record"
           >
-            Start a new search
-          </button>
-        </div>
-      ) : (
-        <>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Select the masked record that matches your
-            details.
-          </p>
+            <ReturningCodeLookup
+              initialPhone={lastPhone}
+              key={lookupKey}
+              onProgress={setLookupProgress}
+              onVerified={handleVerified}
+            />
+          </FormSection>
+        ) : null}
 
-          <div className="mt-5 grid gap-3">
-            {lookup.results.map((result) => {
-              const selected =
-                selectedResult?.lookupToken ===
-                result.lookupToken;
-
-              return (
-                <button
-                  aria-pressed={selected}
-                  className={`min-h-20 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 focus:ring-brand-100 ${
-                    selected
-                      ? "border-brand-700 bg-brand-50"
-                      : "border-slate-200 bg-white hover:border-brand-300 hover:bg-slate-50"
-                  }`}
-                  key={result.lookupToken}
-                  onClick={() => onSelect(result)}
-                  type="button"
-                >
-                  <span className="flex items-start gap-3">
-                    <span
-                      className={`grid size-10 shrink-0 place-items-center rounded-xl ${
-                        selected
-                          ? "bg-brand-800 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      <UserRound
-                        aria-hidden="true"
-                        className="size-5"
-                      />
-                    </span>
-
-                    <span className="min-w-0">
-                      <span className="block break-words font-bold text-slate-950">
-                        {result.maskedName}
-                      </span>
-
-                      <span className="mt-1 block break-words text-sm text-slate-600">
-                        {result.maskedOrganization}
-                      </span>
-
-                      <span className="mt-1 block text-sm font-semibold text-slate-700">
-                        Phone ending:{" "}
-                        {result.maskedPhone}
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {lookup.hasMore ? (
-            <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-              More records matched this search. Use
-              additional name characters to narrow the
-              results.
-            </p>
-          ) : null}
-        </>
-      )}
-    </section>
-  );
-}
-
-function VerificationForm({
-  errors,
-  form,
-  onDifferentRecord,
-  onSubmit,
-  selectedResult,
-  verificationError,
-  verifying,
-}) {
-  return (
-    <section
-      aria-labelledby="verification-heading"
-      className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8"
-    >
-      <div className="flex items-start gap-4">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-800">
-          <ShieldCheck
-            aria-hidden="true"
-            className="size-6"
+        {step === 2 ? (
+          <ReturningVisitForm
+            onPrevious={goBack}
+            onProgress={setVisitProgress}
+            onSuccess={handleCheckInSuccess}
+            onVerificationExpired={
+              handleVerificationExpired
+            }
+            verification={verification}
           />
-        </span>
-
-        <div>
-          <h2
-            className="text-xl font-black text-slate-950"
-            id="verification-heading"
-          >
-            Verify your record
-          </h2>
-
-          <p className="mt-2 leading-7 text-slate-600">
-            Enter the complete mobile number used during
-            your first registration.
-          </p>
-        </div>
+        ) : null}
       </div>
 
-      <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-        <p className="text-sm font-semibold text-slate-600">
-          Selected record
-        </p>
-
-        <p className="mt-1 font-bold text-slate-950">
-          {selectedResult.maskedName}
-        </p>
-
-        <p className="mt-1 text-sm text-slate-600">
-          Phone ending: {selectedResult.maskedPhone}
-        </p>
-      </div>
-
-      <form
-        className="mt-6 grid gap-6"
-        noValidate
-        onSubmit={form.handleSubmit(onSubmit)}
-      >
-        <input
-          type="hidden"
-          {...form.register("lookupToken")}
-        />
-
-        <Field
-          description="Enter the full number, including the country code when applicable."
-          error={errors.phone?.message}
-          id="returning-phone"
-          label="Registered mobile number"
-          required
-        >
-          <div className="relative">
-            <Phone
-              aria-hidden="true"
-              className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400"
-            />
-
-            <input
-              aria-describedby={describedBy(
-                "returning-phone",
-                true,
-                errors.phone,
-              )}
-              aria-invalid={Boolean(errors.phone)}
-              autoComplete="tel"
-              className={`${inputClassName} pl-12`}
-              disabled={verifying}
-              id="returning-phone"
-              inputMode="tel"
-              placeholder="+233 24 000 0000"
-              type="tel"
-              {...form.register("phone")}
-            />
-          </div>
-        </Field>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-bold text-white transition hover:bg-brand-900 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            disabled={verifying}
-            type="submit"
-          >
-            {verifying ? (
-              <>
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="size-5 animate-spin"
-                />
-                Verifying…
-              </>
-            ) : (
-              <>
-                <ShieldCheck
-                  aria-hidden="true"
-                  className="size-5"
-                />
-                Verify mobile number
-              </>
-            )}
-          </button>
-
-          <button
-            className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            disabled={verifying}
-            onClick={onDifferentRecord}
-            type="button"
-          >
-            Choose another record
-          </button>
-        </div>
-      </form>
-
-      {verificationError ? (
-        <div className="mt-6">
-          <ErrorMessage
-            message={verificationError}
-            title="Verification unsuccessful"
-          />
-        </div>
-      ) : null}
-    </section>
+      <VisitorPrivacyFootnote />
+    </VisitorCardShell>
   );
 }
 
-function VerifiedVisitorCheckIn({
-  onNewSearch,
-  onSuccess,
-  onVerificationExpired,
-  verification,
-}) {
-  const verificationMinutes = verification.expiresIn
-    ? Math.max(
-        1,
-        Math.floor(verification.expiresIn / 60),
-      )
-    : 10;
+// Pressing "Complete check-in" is the privacy acknowledgement (see the
+// line above the button), so every submission carries it.
+const validateCheckIn = zodResolver(returningVisitCheckInSchema);
 
-  return (
-    <>
-      <section
-        aria-labelledby="verified-heading"
-        className="mt-8 overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm"
-      >
-        <div className="bg-emerald-50 p-5 sm:p-8">
-          <div className="flex items-start gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-700 text-white">
-              <BadgeCheck
-                aria-hidden="true"
-                className="size-6"
-              />
-            </span>
-
-            <div>
-              <h2
-                className="text-xl font-black text-emerald-950"
-                id="verified-heading"
-              >
-                Identity verified
-              </h2>
-
-              <p className="mt-2 leading-7 text-emerald-900">
-                Provide the details for today’s visit to
-                complete your check-in.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-8">
-          <h3 className="text-lg font-bold text-slate-950">
-            Visitor profile
-          </h3>
-
-          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                <UserRound
-                  aria-hidden="true"
-                  className="size-4"
-                />
-                Full name
-              </dt>
-
-              <dd className="mt-2 break-words font-bold text-slate-950">
-                {verification.profile.fullName}
-              </dd>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                <Building2
-                  aria-hidden="true"
-                  className="size-4"
-                />
-                Organisation
-              </dt>
-
-              <dd className="mt-2 break-words font-bold text-slate-950">
-                {verification.profile.organization ||
-                  "Not provided"}
-              </dd>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4 sm:col-span-2">
-              <dt className="text-sm font-semibold text-slate-600">
-                Email address
-              </dt>
-
-              <dd className="mt-2 break-all font-bold text-slate-950">
-                {verification.profile.email ||
-                  "Not provided"}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="mt-5 flex items-start gap-3 rounded-2xl bg-brand-50 p-4 text-sm leading-6 text-brand-950">
-            <ShieldCheck
-              aria-hidden="true"
-              className="mt-0.5 size-5 shrink-0 text-brand-800"
-            />
-
-            <p>
-              Complete your check-in within approximately{" "}
-              {verificationMinutes} minutes. If verification
-              expires, you will need to verify again.
-            </p>
-          </div>
-
-          <button
-            className="mt-5 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 sm:w-auto"
-            onClick={onNewSearch}
-            type="button"
-          >
-            Search for a different record
-          </button>
-        </div>
-      </section>
-
-      <ReturningVisitForm
-        onSuccess={onSuccess}
-        onVerificationExpired={
-          onVerificationExpired
-        }
-        verificationToken={
-          verification.verificationToken
-        }
-      />
-    </>
+// context.meetingCoversWifi: the chosen meeting already asked for
+// Wi-Fi, so the visitor is not asked.
+function checkInResolver(values, context, options) {
+  return validateCheckIn(
+    {
+      ...values,
+      meetingCoversWifi: Boolean(context?.meetingCoversWifi),
+      privacyAcknowledged: true,
+    },
+    context,
+    options,
   );
 }
 
 function ReturningVisitForm({
+  onPrevious,
+  onProgress,
   onSuccess,
   onVerificationExpired,
-  verificationToken,
+  verification,
 }) {
-  const [meetings, setMeetings] = useState([]);
-  const [meetingStatus, setMeetingStatus] =
-    useState("idle");
-  const [meetingRequestKey, setMeetingRequestKey] =
-    useState(0);
   const [submissionError, setSubmissionError] =
     useState("");
+
+  const { profile } = verification;
+
+  const verificationSeconds =
+    Number(verification.expiresIn) > 0
+      ? Number(verification.expiresIn)
+      : 600;
+
+  // Mirrors the chosen meeting's Wi-Fi request for the resolver; it
+  // is updated below once the meeting list is known.
+  const [meetingCoversWifi, setMeetingCoversWifi] =
+    useState(false);
 
   const {
     control,
@@ -866,35 +312,39 @@ function ReturningVisitForm({
     },
     handleSubmit,
     register,
+    setValue,
   } = useForm({
+    context: { meetingCoversWifi },
     defaultValues: {
       ...EMPTY_VISIT,
-      verificationToken,
+      verificationToken:
+        verification.verificationToken,
     },
-    resolver: zodResolver(
-      returningVisitCheckInSchema,
-    ),
+    resolver: checkInResolver,
     shouldFocusError: true,
     shouldUnregister: true,
   });
 
-  const selectedAgency =
-    useWatch({
-      control,
-      name: "agency",
-    }) || "";
-
-  const selectedPurpose =
-    useWatch({
-      control,
-      name: "purpose",
-    }) || "";
-
-  const selectedMeeting =
-    useWatch({
-      control,
-      name: "meetingId",
-    }) || "";
+  const [
+    selectedAgency = "",
+    selectedDivision = "",
+    selectedPurpose = "",
+    selectedMeeting = "",
+    customMeetingTitle = "",
+    personVisiting = "",
+    wifiAccess = "",
+  ] = useWatch({
+    control,
+    name: [
+      "agency",
+      "division",
+      "purpose",
+      "meetingId",
+      "customMeetingTitle",
+      "personVisiting",
+      "wifiAccess",
+    ],
+  });
 
   const visitingMinistry =
     selectedAgency === MINISTRY_OF_FINANCE_AGENCY;
@@ -904,51 +354,47 @@ function ReturningVisitForm({
 
   const purposeSelected = Boolean(selectedPurpose);
 
-  useEffect(() => {
-    if (!attendingMeeting) {
-      return undefined;
-    }
 
-    const controller = new AbortController();
 
-    void apiRequest("/api/meetings", {
-      method: "GET",
-      signal: controller.signal,
-    })
-      .then((result) => {
-        if (controller.signal.aborted) {
-          return;
-        }
+  const {
+    meetings,
+    retry: retryMeetings,
+    status: meetingStatus,
+  } = useHostedMeetings({
+    agency: selectedAgency,
+    attending: attendingMeeting,
+    division: selectedDivision,
+  });
 
-        setMeetings(
-          Array.isArray(result.meetings)
-            ? result.meetings
-            : [],
-        );
-
-        setMeetingStatus("ready");
-      })
-      .catch(() => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setMeetings([]);
-        setMeetingStatus("error");
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [attendingMeeting, meetingRequestKey]);
-
-  function retryMeetings() {
-    setMeetingStatus("loading");
-
-    setMeetingRequestKey(
-      (currentKey) => currentKey + 1,
-    );
+  // A meeting belongs to its host; a new destination clears it.
+  function clearMeeting() {
+    setValue("meetingId", "");
+    setValue("customMeetingTitle", "");
   }
+
+  const coveredNow =
+    attendingMeeting &&
+    meetingStatus === "ready" &&
+    meetings.some(
+      (meeting) =>
+        meeting.id === selectedMeeting &&
+        meeting.wifiRequested === true,
+    );
+
+  if (coveredNow !== meetingCoversWifi) {
+    setMeetingCoversWifi(coveredNow);
+  }
+
+  // The verification runs out on the server at the same time, so the
+  // form starts over instead of failing on submit. A check-in already
+  // being sent is left to finish.
+  const secondsLeft = useCountdown(verificationSeconds, () => {
+    if (!isSubmitting) {
+      onVerificationExpired();
+    }
+  });
+
+  const runningOut = secondsLeft <= 120;
 
   async function submitVisit(values) {
     setSubmissionError("");
@@ -957,7 +403,10 @@ function ReturningVisitForm({
       const result = await apiRequest(
         "/api/returning/check-in",
         {
-          body: JSON.stringify(values),
+          body: JSON.stringify({
+            ...values,
+            meetingCoversWifi: coveredNow,
+          }),
           method: "POST",
         },
       );
@@ -991,9 +440,41 @@ function ReturningVisitForm({
     attendingMeeting &&
     meetingStatus !== "ready";
 
+  const meetingChosen =
+    meetings.length === 0 ||
+    selectedMeeting === CUSTOM_MEETING_OPTION
+      ? customMeetingTitle.trim().length > 0
+      : Boolean(selectedMeeting);
+
+  const answers = [
+    Boolean(selectedAgency),
+    ...(visitingMinistry
+      ? [Boolean(selectedDivision)]
+      : []),
+    purposeSelected,
+    attendingMeeting
+      ? meetingChosen
+      : personVisiting.trim().length > 0,
+    ...(purposeSelected && !coveredNow
+      ? [Boolean(wifiAccess)]
+      : []),
+  ];
+
+  const answered = answers.filter(Boolean).length;
+
+  // Grey until every required answer is in, like the first-visit form.
+  const ready = answered === answers.length;
+
+  useEffect(() => {
+    onProgress({
+      done: answered,
+      total: answers.length,
+    });
+  }, [answered, answers.length, onProgress]);
+
   return (
     <form
-      className="mt-8 grid gap-8"
+      className="grid gap-5"
       noValidate
       onSubmit={handleSubmit(submitVisit)}
     >
@@ -1001,6 +482,184 @@ function ReturningVisitForm({
         type="hidden"
         {...register("verificationToken")}
       />
+
+      <section
+        aria-labelledby="verified-heading"
+        className="overflow-hidden rounded-3xl border border-[#99e2d6] bg-white shadow-sm dark:border-[#14756d]"
+      >
+        <div className="flex flex-col gap-4 bg-linear-to-br from-[#f0fdfa] via-[#f7fefc] to-[#ffffff] p-5 sm:p-6 md:flex-row md:items-start md:justify-between dark:from-[#0a2f2c] dark:via-[#0d2430] dark:to-[#111a2b]">
+          <div className="flex min-w-0 flex-1 items-start gap-4">
+            <span
+              aria-hidden="true"
+              className="grid size-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-[#14b8a6] to-[#0f766e] text-[#ffffff] shadow-md shadow-[#0f766e]/25"
+            >
+              <ShieldCheck className="size-6" />
+            </span>
+
+            <div className="min-w-0">
+              <h2
+                className="text-xl font-black tracking-tight text-slate-950"
+                id="verified-heading"
+              >
+                Identity verified
+              </h2>
+
+              <p className="mt-0.5 text-sm leading-6 text-slate-600">
+                Check your saved details, then add today’s visit.
+              </p>
+            </div>
+          </div>
+
+          {verification.lastVisitAt ? (
+            <LastVisitBadge value={verification.lastVisitAt} />
+          ) : null}
+        </div>
+
+        <dl className="grid border-t border-slate-200 sm:grid-cols-2">
+          <ProfileDetail
+            icon={UserRound}
+            label="Full name"
+            value={profile.fullName}
+          />
+
+          <ProfileDetail
+            icon={Building2}
+            label="Organisation"
+            value={profile.organization}
+          />
+
+          <ProfileDetail
+            icon={Mail}
+            label="Email address"
+            value={profile.email}
+          />
+
+          <ProfileDetail
+            icon={Phone}
+            label="Mobile number"
+            value={profile.phone}
+          />
+        </dl>
+
+        {/* Missing details can be added; existing ones never change. */}
+        {!profile.organization || !profile.email ? (
+          <div className="grid gap-5 border-t border-slate-200 px-5 py-5 sm:grid-cols-2 sm:px-6">
+            <p className="text-sm text-slate-600 sm:col-span-2">
+              Your record is missing some details. Add them
+              now if you like.
+            </p>
+
+            {!profile.organization ? (
+              <Field
+                error={errors.organization?.message}
+                id="returning-organization"
+                label={
+                  <OptionalLabel>Organisation</OptionalLabel>
+                }
+              >
+                <IconInput icon={Building2}>
+                  <input
+                    aria-describedby={describedBy(
+                      "returning-organization",
+                      false,
+                      errors.organization,
+                    )}
+                    aria-invalid={Boolean(
+                      errors.organization,
+                    )}
+                    autoComplete="organization"
+                    className="pl-11"
+                    id="returning-organization"
+                    maxLength="160"
+                    placeholder="Company or institution"
+                    {...register("organization")}
+                  />
+                </IconInput>
+              </Field>
+            ) : null}
+
+            {!profile.email ? (
+              <Field
+                error={errors.email?.message}
+                id="returning-email"
+                label={
+                  <OptionalLabel>Email address</OptionalLabel>
+                }
+              >
+                <IconInput icon={Mail}>
+                  <input
+                    aria-describedby={describedBy(
+                      "returning-email",
+                      false,
+                      errors.email,
+                    )}
+                    aria-invalid={Boolean(errors.email)}
+                    autoComplete="email"
+                    className="pl-11"
+                    id="returning-email"
+                    inputMode="email"
+                    maxLength="254"
+                    placeholder="name@example.com"
+                    type="email"
+                    {...register("email")}
+                  />
+                </IconInput>
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3.5 sm:px-6">
+          <p
+            className={`flex items-start gap-2 text-sm leading-6 ${
+              runningOut
+                ? "text-amber-800 dark:text-[#fcd34d]"
+                : "text-slate-700"
+            }`}
+            role="timer"
+          >
+            <Clock3
+              aria-hidden="true"
+              className={`mt-0.5 size-4 shrink-0 ${
+                runningOut
+                  ? "text-amber-600 dark:text-[#fcd34d]"
+                  : "text-[#0f766e] dark:text-[#5eead4]"
+              }`}
+            />
+            <span>
+              Finish within{" "}
+              <span className="font-bold tabular-nums">
+                {formatCountdown(secondsLeft)}
+              </span>
+              , or you will need to find your record again.
+            </span>
+          </p>
+
+          {/* Time left, shrinking each second. */}
+          <div
+            aria-hidden="true"
+            className="mt-2.5 h-1 overflow-hidden rounded-full bg-slate-200"
+          >
+            <div
+              className={`h-full rounded-full transition-[width] duration-1000 ease-linear motion-reduce:transition-none ${
+                runningOut
+                  ? "bg-amber-500"
+                  : "bg-[#0f766e] dark:bg-[#5eead4]"
+              }`}
+              style={{
+                width: `${(secondsLeft / verificationSeconds) * 100}%`,
+              }}
+            />
+          </div>
+
+          {/* Screen readers hear one warning, not every second. */}
+          <p aria-live="polite" className="sr-only">
+            {secondsLeft <= 60 && secondsLeft > 0
+              ? "Less than a minute left to finish your check-in."
+              : ""}
+          </p>
+        </div>
+      </section>
 
       {submissionError ? (
         <ErrorMessage
@@ -1010,11 +669,14 @@ function ReturningVisitForm({
       ) : null}
 
       <FormSection
-        description="Select the agency and provide information about the purpose of today’s visit."
+        description="Where you are going and why."
+        icon={CalendarDays}
+        idPrefix="returning"
+        number={2}
         title="Today’s visit details"
       >
         <Field
-          description="If you are visiting a Ministry staff member or conducting business within the Ministry, select Ministry of Finance (MoF)."
+          description="Visiting Ministry staff or doing business in the Ministry? Choose Ministry of Finance (MoF)."
           error={errors.agency?.message}
           id="returning-agency"
           label="Agency being visited"
@@ -1031,14 +693,15 @@ function ReturningVisitForm({
             invalid={Boolean(errors.agency)}
             labelledBy="returning-agency-label"
             name="agency"
-            options={toOptions(VISIT_AGENCIES)}
+            onValueChange={clearMeeting}
+            options={VISIT_AGENCY_OPTIONS}
             placeholder="Select an agency"
           />
         </Field>
 
         {visitingMinistry ? (
           <Field
-            description="Select the Ministry division connected to your visit."
+            description="The Ministry division connected to your visit."
             error={errors.division?.message}
             id="returning-division"
             label="Ministry of Finance division"
@@ -1057,6 +720,7 @@ function ReturningVisitForm({
               )}
               labelledBy="returning-division-label"
               name="division"
+              onValueChange={clearMeeting}
               options={toOptions(MOF_DIVISIONS)}
               placeholder="Select a division"
             />
@@ -1064,7 +728,7 @@ function ReturningVisitForm({
         ) : null}
 
         <Field
-          description="Select the main reason for today’s visit."
+          description="Select the main reason for your visit."
           error={errors.purpose?.message}
           id="returning-purpose"
           label="Purpose of visit"
@@ -1081,96 +745,87 @@ function ReturningVisitForm({
             invalid={Boolean(errors.purpose)}
             labelledBy="returning-purpose-label"
             name="purpose"
-            onValueChange={(value) => {
-                if (
-                  value ===
-                  MEETING_PURPOSE
-                ) {
-                  setMeetingStatus("loading");
-
-                  setMeetingRequestKey(
-                    (currentKey) =>
-                      currentKey + 1,
-                  );
-                }
-            }}
             options={toOptions(VISIT_PURPOSES)}
             placeholder="Select a purpose"
           />
         </Field>
 
         {attendingMeeting ? (
-          <MeetingSelector
-            control={control}
-            errors={errors}
-            meetingStatus={meetingStatus}
-            meetings={meetings}
-            register={register}
-            retryMeetings={retryMeetings}
-            selectedMeeting={selectedMeeting}
-          />
+          <div className="grid gap-5 rounded-2xl border border-[#99e2d6] bg-[#f0fdfa] p-4 dark:border-[#14756d] dark:bg-[#0b2b29]">
+            <MeetingSelector
+              control={control}
+              errors={errors}
+              meetingStatus={meetingStatus}
+              meetings={meetings}
+              register={register}
+              retryMeetings={retryMeetings}
+              selectedMeeting={selectedMeeting}
+            />
+          </div>
         ) : null}
 
         {purposeSelected && !attendingMeeting ? (
           <Field
-            description="Enter the name of the staff member, officer or contact person you are visiting."
+            description="The staff member, officer or contact person you are visiting."
             error={errors.personVisiting?.message}
             id="returning-person-visiting"
             label="Person being visited"
             required
           >
-            <input
-              aria-describedby={describedBy(
-                "returning-person-visiting",
-                true,
-                errors.personVisiting,
-              )}
-              aria-invalid={Boolean(
-                errors.personVisiting,
-              )}
-              autoCapitalize="words"
-              id="returning-person-visiting"
-              maxLength="120"
-              {...register("personVisiting")}
-            />
+            <IconInput icon={UserRound}>
+              <input
+                aria-describedby={describedBy(
+                  "returning-person-visiting",
+                  true,
+                  errors.personVisiting,
+                )}
+                aria-invalid={Boolean(
+                  errors.personVisiting,
+                )}
+                autoCapitalize="words"
+                className="pl-11"
+                id="returning-person-visiting"
+                maxLength="120"
+                placeholder="Name of the person"
+                {...register("personVisiting")}
+              />
+            </IconInput>
           </Field>
+        ) : null}
+
+        {purposeSelected ? (
+          <WifiAccessField
+            control={control}
+            covered={coveredNow}
+            error={errors.wifiAccess}
+            id="returning-wifi-access"
+          />
         ) : null}
       </FormSection>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-        <PrivacyNotice />
+      <PrivacyAgreement>
+        By checking in, you agree to how the Ministry
+        handles your information.
+      </PrivacyAgreement>
 
-        <div className="mt-5">
-          <label className="flex cursor-pointer items-start gap-3 font-normal" htmlFor="privacyAcknowledged">
-            <input
-              aria-describedby={errors.privacyAcknowledged ? "privacyAcknowledged-error" : undefined}
-              aria-invalid={Boolean(errors.privacyAcknowledged)}
-              className="mt-0.5 size-5 min-h-0 w-5 shrink-0 accent-brand-800"
-              id="privacyAcknowledged"
-              type="checkbox"
-              {...register("privacyAcknowledged")}
-            />
+      <div className="flex flex-col-reverse gap-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
+        <SecondaryStepButton
+          disabled={isSubmitting}
+          onClick={onPrevious}
+        >
+          <ArrowLeft
+            aria-hidden="true"
+            className="size-5"
+          />
+          Previous step
+        </SecondaryStepButton>
 
-            <span className="text-sm leading-6 text-slate-800">
-              I acknowledge that I have read and understood privacy notice version {PRIVACY_NOTICE_VERSION}, including the two-year retention period and the reuse of my verified visitor profile for future visits.
-            </span>
-          </label>
-
-          {errors.privacyAcknowledged ? (
-            <p className="mt-2 text-sm font-semibold text-red-700" id="privacyAcknowledged-error" role="alert">
-              {errors.privacyAcknowledged.message}
-            </p>
-          ) : null}
-        </div>
-      </section>
-
-      <div className="sticky bottom-0 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mx-0 sm:rounded-2xl sm:border sm:p-5 sm:shadow-sm">
-        <button
-          className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-brand-800 px-6 font-bold text-white shadow-sm hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
+        <StepButton
           disabled={
             isSubmitting ||
             meetingSelectionUnavailable
           }
+          ready={ready}
           type="submit"
         >
           {isSubmitting ? (
@@ -1179,7 +834,7 @@ function ReturningVisitForm({
               className="size-5 animate-spin"
             />
           ) : (
-            <LockKeyhole
+            <Check
               aria-hidden="true"
               className="size-5"
             />
@@ -1188,9 +843,100 @@ function ReturningVisitForm({
           {isSubmitting
             ? "Checking in…"
             : "Complete check-in"}
-        </button>
+        </StepButton>
       </div>
     </form>
+  );
+}
+
+// One cell of the 2 x 2 details grid. Cells after the first get a top
+// rule; on wider screens the right-hand column gets a left rule instead
+// of a second top rule on the first row.
+function ProfileDetail({ icon: Icon, label, value }) {
+  return (
+    <div className="min-w-0 border-slate-200 px-5 py-4 not-first:border-t sm:px-6 sm:even:border-l sm:nth-2:border-t-0">
+      <dt className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <Icon
+          aria-hidden="true"
+          className="size-4 text-[#0f766e] dark:text-[#5eead4]"
+        />
+        {label}
+      </dt>
+
+      <dd
+        className={`mt-1.5 wrap-break-word ${
+          value
+            ? "text-base font-bold text-slate-950"
+            : "text-sm font-semibold text-slate-500"
+        }`}
+      >
+        {value || "Not on record"}
+      </dd>
+    </div>
+  );
+}
+
+const lastVisitFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  timeZone: "Africa/Accra",
+  weekday: "short",
+  year: "numeric",
+});
+
+// Whole Accra calendar days between the last visit and today.
+function describeDaysSince(value) {
+  const days = Math.round(
+    (Date.parse(getAccraIsoDate()) -
+      Date.parse(getAccraIsoDate(new Date(value)))) /
+      86_400_000,
+  );
+
+  if (days <= 0) {
+    return "today";
+  }
+
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
+function LastVisitBadge({ value }) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return (
+    <p className="inline-flex max-w-full shrink-0 items-center gap-2.5 self-start rounded-2xl border border-[#99e2d6] bg-white py-1.5 pl-1.5 pr-4 text-sm text-slate-700 shadow-sm shadow-[#0f766e]/10 min-[420px]:rounded-full dark:border-[#14756d]">
+      <span
+        aria-hidden="true"
+        className="grid size-8 shrink-0 place-items-center rounded-xl bg-[#ccfbf1] text-[#0f766e] dark:bg-[#134e4a] dark:text-[#5eead4]"
+      >
+        <CalendarCheck className="size-4" />
+      </span>
+
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:flex-nowrap">
+        <span>Last visit</span>
+        <time
+          className="whitespace-nowrap font-bold text-slate-950"
+          dateTime={value}
+        >
+          {lastVisitFormatter.format(date)}
+        </time>
+        <span className="whitespace-nowrap font-semibold text-[#0f766e] dark:text-[#5eead4]">
+          · {describeDaysSince(value)}
+        </span>
+      </span>
+    </p>
+  );
+}
+
+function OptionalLabel({ children }) {
+  return (
+    <>
+      {children}{" "}
+      <span className="font-normal text-slate-600">(optional)</span>
+    </>
   );
 }
 
@@ -1203,6 +949,19 @@ function MeetingSelector({
   retryMeetings,
   selectedMeeting,
 }) {
+  if (meetingStatus === "needs-destination") {
+    return (
+      <p className="flex items-start gap-3 text-sm leading-6 text-[#134e4a] dark:text-[#ccfbf1]">
+        <CalendarDays
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0"
+        />
+        Choose the agency you are visiting (and the division, for the
+        Ministry) to see its meetings for today.
+      </p>
+    );
+  }
+
   if (
     meetingStatus === "idle" ||
     meetingStatus === "loading"
@@ -1237,9 +996,8 @@ function MeetingSelector({
             </h3>
 
             <p className="mt-1 text-sm leading-6">
-              Client Service has not published an active
-              meeting for today. Enter the title supplied
-              by the meeting organiser.
+              No meeting is listed for this agency today.
+              Enter the title supplied by the meeting organiser.
             </p>
           </div>
         </div>
@@ -1280,7 +1038,11 @@ function MeetingSelector({
           name="meetingId"
           options={[
             ...meetings.map((meeting) => ({
-              label: formatMeetingOption(meeting),
+              // Title alone in the field; time and venue sit under it in
+              // the list and in full below the field once chosen.
+              description:
+                formatMeetingDetails(meeting) || undefined,
+              label: meeting.title,
               value: meeting.id,
             })),
             { label: "Meeting not listed", value: CUSTOM_MEETING_OPTION },
@@ -1288,6 +1050,12 @@ function MeetingSelector({
           placeholder="Select a meeting"
         />
       </Field>
+
+      <SelectedMeeting
+        meeting={meetings.find(
+          (meeting) => meeting.id === selectedMeeting,
+        )}
+      />
 
       {selectedMeeting ===
       CUSTOM_MEETING_OPTION ? (
@@ -1330,69 +1098,12 @@ function CustomMeetingTitleField({
   );
 }
 
-function FormSection({
-  children,
-  description,
-  title,
-}) {
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-      <h2 className="text-xl font-bold text-slate-950">
-        {title}
-      </h2>
-
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        {description}
-      </p>
-
-      <div className="mt-6 grid gap-5">
-        {children}
-      </div>
-    </section>
-  );
-}
-
 function ReturningCheckInSuccess({ reference }) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-center px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <section
-        className="w-full rounded-3xl border border-brand-100 bg-white p-6 text-center shadow-lg sm:p-10"
-        role="status"
-      >
-        <span className="mx-auto grid size-16 place-items-center rounded-full bg-brand-50 text-brand-800">
-          <CheckCircle2
-            aria-hidden="true"
-            className="size-9"
-          />
-        </span>
-
-        <p className="mt-6 text-sm font-black uppercase tracking-[0.16em] text-brand-800">
-          Check-in complete
-        </p>
-
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-          Welcome back
-        </h1>
-
-        <p className="mt-4 leading-7 text-slate-600">
-          Please show the following reference to reception.
-          Do not share it publicly.
-        </p>
-
-        <p
-          aria-label={`Visit reference ${reference}`}
-          className="mt-6 rounded-2xl bg-slate-950 px-4 py-5 font-mono text-3xl font-black tracking-wider text-white"
-        >
-          {reference}
-        </p>
-
-        <Link
-          className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl border-2 border-brand-800 px-5 font-bold text-brand-900 hover:bg-brand-50"
-          to="/visit"
-        >
-          Return to visitor home
-        </Link>
-      </section>
-    </div>
+    <CheckInSuccess
+      description="Show this reference number at reception. Do not share it publicly."
+      reference={reference}
+      title="Welcome back"
+    />
   );
 }

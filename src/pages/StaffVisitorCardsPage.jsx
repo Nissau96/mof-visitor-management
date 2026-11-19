@@ -2,7 +2,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleCheck,
-  Clock,
   CreditCard,
   RefreshCw,
   Search,
@@ -11,7 +10,6 @@ import {
   TriangleAlert,
   UserCheck,
   UserPlus,
-  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -29,14 +27,17 @@ import SegmentedButton from "../components/SegmentedButton.jsx";
 import StatCard from "../components/StatCard.jsx";
 import CheckedInVisitorsTable, {
   ContactDetails,
-  Destination,
-  InitialsAvatar,
   PurposePill,
-  ReferencePill,
-  TimeStack,
+  TableHead,
   TowerPill,
   VisitorName,
 } from "../components/CheckedInVisitorsTable.jsx";
+import PendingAdmissionsTable, {
+  MobileCardHeader,
+  MobileDetail,
+  StatusPill,
+} from "../components/PendingAdmissionsTable.jsx";
+import { toVisitorRow } from "../lib/cardVisitorRow.js";
 import { getTowerLabel } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError, apiRequest } from "../lib/api.js";
@@ -46,6 +47,8 @@ import {
   getPendingAdmissions,
   getVisitorCardIncidents,
 } from "../lib/visitorCardApi.js";
+import { toast } from "../lib/toast.js";
+import { ADMISSIONS_CHANGED_EVENT } from "../components/FindBookingDialog.jsx";
 
 const PAGE_SIZE = 10;
 const DAY_MS = 86_400_000;
@@ -182,20 +185,6 @@ function getTotalCount(result) {
   ).totalCount;
 }
 
-// Card records use their own field names; the shared table expects these.
-function toVisitorRow(record) {
-  return {
-    email: record.email || "",
-    fullName:
-      record.fullName || "Unknown visitor",
-    organization: record.organization || "",
-    phone: record.phone || "",
-    purpose: record.purpose || "",
-    reference: record.referenceCode || "",
-    visitorType: record.visitorType || null,
-  };
-}
-
 function toCheckedInRow(record) {
   return {
     ...toVisitorRow(record),
@@ -227,39 +216,6 @@ const PILL_BUTTON =
   "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-bold transition focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed";
 
 const FILLED_BUTTON = `${PILL_BUTTON} bg-brand-800 text-white hover:bg-brand-900 disabled:bg-slate-200 disabled:text-slate-500`;
-
-function StatusPill({
-  children,
-  icon: Icon,
-  tone,
-}) {
-  const tones = {
-    amber:
-      "bg-amber-50 text-amber-800 ring-amber-300",
-    green:
-      "bg-emerald-50 text-emerald-800 ring-emerald-200",
-    red: "bg-red-50 text-red-700 ring-red-200",
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${tones[tone]}`}
-    >
-      {Icon ? (
-        <Icon
-          aria-hidden="true"
-          className="size-3.5"
-        />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="size-1.5 rounded-full bg-current"
-        />
-      )}
-      {children}
-    </span>
-  );
-}
 
 function IncidentStatusPill({ status }) {
   if (status === "resolved") {
@@ -348,7 +304,7 @@ function getIncidentAction(
       disabled: true,
       label: "Investigate",
       title:
-        "Incident management requires Client Service Head or Super Administrator access",
+        "Incident management requires Unit Head or Super Administrator access",
     };
   }
 
@@ -409,264 +365,6 @@ function IncidentActionButton({
       />
       {action.label}
     </button>
-  );
-}
-
-function AssignButton({
-  fullWidth = false,
-  onAssign,
-  record,
-}) {
-  return (
-    <button
-      aria-label={`Assign card to ${record.fullName}`}
-      className={`${FILLED_BUTTON} ${fullWidth ? "w-full" : ""}`}
-      onClick={() => onAssign(record)}
-      type="button"
-    >
-      <CreditCard
-        aria-hidden="true"
-        className="size-4"
-      />
-      Assign card
-    </button>
-  );
-}
-
-function TableHead({ columns }) {
-  return (
-    <thead className="border-y border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-      <tr>
-        {columns.map((label) => (
-          <th
-            className="whitespace-nowrap px-4 py-3 font-bold"
-            key={label}
-            scope="col"
-          >
-            {label}
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
-}
-
-function MobileCardHeader({ row }) {
-  return (
-    <div className="flex items-start gap-3">
-      <InitialsAvatar fullName={row.fullName} />
-
-      <div className="min-w-0 flex-1">
-        <h3 className="wrap-break-word">
-          <VisitorName row={row} />
-        </h3>
-        {row.organization ? (
-          <p className="text-sm text-slate-600">
-            {row.organization}
-          </p>
-        ) : null}
-      </div>
-
-      {row.reference ? (
-        <ReferencePill
-          reference={row.reference}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function MobileDetail({
-  children,
-  label,
-  wide = false,
-}) {
-  return (
-    <div
-      className={`min-w-0 ${wide ? "col-span-2" : ""}`}
-    >
-      <dt className="text-xs font-semibold text-slate-500">
-        {label}
-      </dt>
-      <dd className="mt-1 text-slate-950">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
-// Guests registered with a group show who brought them, so reception
-// can admit the group together.
-function GuestOfNote({ className = "", leadName }) {
-  if (!leadName) {
-    return null;
-  }
-
-  return (
-    <p
-      className={`flex items-center gap-1.5 text-xs font-semibold text-slate-600 ${className}`}
-    >
-      <UsersRound aria-hidden="true" className="size-3.5 shrink-0" />
-      Guest of {leadName}
-    </p>
-  );
-}
-
-function PendingAdmissionsTable({
-  onAssign,
-  records,
-}) {
-  return (
-    <>
-      <div className="grid gap-4 p-4 md:grid-cols-2 lg:hidden">
-        {records.map((record) => {
-          const row = toVisitorRow(record);
-
-          return (
-            <article
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-              key={record.visitId}
-            >
-              <MobileCardHeader row={row} />
-
-              <GuestOfNote
-                className="mt-3"
-                leadName={record.groupLeadName}
-              />
-
-              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <MobileDetail label="Destination">
-                  <Destination
-                    agency={record.destinationAgency}
-                    detail={
-                      record.destinationDivision ||
-                      record.personVisiting
-                    }
-                  />
-                </MobileDetail>
-                <MobileDetail label="Submitted">
-                  <TimeStack
-                    value={record.submittedAt}
-                  />
-                </MobileDetail>
-                <MobileDetail label="Tower">
-                  <TowerPill tower={record.tower} />
-                </MobileDetail>
-                <MobileDetail label="Purpose">
-                  <PurposePill
-                    purpose={row.purpose}
-                  />
-                </MobileDetail>
-              </dl>
-
-              <div className="mb-4 mt-4">
-                <StatusPill
-                  icon={Clock}
-                  tone="amber"
-                >
-                  Pending admission
-                </StatusPill>
-              </div>
-
-              <div className="mt-auto">
-                <AssignButton
-                  fullWidth
-                  onAssign={onAssign}
-                  record={record}
-                />
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-300 border-collapse text-center">
-          <TableHead
-            columns={[
-              "Reference",
-              "Visitor",
-              "Contact details",
-              "Purpose",
-              "Destination",
-              "Tower",
-              "Submitted",
-              "Status",
-              "Action",
-            ]}
-          />
-
-          <tbody className="divide-y divide-slate-200 bg-white text-sm">
-            {records.map((record) => {
-              const row = toVisitorRow(record);
-
-              return (
-                <tr
-                  className="align-middle transition hover:bg-slate-50"
-                  key={record.visitId}
-                >
-                  <td className="whitespace-nowrap px-4 py-4">
-                    <ReferencePill
-                      reference={row.reference}
-                    />
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4">
-                    <VisitorName row={row} />
-                    <GuestOfNote
-                      className="mt-1 justify-center"
-                      leadName={record.groupLeadName}
-                    />
-                  </td>
-                  <td className="min-w-60 px-4 py-4">
-                    <ContactDetails
-                      email={row.email}
-                      organization={row.organization}
-                      phone={row.phone}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <PurposePill
-                      purpose={row.purpose}
-                    />
-                  </td>
-                  <td className="min-w-40 px-4 py-4">
-                    <Destination
-                      agency={record.destinationAgency}
-                      detail={
-                        record.destinationDivision ||
-                        record.personVisiting
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <TowerPill tower={record.tower} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <TimeStack
-                      value={record.submittedAt}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <StatusPill
-                      icon={Clock}
-                      tone="amber"
-                    >
-                      Pending admission
-                    </StatusPill>
-                  </td>
-                  <td className="px-4 py-4">
-                    <AssignButton
-                      onAssign={onAssign}
-                      record={record}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
   );
 }
 
@@ -936,11 +634,14 @@ export default function StaffVisitorCardsPage() {
     clientServiceHead,
   ]);
 
+  // Reception's first tab waits for the totals: Checked-in when anyone
+  // is checked in, otherwise Pending. It is chosen once, so the page
+  // never switches tab on its own later.
   const [activeTab, setActiveTab] =
     useState(
       clientServiceHead
         ? "incidents"
-        : "pending",
+        : null,
     );
 
   const [rows, setRows] =
@@ -984,9 +685,6 @@ export default function StaffVisitorCardsPage() {
     useState("loading");
 
   const [requestError, setRequestError] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
     useState("");
 
   const [actionTarget, setActionTarget] =
@@ -1104,6 +802,19 @@ export default function StaffVisitorCardsPage() {
         dashboardResult?.cardAssignment
           ?.notAssigned;
 
+      const checkedInTotal = checkedInResult
+        ? getTotalCount(checkedInResult)
+        : 0;
+
+      if (showsReception) {
+        setActiveTab((current) =>
+          current ||
+          (checkedInTotal > 0
+            ? "checked-in"
+            : "pending"),
+        );
+      }
+
       setSummary({
         awaitingCard: Number.isInteger(
           notAssigned,
@@ -1149,6 +860,10 @@ export default function StaffVisitorCardsPage() {
       new AbortController();
 
     async function loadRecords() {
+      if (!activeTab) {
+        return;
+      }
+
       setRequestStatus("loading");
       setRequestError("");
 
@@ -1305,6 +1020,17 @@ export default function StaffVisitorCardsPage() {
     setPage(1);
   }
 
+  // A card assigned from Find booking changes the lists here.
+  useEffect(() => {
+    function bump() {
+      setRefreshKey((currentKey) => currentKey + 1);
+    }
+
+    window.addEventListener(ADMISSIONS_CHANGED_EVENT, bump);
+
+    return () => window.removeEventListener(ADMISSIONS_CHANGED_EVENT, bump);
+  }, []);
+
   function reload() {
     setRows([]);
     setRequestStatus("loading");
@@ -1315,12 +1041,10 @@ export default function StaffVisitorCardsPage() {
   }
 
   function refreshRecords() {
-    setSuccessMessage("");
     reload();
   }
 
   function openAction(type, record) {
-    setSuccessMessage("");
     setActionTarget({
       record,
       type,
@@ -1333,7 +1057,7 @@ export default function StaffVisitorCardsPage() {
 
   function completeAction(message) {
     setActionTarget(null);
-    setSuccessMessage(message);
+    toast.success("Visitor card updated", message);
     reload();
   }
 
@@ -1701,13 +1425,6 @@ export default function StaffVisitorCardsPage() {
             ) : null}
           </div>
         </div>
-
-        {successMessage ? (
-          <div className="flex items-center gap-3 border-t border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800" role="status">
-            <CircleCheck aria-hidden="true" className="size-5 shrink-0" />
-            {successMessage}
-          </div>
-        ) : null}
 
         {requestError ? (
           <div className="border-t border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800" role="alert">

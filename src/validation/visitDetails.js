@@ -6,7 +6,12 @@ import {
   MOF_DIVISIONS,
   VISIT_AGENCIES,
   VISIT_PURPOSES,
+  wifiAccessToBoolean,
 } from "../constants/visitorOptions.js";
+import {
+  VISITOR_WIFI_REQUIRED_MESSAGE,
+  wifiAccessField,
+} from "./wifiAccess.js";
 
 const uuidSchema = z.uuid();
 
@@ -74,9 +79,32 @@ export const visitDetailsShape = {
     120,
     "Person being visited must not exceed 120 characters.",
   ),
+
+  wifiAccess: wifiAccessField,
+
+  // Set by the form when the chosen meeting already asked for Wi-Fi
+  // for its guests; the database checks the meeting itself.
+  meetingCoversWifi: z.boolean().default(false),
 };
 
+function coveredByMeeting(data) {
+  return (
+    data.purpose === MEETING_PURPOSE &&
+    data.meetingCoversWifi === true &&
+    Boolean(data.meetingId) &&
+    uuidSchema.safeParse(data.meetingId).success
+  );
+}
+
 export function validateVisitDetails(data, context) {
+  if (!data.wifiAccess && !coveredByMeeting(data)) {
+    context.addIssue({
+      code: "custom",
+      message: VISITOR_WIFI_REQUIRED_MESSAGE,
+      path: ["wifiAccess"],
+    });
+  }
+
   const validAgency = isAllowedValue(
     VISIT_AGENCIES,
     data.agency,
@@ -217,5 +245,9 @@ export function normalizeVisitDetails(data) {
     personVisiting: attendingMeeting
       ? undefined
       : data.personVisiting,
+    // null: the meeting's own Wi-Fi request covers this visitor.
+    wifiRequested: coveredByMeeting(data)
+      ? null
+      : wifiAccessToBoolean(data.wifiAccess),
   };
 }

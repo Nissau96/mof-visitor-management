@@ -1,7 +1,4 @@
-import {
-  Search,
-  X,
-} from "lucide-react";
+import { Search } from "lucide-react";
 
 // Shared pieces for the administration record pages (hosts, staff).
 
@@ -77,30 +74,6 @@ export function SearchPill({
         value={value}
       />
     </form>
-  );
-}
-
-export function SuccessBanner({ message, onDismiss }) {
-  if (!message) {
-    return null;
-  }
-
-  return (
-    <div
-      className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"
-      role="status"
-    >
-      <p className="flex-1">{message}</p>
-
-      <button
-        aria-label="Dismiss confirmation"
-        className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
-        onClick={onDismiss}
-        type="button"
-      >
-        <X aria-hidden="true" className="size-4" />
-      </button>
-    </div>
   );
 }
 

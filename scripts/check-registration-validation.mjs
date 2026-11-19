@@ -68,6 +68,7 @@ const validOfficialMeetingRequest = {
   organization: "Test Organisation",
   phone: "024 000 0000",
   purpose: MEETING_PURPOSE,
+  wifiAccess: "no",
 };
 
 const validOfficialMeeting =
@@ -111,6 +112,7 @@ const validCustomMeeting =
     organization: "",
     phone: "0240000000",
     purpose: MEETING_PURPOSE,
+    wifiAccess: "no",
   });
 
 assert.equal(validCustomMeeting.success, true);
@@ -139,6 +141,7 @@ const validNonMeetingVisit =
     personVisiting: "Test GIPC Officer",
     phone: "+233240000000",
     purpose: "Official",
+    wifiAccess: "no",
   });
 
 assert.equal(validNonMeetingVisit.success, true);
@@ -166,6 +169,7 @@ const customMeetingWithoutTitle =
     organization: "",
     phone: "0240000000",
     purpose: MEETING_PURPOSE,
+    wifiAccess: "no",
   });
 
 assert.equal(customMeetingWithoutTitle.success, false);
@@ -183,6 +187,7 @@ const meetingWithoutSelection =
     organization: "",
     phone: "0240000000",
     purpose: MEETING_PURPOSE,
+    wifiAccess: "no",
   });
 
 assert.equal(meetingWithoutSelection.success, false);
@@ -201,6 +206,7 @@ const meetingWithPerson =
     personVisiting: "Unexpected Officer",
     phone: "0240000000",
     purpose: MEETING_PURPOSE,
+    wifiAccess: "no",
   });
 
 assert.equal(meetingWithPerson.success, false);
@@ -219,6 +225,7 @@ const nonMeetingWithoutPerson =
     personVisiting: "",
     phone: "0240000000",
     purpose: "Follow up",
+    wifiAccess: "no",
   });
 
 assert.equal(nonMeetingWithoutPerson.success, false);
@@ -237,6 +244,7 @@ const nonMeetingWithMeeting =
     personVisiting: "Test Officer",
     phone: "0240000000",
     purpose: "Follow up",
+    wifiAccess: "no",
   });
 
 assert.equal(nonMeetingWithMeeting.success, false);
@@ -255,6 +263,7 @@ const ministryWithoutDivision =
     personVisiting: "Test Officer",
     phone: "0240000000",
     purpose: "Official",
+    wifiAccess: "no",
   });
 
 assert.equal(ministryWithoutDivision.success, false);
@@ -273,6 +282,7 @@ const invalidRegistration =
     personVisiting: "",
     phone: "123",
     purpose: "Unknown Purpose",
+    wifiAccess: "no",
   });
 
 assert.equal(invalidRegistration.success, false);
@@ -305,10 +315,11 @@ assert.equal(
   "GET, POST, PUT, DELETE",
 );
 
+// Not localhost: local development requests get weekly access.
 const missingWeeklyAccess =
   await registerHandler.fetch(
     new Request(
-      "http://localhost/api/register",
+      "https://visitor.example/api/register",
       {
         method: "GET",
       },

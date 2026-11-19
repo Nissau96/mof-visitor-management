@@ -1,15 +1,10 @@
 import assert from "node:assert/strict";
 import process from "node:process";
-import searchHandler from "../api/returning/search.js";
 import verifyHandler from "../api/returning/verify.js";
 import {
   VERIFIED_VISITOR_AUDIENCE,
-  VISITOR_LOOKUP_AUDIENCE,
-  createLookupToken,
   createVerifiedVisitorToken,
-  maskPhoneSuffix,
-  maskVisitorName,
-  maskVisitorOrganization,
+  maskEmail,
   readVisitorToken,
 } from "../api/_lib/visitorLookup.js";
 import {
@@ -17,8 +12,8 @@ import {
   createWeeklyQrToken,
 } from "../src/server/weeklyQrAccess.js";
 import {
-  returningVisitorSearchSchema,
-  returningVisitorVerificationSchema,
+  returningVisitorCodeSchema,
+  returningVisitorLookupSchema,
 } from "../src/validation/returningVisitor.js";
 
 process.env.VISITOR_LOOKUP_SECRET =
@@ -41,34 +36,39 @@ const weeklyAccessCookie =
 const visitorId =
   "00000000-0000-4000-8000-000000000006";
 
-const validSearch = returningVisitorSearchSchema.safeParse({
-  query: "  Test   Visitor  ",
-});
+const validLookup =
+  returningVisitorLookupSchema.safeParse({
+    phone: "024 000 0000",
+  });
 
-assert.equal(validSearch.success, true);
-assert.equal(validSearch.data.query, "Test Visitor");
+assert.equal(validLookup.success, true);
+assert.equal(validLookup.data.phone, "+233240000000");
 
-const invalidSearch = returningVisitorSearchSchema.safeParse({
-  query: "Te",
-});
+const validCode =
+  returningVisitorCodeSchema.safeParse({
+    code: " 012345 ",
+    phone: "024 000 0000",
+  });
 
-assert.equal(invalidSearch.success, false);
+assert.equal(validCode.success, true);
+assert.equal(validCode.data.code, "012345");
 
-const lookupToken = createLookupToken(visitorId);
-
-const lookupPayload = readVisitorToken(
-  lookupToken,
-  VISITOR_LOOKUP_AUDIENCE,
+assert.equal(
+  returningVisitorCodeSchema.safeParse({
+    code: "12345",
+    phone: "024 000 0000",
+  }).success,
+  false,
 );
 
-assert.equal(lookupPayload.visitorId, visitorId);
+const invalidLookup =
+  returningVisitorLookupSchema.safeParse({
+    phone: "123",
+  });
 
-assert.throws(() =>
-  readVisitorToken(
-    lookupToken,
-    VERIFIED_VISITOR_AUDIENCE,
-  ),
-);
+assert.equal(invalidLookup.success, false);
+
+assert.equal(maskEmail("test@example.com"), "t•••••@example.com");
 
 const verificationToken =
   createVerifiedVisitorToken(visitorId);
@@ -81,69 +81,23 @@ const verificationPayload = readVisitorToken(
 assert.equal(verificationPayload.visitorId, visitorId);
 
 const [
-  encodedLookupPayload,
-  encodedLookupSignature,
-] = lookupToken.split(".");
+  encodedPayload,
+  encodedSignature,
+] = verificationToken.split(".");
 
 const replacementCharacter =
-  encodedLookupSignature.startsWith("A")
+  encodedSignature.startsWith("A")
     ? "B"
     : "A";
 
 const tamperedToken =
-  `${encodedLookupPayload}.${replacementCharacter}${encodedLookupSignature.slice(1)}`;
+  `${encodedPayload}.${replacementCharacter}${encodedSignature.slice(1)}`;
 
 assert.throws(() =>
   readVisitorToken(
     tamperedToken,
-    VISITOR_LOOKUP_AUDIENCE,
+    VERIFIED_VISITOR_AUDIENCE,
   ),
-);
-
-assert.equal(
-  maskVisitorName("Test Visitor"),
-  "T••• V••••••",
-);
-
-assert.equal(
-  maskVisitorOrganization("Test Organisation"),
-  "T••• O••••••••",
-);
-
-assert.equal(maskPhoneSuffix("42"), "•••• ••42");
-
-const validVerification =
-  returningVisitorVerificationSchema.safeParse({
-    lookupToken,
-    phone: "024 000 0000",
-  });
-
-assert.equal(validVerification.success, true);
-
-assert.equal(
-  validVerification.data.phone,
-  "+233240000000",
-);
-
-const invalidVerification =
-  returningVisitorVerificationSchema.safeParse({
-    lookupToken: "",
-    phone: "123",
-  });
-
-assert.equal(invalidVerification.success, false);
-
-const rejectedSearchMethod = await searchHandler.fetch(
-  new Request("http://localhost/api/returning/search", {
-    method: "GET",
-  }),
-);
-
-assert.equal(rejectedSearchMethod.status, 405);
-
-assert.equal(
-  rejectedSearchMethod.headers.get("allow"),
-  "POST",
 );
 
 const rejectedVerifyMethod = await verifyHandler.fetch(
@@ -158,26 +112,6 @@ assert.equal(
   rejectedVerifyMethod.headers.get("allow"),
   "POST",
 );
-
-const invalidSearchResponse =
-  await searchHandler.fetch(
-    new Request(
-      "http://localhost/api/returning/search",
-      {
-        body: JSON.stringify({
-          query: "Te",
-        }),
-        headers: {
-          "Content-Type":
-            "application/json",
-          Cookie: weeklyAccessCookie,
-        },
-        method: "POST",
-      },
-    ),
-  );
-
-assert.equal(invalidSearchResponse.status, 400);
 
 const invalidVerificationResponse =
   await verifyHandler.fetch(

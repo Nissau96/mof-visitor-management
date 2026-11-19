@@ -318,7 +318,7 @@ describe("staff invitation onboarding", () => {
       });
 
     expect(message.text).toContain(
-      "Role: Client Service Head",
+      "Role: Unit Head",
     );
 
     expect(message.text).not.toContain(

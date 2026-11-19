@@ -71,7 +71,7 @@ async function fillNonMeetingVisit(page) {
   await chooseOption(
     page,
     "Agency being visited",
-    "IAA",
+    "Internal Audit Agency (IAA)",
   );
 
   await chooseOption(
@@ -83,6 +83,12 @@ async function fillNonMeetingVisit(page) {
   await page
     .getByLabel("Person being visited")
     .fill("Quality Test Officer");
+
+  await chooseOption(
+    page,
+    "Wi-Fi access",
+    "No, I don't need Wi-Fi",
+  );
 }
 
 test.describe("first-time visitor workflow", () => {
@@ -173,8 +179,8 @@ expect(
     await fillVisitorDetails(page);
     await fillNonMeetingVisit(page);
 
-    // A purpose adds "Person being visited" to the count.
-    await expect(progress).toHaveAccessibleName("6 of 6 required details");
+    // A purpose adds "Person being visited" and "Wi-Fi access" to the count.
+    await expect(progress).toHaveAccessibleName("7 of 7 required details");
 
     const noticeButton = page.getByRole("button", {
       name: "Read the privacy notice",
@@ -271,6 +277,13 @@ expect(
     await page.getByLabel("First name").first().fill("Synthetic");
     await page.getByLabel("Last name").first().fill("Visitor");
     await page.getByLabel("Phone number").first().fill("024 111 2233");
+
+    // Guests are recorded under the lead's organisation.
+    await expect(page.getByText("Guests are recorded under")).toHaveCount(0);
+    await page.getByLabel("Organisation").fill("Synthetic Holdings");
+    await expect(
+      page.getByText("Guests are recorded under Synthetic Holdings."),
+    ).toBeVisible();
 
     const guestTwo = page.getByRole("group", { name: "Guest 2" });
     const guestThree = page.getByRole("group", { name: "Guest 3" });
@@ -373,22 +386,31 @@ expect(
     page,
   }) => {
     let registrationPayload = null;
+    const meetingRequests = [];
 
+    // Only the Budget Office hosts a meeting today.
     await page.route(
-      "**/api/meetings",
+      "**/api/meetings?**",
       async (route) => {
         expect(
           route.request().method(),
         ).toBe("GET");
 
+        const query = new URL(route.request().url()).searchParams;
+
+        meetingRequests.push(Object.fromEntries(query));
+
         await fulfillJson(route, {
-          meetings: [
-            {
-              id: MEETING_ID,
-              title:
-                "Stage 13 Quality Meeting",
-            },
-          ],
+          meetings:
+            query.get("division") === "Budget Office"
+              ? [
+                  {
+                    id: MEETING_ID,
+                    title:
+                      "Stage 13 Quality Meeting",
+                  },
+                ]
+              : [],
         });
       },
     );
@@ -440,6 +462,45 @@ expect(
     "Stage 13 Quality Meeting",
   );
 
+    expect(meetingRequests.at(-1)).toEqual({
+      agency: "Ministry of Finance (MoF)",
+      division: "Budget Office",
+    });
+
+    // Another division has no meetings, and the chosen one is cleared.
+    await chooseOption(
+      page,
+      "Ministry of Finance division",
+      "Legal Directorate",
+    );
+    await expect(
+      page.getByText("No meeting is listed for this agency today."),
+    ).toBeVisible();
+    expect(meetingRequests.at(-1)).toEqual({
+      agency: "Ministry of Finance (MoF)",
+      division: "Legal Directorate",
+    });
+
+    await chooseOption(
+      page,
+      "Ministry of Finance division",
+      "Budget Office",
+    );
+    await expect(
+      page.getByRole("button", { name: /^Title of meeting/ }),
+    ).toContainText("Select a meeting");
+    await chooseOption(
+      page,
+      "Title of meeting",
+      "Stage 13 Quality Meeting",
+    );
+
+    // The meeting has not asked for Wi-Fi, so the visitor is asked.
+    await chooseOption(
+      page,
+      "Wi-Fi access",
+      "Yes, I need Wi-Fi access",
+    );
 
     await page
       .getByRole("button", {
@@ -457,8 +518,10 @@ expect(
       agency: "Ministry of Finance (MoF)",
       consent: true,
       division: "Budget Office",
+      meetingCoversWifi: false,
       meetingId: MEETING_ID,
       purpose: "Meeting",
+      wifiAccess: "yes",
     });
 
     expect(

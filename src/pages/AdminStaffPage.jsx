@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
+  BadgeCheck,
   Check,
   CirclePlus,
   Clock,
@@ -13,6 +14,7 @@ import {
   Trash2,
   UserCheck,
   UserCog,
+  UserPlus,
   Users,
 } from "lucide-react";
 import {
@@ -39,7 +41,6 @@ import {
   OUTLINE_BUTTON,
   SearchPill,
   StateChip,
-  SuccessBanner,
   TABLE_HEAD_CELL,
 } from "../components/AdminRecords.jsx";
 import AppSelect from "../components/AppSelect.jsx";
@@ -55,6 +56,7 @@ import {
   ApiError,
   apiRequest,
 } from "../lib/api.js";
+import { MICROSOFT_SIGN_IN_ENABLED } from "../lib/featureFlags.js";
 import {
   adminStaffDeleteSchema,
   adminStaffInviteSchema,
@@ -62,6 +64,7 @@ import {
   adminStaffPasswordReissueSchema,
   adminStaffUpdateSchema,
 } from "../validation/adminManagement.js";
+import { toast } from "../lib/toast.js";
 
 const PAGE_SIZE = 10;
 
@@ -154,6 +157,8 @@ function normalizeStaffList(result) {
         staffMember.role === "admin" ||
         staffMember.role ===
           "client_service_head" ||
+        staffMember.role ===
+          "it_network_admin" ||
         staffMember.role === "receptionist"
       ) &&
       typeof staffMember.active === "boolean" &&
@@ -231,6 +236,11 @@ function normalizeStaffSummary(summary) {
     ].map((key) => [key, Number(summary[key])]),
   );
 
+  // Added later; an older database leaves it out.
+  counts.itNetworkAdminCount = Number(
+    summary.itNetworkAdminCount ?? 0,
+  );
+
   return Object.values(counts).every(
     (value) =>
       Number.isInteger(value) && value >= 0,
@@ -249,7 +259,8 @@ function scrollToRecords(options) {
 
 const ROLE_OPTIONS = Object.freeze([
   Object.freeze({ label: "Receptionist", value: "receptionist" }),
-  Object.freeze({ label: "Client Service Head", value: "client_service_head" }),
+  Object.freeze({ label: "Unit Head", value: "client_service_head" }),
+  Object.freeze({ label: "IT", value: "it_network_admin" }),
   Object.freeze({ label: "Administrator", value: "admin" }),
 ]);
 
@@ -271,13 +282,155 @@ const ACCESS_CHOICES = Object.freeze([
   Object.freeze({ label: "Inactive", value: false }),
 ]);
 
+const SIGN_IN_CHOICES = Object.freeze([
+  Object.freeze({ label: "Microsoft account", value: "microsoft" }),
+  Object.freeze({ label: "Password", value: "password" }),
+]);
+
+// <input type="date"> values, in Accra time (UTC+0).
+function dateInputValue(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function tomorrowInputValue() {
+  return dateInputValue(new Date(Date.now() + 86_400_000));
+}
+
+function accessEndInputValue(accessExpiresAt) {
+  const date = new Date(accessExpiresAt || "");
+
+  return Number.isNaN(date.getTime()) ? "" : dateInputValue(date);
+}
+
+function accessEnded(accessExpiresAt) {
+  const end = Date.parse(accessExpiresAt || "");
+
+  return Number.isFinite(end) && end <= Date.now();
+}
+
+// Sign-in method and access end date, shared by the invitation and
+// editor dialogs. Intern/NSP accounts (password accounts that are not
+// administrators) must have an end date; the server checks it too.
+function SignInSettingsFields({
+  control,
+  errors,
+  idPrefix,
+  register,
+  submitting,
+}) {
+  const [signInMethod, role] = useWatch({
+    control,
+    name: ["signInMethod", "role"],
+  });
+
+  const intern =
+    signInMethod === "password" && role !== "admin";
+
+  return (
+    <>
+      <Controller
+        control={control}
+        name="signInMethod"
+        render={({ field }) => (
+          <SegmentedChoice
+            description={
+              field.value === "microsoft"
+                ? "Signs in with their Ministry Microsoft account. Use the address they use for Outlook."
+                : role === "admin"
+                  ? "Email and password. Keep this for the one emergency administrator account."
+                  : "Email and password, for Intern/NSP accounts. Access stops on the end date."
+            }
+            disabled={submitting}
+            legend="Sign-in method"
+            name={`${idPrefix}-sign-in-method`}
+            onChange={field.onChange}
+            options={SIGN_IN_CHOICES}
+            required
+            value={field.value}
+          />
+        )}
+      />
+
+      <Field
+        description={
+          intern
+            ? "Access stops at 00:00 on this date."
+            : "Optional. Access stops at 00:00 on this date."
+        }
+        error={errors.accessEndDate?.message}
+        id={`${idPrefix}-access-end`}
+        label="Access ends"
+        required={intern}
+      >
+        <input
+          aria-describedby={
+            errors.accessEndDate
+              ? `${idPrefix}-access-end-description ${idPrefix}-access-end-error`
+              : `${idPrefix}-access-end-description`
+          }
+          aria-invalid={Boolean(errors.accessEndDate)}
+          className={DIALOG_INPUT}
+          disabled={submitting}
+          id={`${idPrefix}-access-end`}
+          min={tomorrowInputValue()}
+          type="date"
+          {...register("accessEndDate")}
+        />
+      </Field>
+    </>
+  );
+}
+
+function SignInBadge({ staffMember }) {
+  const microsoft = staffMember.signInMethod === "microsoft";
+
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-bold text-slate-700">
+      {microsoft ? (
+        <BadgeCheck aria-hidden="true" className="size-3.5" />
+      ) : (
+        <KeyRound aria-hidden="true" className="size-3.5" />
+      )}
+      {microsoft
+        ? "Microsoft sign-in"
+        : staffMember.isNsp
+          ? "Intern/NSP · no reports"
+          : "Password sign-in"}
+    </span>
+  );
+}
+
+function AccessEndNote({ staffMember }) {
+  if (!staffMember.accessExpiresAt) {
+    return null;
+  }
+
+  const ended = accessEnded(staffMember.accessExpiresAt);
+
+  return (
+    <p
+      className={`whitespace-nowrap text-xs font-semibold ${
+        ended ? "text-red-700" : "text-slate-600"
+      }`}
+    >
+      {ended ? "Access ended " : "Access ends "}
+      {formatDate(staffMember.accessExpiresAt)}
+    </p>
+  );
+}
+
 function formatRoleCounts(summary) {
   const parts = [
     [summary.adminCount, "Administrator", "Administrators"],
     [
       summary.clientServiceHeadCount,
-      "Client Service Head",
-      "Client Service Heads",
+      "Unit Head",
+      "Unit Heads",
+    ],
+    [
+      summary.itNetworkAdminCount,
+      "IT",
+      "IT",
     ],
     [summary.receptionistCount, "Receptionist", "Receptionists"],
   ]
@@ -305,9 +458,6 @@ export default function AdminStaffPage() {
     useState("");
 
   const [searchError, setSearchError] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
     useState("");
 
   const [filters, setFilters] =
@@ -457,6 +607,45 @@ export default function AdminStaffPage() {
     });
   }
 
+  const [testingEmail, setTestingEmail] = useState(false);
+
+  // Sends a test email to the signed-in administrator through the SMTP
+  // settings and says what went wrong if it fails.
+  async function sendTestEmail() {
+    setTestingEmail(true);
+
+    try {
+      const result = await apiRequest("/api/admin/email/test", {
+        body: JSON.stringify({}),
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        method: "POST",
+      });
+
+      if (result?.sent) {
+        toast.success(
+          "Test email sent",
+          `Sent to ${result.to} from ${result.from}. Check your inbox and junk folder.`,
+        );
+      } else {
+        toast.error(
+          "Test email not sent",
+          result?.problem || "The test email could not be sent.",
+        );
+      }
+    } catch (error) {
+      toast.error(
+        "Test email not sent",
+        error instanceof Error && error.message
+          ? error.message
+          : "The test email could not be sent.",
+      );
+    } finally {
+      setTestingEmail(false);
+    }
+  }
+
   function refreshStaff() {
     setRequestError("");
     setRequestStatus("loading");
@@ -486,7 +675,6 @@ export default function AdminStaffPage() {
 
   function openInvitation() {
     setDialogError("");
-    setSuccessMessage("");
     setDialog({
       mode: "invite",
       staffMember: null,
@@ -495,7 +683,6 @@ export default function AdminStaffPage() {
 
   function openEditor(staffMember) {
     setDialogError("");
-    setSuccessMessage("");
     setDialog({
       mode: "edit",
       staffMember,
@@ -506,7 +693,6 @@ export default function AdminStaffPage() {
     staffMember,
   ) {
     setDialogError("");
-    setSuccessMessage("");
     setDialog({
       mode: "reissue",
       staffMember,
@@ -515,7 +701,6 @@ export default function AdminStaffPage() {
 
   function openDeletion(staffMember) {
     setDialogError("");
-    setSuccessMessage("");
     setDialog({
       mode: "delete",
       staffMember,
@@ -533,7 +718,7 @@ export default function AdminStaffPage() {
 
   function refreshAfterMutation(message) {
     setDialog(null);
-    setSuccessMessage(message);
+    toast.success("Staff updated", message);
     setRequestError("");
     setRequestStatus("loading");
     setPage(1);
@@ -558,8 +743,11 @@ export default function AdminStaffPage() {
         },
       );
 
+      const microsoft =
+        result?.staff?.signInMethod === "microsoft";
+
       if (
-        !result?.invitationSent ||
+        (!result?.invitationSent && !microsoft) ||
         !result?.staff?.userId ||
         !result?.staff?.email
       ) {
@@ -569,7 +757,9 @@ export default function AdminStaffPage() {
       }
 
       refreshAfterMutation(
-        `An invitation was sent to ${result.staff.email}.`,
+        microsoft
+          ? `${result.staff.fullName || result.staff.email} was added. They sign in with Microsoft using ${result.staff.email}.`
+          : `An invitation was sent to ${result.staff.email}.`,
       );
     } catch (error) {
       if (
@@ -865,6 +1055,20 @@ export default function AdminStaffPage() {
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <button
             className={OUTLINE_BUTTON}
+            disabled={testingEmail}
+            onClick={() => void sendTestEmail()}
+            type="button"
+          >
+            {testingEmail ? (
+              <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+            ) : (
+              <Mail aria-hidden="true" className="size-4" />
+            )}
+            {testingEmail ? "Sending…" : "Send test email"}
+          </button>
+
+          <button
+            className={OUTLINE_BUTTON}
             disabled={loading}
             onClick={refreshStaff}
             type="button"
@@ -891,11 +1095,6 @@ export default function AdminStaffPage() {
           </button>
         </div>
       </header>
-
-      <SuccessBanner
-        message={successMessage}
-        onDismiss={() => setSuccessMessage("")}
-      />
 
       {statCards.length ? (
         <section
@@ -1245,18 +1444,24 @@ function RoleBadge({ role }) {
   const administrator = role === "admin";
   const clientServiceHead =
     role === "client_service_head";
+  const itNetworkAdmin =
+    role === "it_network_admin";
 
   const label = administrator
     ? "Administrator"
     : clientServiceHead
-      ? "Client Service Head"
-      : "Receptionist";
+      ? "Unit Head"
+      : itNetworkAdmin
+        ? "IT"
+        : "Receptionist";
 
   const colour = administrator
     ? "bg-brand-900 text-white"
     : clientServiceHead
       ? "bg-amber-100 text-amber-900"
-      : "bg-sky-100 text-sky-800";
+      : itNetworkAdmin
+        ? "bg-violet-100 text-violet-900"
+        : "bg-sky-100 text-sky-800";
 
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${colour}`}>
@@ -1524,10 +1729,14 @@ function StaffCard({
         <OnboardingBadge
           staffMember={staffMember}
         />
+        {MICROSOFT_SIGN_IN_ENABLED ? (
+          <SignInBadge staffMember={staffMember} />
+        ) : null}
       </div>
 
       <div className="mt-3 text-sm text-slate-700">
         <AccountActivity staffMember={staffMember} />
+        <AccessEndNote staffMember={staffMember} />
       </div>
 
       <div className="mt-4 border-t border-slate-200 pt-4">
@@ -1586,6 +1795,12 @@ function StaffRow({
               )}
             </p>
           ) : null}
+
+          {MICROSOFT_SIGN_IN_ENABLED ? (
+            <SignInBadge staffMember={staffMember} />
+          ) : null}
+
+          <AccessEndNote staffMember={staffMember} />
         </div>
       </td>
 
@@ -1665,12 +1880,14 @@ function AccountRecoveryDialog({
           : "Close password reissue"
       }
       eyebrow="Staff administration"
+      icon={deleting ? Trash2 : KeyRound}
       onClose={onCancel}
       title={
         deleting
           ? "Delete staff account"
           : "Reissue temporary password"
       }
+      tone={deleting ? "danger" : "warning"}
     >
       <form
         noValidate
@@ -1832,6 +2049,9 @@ function InvitationDialog({
       email: "",
       fullName: "",
       role: "receptionist",
+      ...(MICROSOFT_SIGN_IN_ENABLED
+        ? { accessEndDate: "", signInMethod: "microsoft" }
+        : {}),
     },
     resolver: zodResolver(
       adminStaffInviteSchema,
@@ -1839,9 +2059,9 @@ function InvitationDialog({
     shouldFocusError: true,
   });
 
-  const [fullName, email] = useWatch({
+  const [fullName, email, signInMethod] = useWatch({
     control,
-    name: ["fullName", "email"],
+    name: ["fullName", "email", "signInMethod"],
   });
 
   // Sending needs a name and an email address.
@@ -1849,14 +2069,21 @@ function InvitationDialog({
     fullName.trim() && email.trim(),
   );
 
+  const microsoft = signInMethod === "microsoft";
+
   return (
     <AdminDialog
       busy={submitting}
       closeLabel="Close invitation form"
-      description="The system emails a temporary password that expires after 24 hours. The person must replace it before using staff services."
+      description={
+        microsoft
+          ? "No email is sent. The person signs in with Microsoft using this address, which links their account."
+          : "The system emails a temporary password that expires after 24 hours. The person must replace it before using staff services."
+      }
       eyebrow="Staff administration"
+      icon={UserPlus}
       onClose={onCancel}
-      title="Invite staff member"
+      title={microsoft ? "Add staff member" : "Invite staff member"}
     >
       <form
         noValidate
@@ -1938,6 +2165,16 @@ function InvitationDialog({
               />
             )}
           />
+
+          {MICROSOFT_SIGN_IN_ENABLED ? (
+            <SignInSettingsFields
+              control={control}
+              errors={errors}
+              idPrefix="invite"
+              register={register}
+              submitting={submitting}
+            />
+          ) : null}
         </DialogBody>
 
         <DialogFooter>
@@ -1962,9 +2199,13 @@ function InvitationDialog({
               />
             ) : null}
 
-            {submitting
-              ? "Sending invitation…"
-              : "Send invitation"}
+            {microsoft
+              ? submitting
+                ? "Adding…"
+                : "Add staff member"
+              : submitting
+                ? "Sending invitation…"
+                : "Send invitation"}
           </button>
         </DialogFooter>
       </form>
@@ -1990,6 +2231,16 @@ function StaffEditorDialog({
       fullName: staffMember.fullName,
       role: staffMember.role,
       userId: staffMember.userId,
+      ...(MICROSOFT_SIGN_IN_ENABLED
+        ? {
+            // An end date already in the past cannot be saved again;
+            // the field starts empty so the admin picks a new one.
+            accessEndDate: accessEnded(staffMember.accessExpiresAt)
+              ? ""
+              : accessEndInputValue(staffMember.accessExpiresAt),
+            signInMethod: staffMember.signInMethod || "password",
+          }
+        : {}),
     },
     resolver: zodResolver(
       adminStaffUpdateSchema,
@@ -2003,6 +2254,7 @@ function StaffEditorDialog({
       closeLabel="Close staff editor"
       description={staffMember.email}
       eyebrow="Staff administration"
+      icon={UserCog}
       onClose={onCancel}
       title="Edit staff account"
     >
@@ -2078,6 +2330,16 @@ function StaffEditorDialog({
               />
             )}
           />
+
+          {MICROSOFT_SIGN_IN_ENABLED ? (
+            <SignInSettingsFields
+              control={control}
+              errors={errors}
+              idPrefix="edit-staff"
+              register={register}
+              submitting={submitting}
+            />
+          ) : null}
         </DialogBody>
 
         <DialogFooter>

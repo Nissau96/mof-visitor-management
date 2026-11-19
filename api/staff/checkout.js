@@ -723,6 +723,43 @@ function createRpcArguments(
   }
 }
 
+// Guests pre-registered through a meeting booking did not see the
+// privacy notice themselves, so reception confirms it with them before
+// admitting them. Returns whether the visit is such a guest.
+async function requireBookedGuestPrivacy(
+  client,
+  values,
+) {
+  const { data, error } = await client
+    .from("visits")
+    .select("booking_guest_id")
+    .eq("id", values.visitId)
+    .maybeSingle();
+
+  if (error) {
+    throw new HttpError(
+      "The visitor could not be admitted. Please try again.",
+      500,
+    );
+  }
+
+  const bookedGuest = Boolean(
+    data?.booking_guest_id,
+  );
+
+  if (
+    bookedGuest &&
+    values.privacyConfirmed !== true
+  ) {
+    throw new HttpError(
+      "Confirm that the guest has been shown the privacy notice.",
+      400,
+    );
+  }
+
+  return bookedGuest;
+}
+
 const LIST_RESULT_KEYS = Object.freeze({
   "checked-in-list": "visitors",
   "incident-list": "incidents",
@@ -765,6 +802,9 @@ async function addVisitorTypes(
           visitorType:
             detailed[index]?.visitorType ||
             null,
+          bookedGuest: Boolean(
+            detailed[index]?.bookedGuest,
+          ),
         }),
       ),
     };
@@ -902,11 +942,38 @@ export function createCheckoutHandler({
         const client =
           getAdminClientForRequest();
 
+        const bookedGuest =
+          operation === "admission"
+            ? await requireBookedGuestPrivacy(
+                client,
+                parsed.data,
+              )
+            : false;
+
         const { data, error } =
           await client.rpc(
             configuration.rpcName,
             rpcArguments,
           );
+
+        if (!error && bookedGuest) {
+          await client
+            .from("audit_events")
+            .insert({
+              action:
+                "visit.booked_guest_privacy_confirmed",
+              actor_id: profile.userId,
+              details: {
+                tower: towerScope,
+              },
+              entity_id: parsed.data.visitId,
+              entity_type: "visit",
+            })
+            .then(
+              () => undefined,
+              () => undefined,
+            );
+        }
 
         if (error) {
           throw getVisitorCardDatabaseError(

@@ -21,6 +21,23 @@
   --color-slate-800: #d8dee7;
   --color-slate-900: #e9edf3;
   --color-slate-950: #f5f7fa;
+
+  --chart-primary: #2dd4bf;
+  --chart-primary-strong: #5eead4;
+  --chart-secondary: #14756d;
+  --chart-soft: #134e4a;
+  --chart-area: rgb(45 212 191 / 0.14);
+  --chart-previous: #64748b;
+  --chart-grid: #263247;
+  --chart-text: #a9b4c5;
+  --chart-heat-0: #1a2436;
+  --chart-heat-1: #134e4a;
+  --chart-heat-2: #115e59;
+  --chart-heat-3: #0f766e;
+  --chart-heat-4: #14b8a6;
+  --chart-heat-5: #5eead4;
+  --chart-tooltip-bg: #111a2b;
+  --chart-tooltip-border: #263247;
 }
 
 .dark input,
@@ -36,6 +53,10 @@
 
 .dark .bg-white\/60 {
   background-color: rgb(17 26 43 / 60%);
+}
+
+.dark .bg-white\/80 {
+  background-color: rgb(17 26 43 / 80%);
 }
 
 .dark .bg-white\/90 {
@@ -63,6 +84,14 @@
 .dark .focus\:bg-brand-50:focus,
 .dark .focus-visible\:bg-brand-50:focus-visible {
   background-color: #0b2b29;
+}
+
+.dark .bg-brand-50\/50 {
+  background-color: rgb(11 43 41 / 50%);
+}
+
+.dark .bg-brand-50\/60 {
+  background-color: rgb(11 43 41 / 60%);
 }
 
 .dark .bg-brand-100,

@@ -5,52 +5,55 @@ import {
   Building2,
   CalendarDays,
   Check,
-  Info,
   Mail,
   MapPin,
   Minus,
   Phone,
   Plus,
-  ShieldCheck,
   UserRound,
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   useFieldArray,
   useForm,
   useWatch,
 } from "react-hook-form";
-import { Link } from "react-router-dom";
-import ministryLogo from "../assets/images/mof-logo.webp";
-import AdminDialog, {
-  DialogBody,
-  DialogFooter,
-  DIALOG_PRIMARY_BUTTON,
-} from "../components/AdminDialog.jsx";
 import { ControlledAppSelect } from "../components/AppSelect.jsx";
-import { toOptions } from "../constants/selectOptions.js";
+import {
+  toOptions,
+  VISIT_AGENCY_OPTIONS,
+} from "../constants/selectOptions.js";
+import useHostedMeetings from "../hooks/useHostedMeetings.js";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import Field from "../components/Field.jsx";
 import LoadingState from "../components/LoadingState.jsx";
-import { PrivacyNoticeSections } from "../components/PrivacyNotice.jsx";
-import VisitorPassIllustration from "../components/VisitorPassIllustration.jsx";
+import PrivacyAgreement from "../components/PrivacyNotice.jsx";
+import CheckInSuccess from "../components/CheckInSuccess.jsx";
 import {
-  PRIVACY_NOTICE_EFFECTIVE_DATE,
-  PRIVACY_NOTICE_SUMMARY,
-  PRIVACY_NOTICE_VERSION,
-} from "../constants/privacy.js";
+  FormSection,
+  IconInput,
+  RequiredProgress,
+  SecondaryStepButton,
+  StepButton,
+  StepIndicator,
+  VisitorCardHeader,
+  VisitorCardShell,
+  VisitorPrivacyFootnote,
+} from "../components/VisitorFlow.jsx";
+import VisitorPassIllustration from "../components/VisitorPassIllustration.jsx";
+import WifiAccessField from "../components/WifiAccessField.jsx";
 import {
   CUSTOM_MEETING_OPTION,
   MEETING_PURPOSE,
   MINISTRY_OF_FINANCE_AGENCY,
   MOF_DIVISIONS,
-  VISIT_AGENCIES,
   VISIT_PURPOSES,
 } from "../constants/visitorOptions.js";
 import { apiRequest } from "../lib/api.js";
-import { formatMeetingOption } from "../lib/meetingSchedule.js";
+import { formatMeetingDetails } from "../lib/meetingSchedule.js";
+import SelectedMeeting from "../components/SelectedMeeting.jsx";
 import {
   findRepeatedGuestPhones,
   MAX_VISIT_PARTY_SIZE,
@@ -70,6 +73,7 @@ const EMPTY_FORM = {
   meetingId: "",
   customMeetingTitle: "",
   personVisiting: "",
+  wifiAccess: "",
   guests: [],
 };
 
@@ -91,6 +95,7 @@ const WATCHED_FIELDS = [
   "meetingId",
   "customMeetingTitle",
   "personVisiting",
+  "wifiAccess",
 ];
 
 const ICON_INPUT = "pl-11";
@@ -125,7 +130,7 @@ function filled(value) {
 // The required fields shown right now: the five basics, three per
 // guest, plus the division for MoF and the meeting or person once a
 // purpose is chosen.
-function countRequired(values, guests) {
+function countRequired(values, guests, meetingCoversWifi) {
   const required = [
     values.firstName,
     values.lastName,
@@ -151,6 +156,11 @@ function countRequired(values, guests) {
     required.push(values.personVisiting);
   }
 
+  // Asked once a purpose is chosen, unless the meeting covers it.
+  if (values.purpose && !meetingCoversWifi) {
+    required.push(values.wifiAccess);
+  }
+
   return {
     done: required.filter(filled).length,
     total: required.length,
@@ -161,26 +171,30 @@ function countRequired(values, guests) {
 // the line above the button), so every submission carries consent.
 const validateRegistration = zodResolver(visitorRegistrationSchema);
 
+// context.meetingCoversWifi: the chosen meeting already asked for
+// Wi-Fi, so the visitor is not asked.
 function registrationResolver(values, context, options) {
   return validateRegistration(
-    { ...values, consent: true },
+    {
+      ...values,
+      consent: true,
+      meetingCoversWifi: Boolean(context?.meetingCoversWifi),
+    },
     context,
     options,
   );
 }
 
 export default function NewVisitorPage() {
-  const [meetings, setMeetings] = useState([]);
-  const [meetingStatus, setMeetingStatus] =
-    useState("idle");
-  const [meetingRequestKey, setMeetingRequestKey] =
-    useState(0);
   const [submissionError, setSubmissionError] =
     useState("");
   const [registration, setRegistration] = useState(null);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
-  const privacyButtonRef = useRef(null);
   const [step, setStep] = useState(1);
+
+  // Mirrors the chosen meeting's Wi-Fi request for the resolver; it
+  // is updated below once the meeting list is known.
+  const [meetingCoversWifi, setMeetingCoversWifi] =
+    useState(false);
 
   const {
     control,
@@ -188,9 +202,11 @@ export default function NewVisitorPage() {
     handleSubmit,
     getValues,
     setError,
+    setValue,
     trigger,
     formState: { errors, isSubmitting },
   } = useForm({
+    context: { meetingCoversWifi },
     defaultValues: EMPTY_FORM,
     resolver: registrationResolver,
     shouldFocusError: true,
@@ -211,6 +227,9 @@ export default function NewVisitorPage() {
   const guests =
     useWatch({ control, name: "guests" }) ?? [];
 
+  const organization =
+    useWatch({ control, name: "organization" }) ?? "";
+
   const partySize = guestFields.length + 1;
 
   const values = Object.fromEntries(
@@ -228,61 +247,44 @@ export default function NewVisitorPage() {
 
   const purposeSelected = Boolean(values.purpose);
 
-  const progress = countRequired(values, guests);
+  const {
+    meetings,
+    retry: retryMeetings,
+    status: meetingStatus,
+  } = useHostedMeetings({
+    agency: values.agency,
+    attending: attendingMeeting,
+    division: values.division,
+  });
+
+  // A meeting belongs to its host; a new destination clears it.
+  function clearMeeting() {
+    setValue("meetingId", "");
+    setValue("customMeetingTitle", "");
+  }
+
+  const coveredNow =
+    attendingMeeting &&
+    meetingStatus === "ready" &&
+    meetings.some(
+      (meeting) =>
+        meeting.id === values.meetingId &&
+        meeting.wifiRequested === true,
+    );
+
+  if (coveredNow !== meetingCoversWifi) {
+    setMeetingCoversWifi(coveredNow);
+  }
+
+  const progress = countRequired(
+    values,
+    guests,
+    coveredNow,
+  );
   const ready = progress.done === progress.total;
 
-  useEffect(() => {
-    if (!attendingMeeting) {
-      return undefined;
-    }
 
-    const controller = new AbortController();
 
-    void apiRequest("/api/meetings", {
-      method: "GET",
-      signal: controller.signal,
-    })
-      .then((result) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        const availableMeetings = Array.isArray(
-          result.meetings,
-        )
-          ? result.meetings
-          : [];
-
-        setMeetings(availableMeetings);
-        setMeetingStatus("ready");
-      })
-      .catch(() => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setMeetings([]);
-        setMeetingStatus("error");
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [attendingMeeting, meetingRequestKey]);
-
-  function retryMeetings() {
-    setMeetingStatus("loading");
-    setMeetingRequestKey(
-      (currentKey) => currentKey + 1,
-    );
-  }
-
-  function closePrivacyNotice() {
-    setPrivacyOpen(false);
-    requestAnimationFrame(() =>
-      privacyButtonRef.current?.focus(),
-    );
-  }
 
   // Step 1 inputs stay mounted while hidden: the form drops the values
   // of unmounted fields.
@@ -345,7 +347,10 @@ export default function NewVisitorPage() {
 
     try {
       const result = await apiRequest("/api/register", {
-        body: JSON.stringify(formValues),
+        body: JSON.stringify({
+          ...formValues,
+          meetingCoversWifi: coveredNow,
+        }),
         method: "POST",
       });
 
@@ -382,76 +387,35 @@ export default function NewVisitorPage() {
       GUEST_FIELDS.every((name) => filled(guest?.[name])),
     );
 
-  const percent = Math.round(
-    (progress.done / progress.total) * 100,
-  );
-
   return (
     <VisitorCardShell>
-      <div className="flex items-start justify-between gap-4">
-        <img
-          alt="Ministry of Finance, Republic of Ghana"
-          className="h-14 w-auto sm:h-16 dark:rounded-xl dark:bg-[#ffffff] dark:p-1.5"
-          decoding="async"
-          height="66"
-          src={ministryLogo}
-          width="166"
-        />
-
-        <Link
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#0f766e] bg-white px-4 text-sm font-bold text-[#0f766e] transition hover:bg-[#f0fdfa] focus-visible:ring-4 focus-visible:ring-brand-200 dark:border-[#5eead4] dark:text-[#5eead4]"
-          to="/visit"
-        >
-          <ArrowLeft aria-hidden="true" className="size-4" />
-          Back
-        </Link>
-      </div>
-
-      <div className="mt-4 grid items-end gap-6 sm:grid-cols-[minmax(0,1fr)_11rem] md:grid-cols-[minmax(0,1fr)_13rem]">
-        <div>
-          <p className="inline-flex rounded-full border border-[#99e2d6] bg-[#f0fdfa] px-4 py-1 text-xs font-black uppercase tracking-[0.2em] text-[#0f766e] dark:border-[#14756d] dark:bg-[#0b2b29] dark:text-[#5eead4]">
-            First visit
-          </p>
-
-          <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-            Register your visit
-          </h1>
-
-          <p className="mt-2 text-base text-slate-600">
+      <VisitorCardHeader
+        description={
+          <>
             It takes about two minutes. Fields marked{" "}
             <span aria-hidden="true" className="text-red-700">*</span>
             <span className="sr-only">with an asterisk</span>{" "}
             are required.
-          </p>
+          </>
+        }
+        eyebrow="First visit"
+        illustration={
+          <VisitorPassIllustration className="hidden w-full sm:block" />
+        }
+        title="Register your visit"
+      >
+        <RequiredProgress
+          done={progress.done}
+          idPrefix="registration"
+          total={progress.total}
+        />
+      </VisitorCardHeader>
 
-          <div className="mt-5 max-w-md">
-            <div className="flex items-center justify-between text-sm font-bold text-slate-900">
-              <span id="registration-progress-label">
-                {progress.done} of {progress.total} required details
-              </span>
-              <span aria-hidden="true">{percent}%</span>
-            </div>
-
-            <div
-              aria-labelledby="registration-progress-label"
-              aria-valuemax={progress.total}
-              aria-valuemin={0}
-              aria-valuenow={progress.done}
-              className="mt-2 h-2 overflow-hidden rounded-full bg-[#ccfbf1] dark:bg-[#0f3a37]"
-              role="progressbar"
-            >
-              <div
-                className="h-full rounded-full bg-[#0f766e] transition-[width] duration-300 dark:bg-[#2dd4bf]"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <VisitorPassIllustration className="hidden w-full sm:block" />
-      </div>
-
-      <StepIndicator step={step} />
+      <StepIndicator
+        label="Registration steps"
+        step={step}
+        steps={STEPS}
+      />
 
       <form
         className="mt-5 grid gap-5"
@@ -619,6 +583,7 @@ export default function NewVisitorPage() {
               errors={errors.guests}
               fields={guestFields}
               onRemove={removeGuest}
+              organization={organization.trim()}
               register={register}
             />
           ) : null}
@@ -658,7 +623,8 @@ export default function NewVisitorPage() {
                 invalid={Boolean(errors.agency)}
                 labelledBy="agency-label"
                 name="agency"
-                options={toOptions(VISIT_AGENCIES)}
+                onValueChange={clearMeeting}
+                options={VISIT_AGENCY_OPTIONS}
                 placeholder="Select an agency"
               />
             </Field>
@@ -682,6 +648,7 @@ export default function NewVisitorPage() {
                   invalid={Boolean(errors.division)}
                   labelledBy="division-label"
                   name="division"
+                  onValueChange={clearMeeting}
                   options={toOptions(MOF_DIVISIONS)}
                   placeholder="Select a division"
                 />
@@ -706,14 +673,6 @@ export default function NewVisitorPage() {
                 invalid={Boolean(errors.purpose)}
                 labelledBy="purpose-label"
                 name="purpose"
-                onValueChange={(value) => {
-                  if (value === MEETING_PURPOSE) {
-                    setMeetingStatus("loading");
-                    setMeetingRequestKey(
-                      (currentKey) => currentKey + 1,
-                    );
-                  }
-                }}
                 options={toOptions(VISIT_PURPOSES)}
                 placeholder="Select a purpose"
               />
@@ -761,38 +720,35 @@ export default function NewVisitorPage() {
                 </IconInput>
               </Field>
             ) : null}
+
+            {purposeSelected ? (
+              <WifiAccessField
+                control={control}
+                covered={coveredNow}
+                description={
+                  guestFields.length > 0
+                    ? "Your answer applies to your guests too. The IT team uses your mobile number and email to send the Wi-Fi details."
+                    : undefined
+                }
+                error={errors.wifiAccess}
+              />
+            ) : null}
           </FormSection>
 
-          <p className="flex items-start gap-2 px-1 text-sm leading-6 text-slate-700">
-            <ShieldCheck
-              aria-hidden="true"
-              className="mt-0.5 size-5 shrink-0 text-[#0f766e] dark:text-[#5eead4]"
-            />
-            <span>
-              {guestFields.length > 0
-                ? "By registering, you confirm you and your guests agree to how the Ministry handles your information."
-                : "By registering, you agree to how the Ministry handles your information."}{" "}
-              <button
-                className="font-bold text-[#0f766e] underline decoration-2 underline-offset-2 hover:text-[#115e59] dark:text-[#5eead4]"
-                onClick={() => setPrivacyOpen(true)}
-                ref={privacyButtonRef}
-                type="button"
-              >
-                Read the privacy notice
-              </button>
-            </span>
-          </p>
+          <PrivacyAgreement>
+            {guestFields.length > 0
+              ? "By registering, you confirm you and your guests agree to how the Ministry handles your information."
+              : "By registering, you agree to how the Ministry handles your information."}
+          </PrivacyAgreement>
 
           <div className="flex flex-col-reverse gap-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
-            <button
-              className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 text-base font-bold text-slate-800 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200"
+            <SecondaryStepButton
               disabled={isSubmitting}
               onClick={() => showStep(1)}
-              type="button"
             >
               <ArrowLeft aria-hidden="true" className="size-5" />
               Previous step
-            </button>
+            </SecondaryStepButton>
 
             <StepButton
               disabled={
@@ -811,108 +767,9 @@ export default function NewVisitorPage() {
         </div>
       </form>
 
-      <p className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm text-slate-600 sm:rounded-full">
-        <Info aria-hidden="true" className="size-4 shrink-0" />
-        Visitor information is handled for access and security purposes.
-      </p>
+      <VisitorPrivacyFootnote />
 
-      {privacyOpen ? (
-        <PrivacyNoticeDialog onClose={closePrivacyNotice} />
-      ) : null}
     </VisitorCardShell>
-  );
-}
-
-function VisitorCardShell({ children, wash = true }) {
-  return (
-    <div className="mx-auto w-full max-w-3xl px-3 py-5 sm:px-6 sm:py-8">
-      <div className="relative isolate overflow-hidden rounded-[2rem] border border-[#ffffff]/80 bg-[#f8fbfa]/95 p-5 shadow-xl shadow-slate-900/5 sm:p-7 dark:border-[#1f2d40] dark:bg-[#0d1626]/95">
-        {/* Mint wash behind the illustration and the top of section 1 */}
-        {wash ? (
-          <div
-            aria-hidden="true"
-            className="absolute -right-10 top-28 -z-10 hidden h-80 w-[48%] rounded-l-[10rem] bg-[#dcf6f0] sm:block dark:bg-[#0b2b29]"
-          />
-        ) : null}
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// Grey until the step's required fields are filled, but always
-// clickable so a press shows what is missing.
-function StepButton({ children, ready, ...props }) {
-  return (
-    <button
-      className={`inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full px-6 text-base font-black transition focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60 ${
-        ready
-          ? "bg-[#0f766e] text-[#ffffff] shadow-lg shadow-[#0f766e]/25 hover:bg-[#115e59]"
-          : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-      }`}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-function StepIndicator({ step }) {
-  return (
-    <ol
-      aria-label="Registration steps"
-      className="mt-6 flex items-center gap-3"
-    >
-      {STEPS.map((label, index) => {
-        const number = index + 1;
-        const done = number < step;
-        const current = number === step;
-
-        return (
-          <li
-            aria-current={current ? "step" : undefined}
-            className="flex min-w-0 flex-1 items-center gap-3"
-            key={label}
-          >
-            <span
-              aria-hidden="true"
-              className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-black ${
-                current || done
-                  ? "bg-[#0f766e] text-[#ffffff]"
-                  : "bg-[#e6f7f4] text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]"
-              }`}
-            >
-              {done ? <Check className="size-4" /> : number}
-            </span>
-
-            <span
-              className={`truncate text-sm ${
-                current
-                  ? "font-black text-slate-950"
-                  : "font-semibold text-slate-600"
-              }`}
-            >
-              <span className="sr-only">
-                {`Step ${number} of ${STEPS.length}: `}
-              </span>
-              {label}
-              {done ? (
-                <span className="sr-only"> (completed)</span>
-              ) : null}
-            </span>
-
-            {number < STEPS.length ? (
-              <span
-                aria-hidden="true"
-                className={`h-0.5 min-w-6 flex-1 rounded-full ${
-                  done ? "bg-[#0f766e]" : "bg-slate-200"
-                }`}
-              />
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -1002,6 +859,7 @@ function GuestsSection({
   errors,
   fields,
   onRemove,
+  organization,
   register,
 }) {
   return (
@@ -1029,6 +887,23 @@ function GuestsSection({
           </p>
         </div>
       </div>
+
+      {/* The database records guests under the lead's organisation. */}
+      {organization ? (
+        <p className="mt-4 flex items-start gap-2 rounded-2xl bg-[#f0fdfa] px-4 py-3 text-sm text-slate-700 dark:bg-[#0b2b29]">
+          <Building2
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-[#0f766e] dark:text-[#5eead4]"
+          />
+          <span>
+            Guests are recorded under{" "}
+            <strong className="font-bold text-slate-950">
+              {organization}
+            </strong>
+            .
+          </span>
+        </p>
+      ) : null}
 
       <div className="mt-6 grid gap-4">
         {fields.map((field, index) => (
@@ -1155,61 +1030,6 @@ function OptionalLabel({ children }) {
   );
 }
 
-function IconInput({ children, icon: Icon }) {
-  return (
-    <div className="relative">
-      <Icon
-        aria-hidden="true"
-        className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-500"
-      />
-      {children}
-    </div>
-  );
-}
-
-function FormSection({
-  children,
-  description,
-  icon: Icon,
-  number,
-  title,
-}) {
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start gap-4">
-        <span
-          aria-hidden="true"
-          className="grid size-11 shrink-0 place-items-center rounded-full bg-linear-to-br from-[#14b8a6] to-[#0f766e] text-lg font-black text-[#ffffff] shadow-md shadow-[#0f766e]/25"
-        >
-          {number}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h2
-            className="text-xl font-black tracking-tight text-slate-950 outline-none"
-            id={`registration-step-${number}`}
-            tabIndex={-1}
-          >
-            {title}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-600">
-            {description}
-          </p>
-        </div>
-
-        <span
-          aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7f4] text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]"
-        >
-          <Icon className="size-5" />
-        </span>
-      </div>
-
-      <div className="mt-6 grid gap-5">{children}</div>
-    </section>
-  );
-}
-
 function MeetingSelector({
   control,
   errors,
@@ -1219,6 +1039,19 @@ function MeetingSelector({
   retryMeetings,
   selectedMeeting,
 }) {
+  if (meetingStatus === "needs-destination") {
+    return (
+      <p className="flex items-start gap-3 text-sm leading-6 text-[#134e4a] dark:text-[#ccfbf1]">
+        <CalendarDays
+          aria-hidden="true"
+          className="mt-0.5 size-5 shrink-0"
+        />
+        Choose the agency you are visiting (and the division, for the
+        Ministry) to see its meetings for today.
+      </p>
+    );
+  }
+
   if (
     meetingStatus === "idle" ||
     meetingStatus === "loading"
@@ -1253,9 +1086,8 @@ function MeetingSelector({
             </h3>
 
             <p className="mt-1 text-sm leading-6">
-              Client Service has not published an active
-              meeting for today. Enter the title supplied by
-              the meeting organiser.
+              No meeting is listed for this agency today.
+              Enter the title supplied by the meeting organiser.
             </p>
           </div>
         </div>
@@ -1296,7 +1128,11 @@ function MeetingSelector({
           name="meetingId"
           options={[
             ...meetings.map((meeting) => ({
-              label: formatMeetingOption(meeting),
+              // Title alone in the field; time and venue sit under it in
+              // the list and in full below the field once chosen.
+              description:
+                formatMeetingDetails(meeting) || undefined,
+              label: meeting.title,
               value: meeting.id,
             })),
             { label: "Meeting not listed", value: CUSTOM_MEETING_OPTION },
@@ -1304,6 +1140,12 @@ function MeetingSelector({
           placeholder="Select a meeting"
         />
       </Field>
+
+      <SelectedMeeting
+        meeting={meetings.find(
+          (meeting) => meeting.id === selectedMeeting,
+        )}
+      />
 
       {selectedMeeting === CUSTOM_MEETING_OPTION ? (
         <CustomMeetingTitleField
@@ -1346,108 +1188,17 @@ function CustomMeetingTitleField({ errors, register }) {
   );
 }
 
-function PrivacyNoticeDialog({ onClose }) {
-  const noticeRef = useRef(null);
-
-  // Focus starts on the notice so keyboard users are inside the dialog
-  // and can scroll it straight away.
-  useEffect(() => {
-    noticeRef.current?.focus();
-  }, []);
-
-  return (
-    <AdminDialog
-      closeLabel="Close privacy notice"
-      description={`Version ${PRIVACY_NOTICE_VERSION} · Effective ${PRIVACY_NOTICE_EFFECTIVE_DATE}`}
-      icon={ShieldCheck}
-      onClose={onClose}
-      title="Privacy notice"
-    >
-      <DialogBody>
-        <p className="text-base leading-7 text-slate-700">
-          {PRIVACY_NOTICE_SUMMARY}
-        </p>
-
-        <div
-          aria-label="Full privacy notice"
-          className="max-h-[40dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 focus-visible:ring-4 focus-visible:ring-brand-200"
-          ref={noticeRef}
-          role="region"
-          tabIndex={0}
-        >
-          <PrivacyNoticeSections />
-        </div>
-      </DialogBody>
-
-      <DialogFooter>
-        <button
-          className={DIALOG_PRIMARY_BUTTON}
-          onClick={onClose}
-          type="button"
-        >
-          Close
-        </button>
-      </DialogFooter>
-    </AdminDialog>
-  );
-}
-
 function RegistrationSuccess({ guestCount, reference }) {
-  const guestLabel = guestCount === 1 ? "1 guest" : `${guestCount} guests`;
-
   return (
-    <VisitorCardShell wash={false}>
-      <section
-        className="flex flex-col items-center text-center"
-        role="status"
-      >
-        <img
-          alt="Ministry of Finance, Republic of Ghana"
-          className="h-14 w-auto self-start sm:h-16 dark:rounded-xl dark:bg-[#ffffff] dark:p-1.5"
-          decoding="async"
-          height="66"
-          src={ministryLogo}
-          width="166"
-        />
-
-        <VisitorPassIllustration className="mt-4 w-44 sm:w-52" />
-
-        <p className="mt-4 inline-flex rounded-full border border-[#99e2d6] bg-[#f0fdfa] px-4 py-1 text-xs font-black uppercase tracking-[0.2em] text-[#0f766e] dark:border-[#14756d] dark:bg-[#0b2b29] dark:text-[#5eead4]">
-          Check-in complete
-        </p>
-
-        <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-          Welcome to the Ministry
-        </h1>
-
-        <p className="mt-3 max-w-md text-base leading-7 text-slate-600">
-          {guestCount > 0
-            ? "Show this reference number at reception. Each person collects their own visitor card."
-            : "Show this reference number at reception. Do not share it publicly."}
-        </p>
-
-        <p
-          aria-label={`Visit reference ${reference}`}
-          className="mt-6 w-full max-w-md rounded-3xl border-2 border-dashed border-[#5eead4] bg-[#f0fdfa] px-4 py-5 font-mono text-3xl font-black tracking-wider text-[#134e4a] dark:border-[#14756d] dark:bg-[#0b2b29] dark:text-[#ccfbf1]"
-        >
-          {reference}
-        </p>
-
-        {guestCount > 0 ? (
-          <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#0f766e] dark:text-[#5eead4]">
-            <UsersRound aria-hidden="true" className="size-4" />
-            For you and {guestLabel}
-          </p>
-        ) : null}
-
-        <Link
-          className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#0f766e] px-6 font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition hover:bg-[#115e59] focus-visible:ring-4 focus-visible:ring-brand-200"
-          to="/visit"
-        >
-          <ArrowLeft aria-hidden="true" className="size-4" />
-          Return to visitor home
-        </Link>
-      </section>
-    </VisitorCardShell>
+    <CheckInSuccess
+      description={
+        guestCount > 0
+          ? "Show this reference number at reception. Each person collects their own visitor card."
+          : "Show this reference number at reception. Do not share it publicly."
+      }
+      guestCount={guestCount}
+      reference={reference}
+      title="Welcome to the Ministry"
+    />
   );
 }

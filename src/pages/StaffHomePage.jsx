@@ -1,11 +1,8 @@
 import {
   ArrowUpRight,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
-  LoaderCircle,
   LogIn,
   LogOut,
   MapPin,
@@ -13,14 +10,14 @@ import {
   Search,
   UserCheck,
   Users,
-  X,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import heroIllustration from "../assets/images/reception-desk.webp";
 import {
   ReceptionClockCard,
@@ -32,7 +29,11 @@ import {
 } from "../constants/selectOptions.js";
 import { getAccraIsoDate } from "../lib/accraDate.js";
 import AppSelect from "../components/AppSelect.jsx";
+import CheckoutConfirmDialog from "../components/CheckoutConfirmDialog.jsx";
 import CheckedInVisitorsTable from "../components/CheckedInVisitorsTable.jsx";
+import BookingRequestsPanel from "../components/BookingRequestsPanel.jsx";
+import PendingAdmissionsTable from "../components/PendingAdmissionsTable.jsx";
+import { AssignVisitorCardModal } from "../components/VisitorCardActions.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -42,8 +43,30 @@ import {
   getTowerLabel,
 } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
+import usePendingAdmissions from "../hooks/usePendingAdmissions.js";
 import { ApiError, apiRequest } from "../lib/api.js";
 import { receptionDashboardSchema } from "../validation/receptionDashboard.js";
+import { toast } from "../lib/toast.js";
+import { ADMISSIONS_CHANGED_EVENT } from "../components/FindBookingDialog.jsx";
+
+// The two tabs of the "Visitors on site" table. The open tab lives in
+// the URL (?view=) so a reload or the back button keeps it.
+const VISITOR_VIEWS = [
+  {
+    dotClassName: "bg-amber-400",
+    id: "pending",
+    label: "Pending admissions",
+    shortLabel: "Pending",
+  },
+  {
+    dotClassName: "bg-[#14b8a6]",
+    id: "checked-in",
+    label: "Currently checked in",
+    shortLabel: "Checked in",
+  },
+];
+
+const VIEW_IDS = VISITOR_VIEWS.map((option) => option.id);
 
 const EMPTY_FILTERS = {
   agency: "",
@@ -140,6 +163,7 @@ function toCheckedInRow(visitor) {
     source: visitor,
     tower: visitor.tower,
     visitorType: visitor.visitorType || null,
+    bookedGuest: Boolean(visitor.bookedGuest),
   };
 }
 
@@ -427,11 +451,6 @@ export default function StaffHomePage() {
   ] = useState("");
 
   const [
-    checkoutSuccess,
-    setCheckoutSuccess,
-  ] = useState("");
-
-  const [
     checkingOut,
     setCheckingOut,
   ] = useState(false);
@@ -439,8 +458,99 @@ export default function StaffHomePage() {
   const accessToken =
     session?.access_token || "";
 
+  const endExpiredSession = useCallback(() => {
+    void signOut().catch(() => undefined);
+  }, [signOut]);
+
   const administrator =
     profile.role === "admin";
+
+  const [searchParams, setSearchParams] =
+    useSearchParams();
+
+  const [pendingPage, setPendingPage] =
+    useState(1);
+
+  const [assignTarget, setAssignTarget] =
+    useState(null);
+
+  const requestedView = VIEW_IDS.includes(
+    searchParams.get("view"),
+  )
+    ? searchParams.get("view")
+    : null;
+
+  const pending = usePendingAdmissions({
+    accessToken,
+    listing: requestedView !== "checked-in",
+    onAuthError: () => {
+      void signOut().catch(() => undefined);
+    },
+    page: pendingPage,
+    refreshKey,
+    search: filters.query,
+    tower,
+  });
+
+  // Without a chosen tab, open the waiting list, unless nobody is
+  // waiting. null while the waiting count is still loading.
+  const view =
+    requestedView ||
+    (!pending.countLoaded
+      ? null
+      : pending.count === 0
+        ? "checked-in"
+        : "pending");
+
+  function changeView(nextView) {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set("view", nextView);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  // Arrow keys move between the two tabs.
+  function moveBetweenViews(event) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const index = VIEW_IDS.indexOf(view);
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? VIEW_IDS.length - 1
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + VIEW_IDS.length) %
+            VIEW_IDS.length;
+
+    changeView(VIEW_IDS[nextIndex]);
+    document.getElementById(`visitor-view-${VIEW_IDS[nextIndex]}`)?.focus();
+  }
+
+  function goToPendingPage(nextPage) {
+    if (
+      nextPage < 1 ||
+      nextPage === pendingPage ||
+      nextPage > (pending.list.pagination.totalPages || 1)
+    ) {
+      return;
+    }
+
+    setPendingPage(nextPage);
+  }
+
+  function completeAssignment(message) {
+    setAssignTarget(null);
+    toast.success("Visitor card updated", message);
+    refreshDashboard();
+  }
 
   useEffect(() => {
     const controller =
@@ -593,6 +703,7 @@ export default function StaffHomePage() {
     setRequestError("");
     setStatus("loading");
     setPage(1);
+    setPendingPage(1);
     setFilters(
       nextFilters,
     );
@@ -678,6 +789,17 @@ export default function StaffHomePage() {
     );
   }
 
+  // A card assigned from Find booking changes the lists here.
+  useEffect(() => {
+    function bump() {
+      setRefreshKey((currentKey) => currentKey + 1);
+    }
+
+    window.addEventListener(ADMISSIONS_CHANGED_EVENT, bump);
+
+    return () => window.removeEventListener(ADMISSIONS_CHANGED_EVENT, bump);
+  }, []);
+
   function refreshDashboard() {
     setRequestError("");
     setStatus("loading");
@@ -701,11 +823,11 @@ export default function StaffHomePage() {
       );
       setCheckoutTarget(null);
       setCheckoutError("");
-      setCheckoutSuccess("");
       setDashboard(null);
       setRequestError("");
       setStatus("loading");
       setPage(1);
+      setPendingPage(1);
     } catch (error) {
       setRequestError(
         error instanceof
@@ -772,7 +894,6 @@ export default function StaffHomePage() {
 
   function openCheckout(visitor) {
     setCheckoutError("");
-    setCheckoutSuccess("");
     setCheckoutTarget(
       visitor,
     );
@@ -829,7 +950,8 @@ export default function StaffHomePage() {
 
       setCheckoutTarget(null);
 
-      setCheckoutSuccess(
+      toast.success(
+        "Visitor checked out",
         checkout.alreadyCheckedOut
           ? `${visitorName} was already checked out from ${getTowerLabel(
               checkout.tower,
@@ -892,13 +1014,6 @@ export default function StaffHomePage() {
         filters.query,
     );
 
-  const visiblePages =
-    getVisiblePages(
-      page,
-      dashboard?.pagination
-        .totalPages || 0,
-    );
-
   const towerHeading =
     tower
       ? getTowerLabel(tower)
@@ -945,11 +1060,20 @@ export default function StaffHomePage() {
     dashboard?.pagination
       .totalCount ?? 0;
 
-  const matchingSummary = `${totalCount} ${
-    totalCount === 1
-      ? "matching visitor"
-      : "matching visitors"
-  } in ${towerHeading}`;
+  const listLoading =
+    view === "pending"
+      ? pending.list.status === "loading"
+      : loading;
+
+  const pendingTotal =
+    pending.list.pagination.totalCount;
+
+  const listSummary =
+    view === "pending" && pending.list.fetchedAt
+      ? `${pendingTotal} waiting · ${towerHeading}`
+      : view === "checked-in" && dashboard
+        ? `${totalCount} checked in · ${towerHeading}`
+        : "";
 
   return (
     <div className="mx-auto w-full max-w-[1760px] px-4 py-4 sm:px-6 lg:px-0 lg:py-0">
@@ -1025,38 +1149,6 @@ export default function StaffHomePage() {
         <ReceptionClockCard />
       </div>
 
-      {checkoutSuccess ? (
-        <div
-          className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"
-          role="status"
-        >
-          <CheckCircle2
-            aria-hidden="true"
-            className="mt-0.5 size-5 shrink-0 text-emerald-700"
-          />
-
-          <p className="flex-1 text-sm font-semibold leading-6">
-            {checkoutSuccess}
-          </p>
-
-          <button
-            aria-label="Dismiss check-out confirmation"
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100"
-            onClick={() =>
-              setCheckoutSuccess(
-                "",
-              )
-            }
-            type="button"
-          >
-            <X
-              aria-hidden="true"
-              className="size-4"
-            />
-          </button>
-        </div>
-      ) : null}
-
       <section
         aria-busy={loading}
         aria-label="Reception statistics"
@@ -1065,15 +1157,17 @@ export default function StaffHomePage() {
         <MetricCard
           action={{
             label: "Jump to checked-in visitors",
-            onClick: () =>
+            onClick: () => {
+              changeView("checked-in");
               document
                 .getElementById(
-                  "active-visitors-heading",
+                  "visitors-on-site-heading",
                 )
                 ?.scrollIntoView({
                   behavior: "smooth",
                   block: "start",
-                }),
+                });
+            },
           }}
           featured
           icon={UserCheck}
@@ -1166,74 +1260,168 @@ export default function StaffHomePage() {
         />
       </section>
 
+      {/* Meetings booked by Ministry staff waiting for a decision; the
+          card only appears when there is at least one. */}
+      {accessToken ? (
+        <BookingRequestsPanel
+          accessToken={accessToken}
+          mode="queue"
+          onSessionExpired={endExpiredSession}
+          tower={tower || ""}
+        />
+      ) : null}
+
       <section
-        aria-busy={loading}
-        aria-labelledby="active-visitors-heading"
+        aria-busy={listLoading}
+        aria-labelledby="visitors-on-site-heading"
         className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
       >
-        <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-5 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <h2
-                className="text-xl font-black text-slate-950"
-                id="active-visitors-heading"
+                className="text-xl font-black tracking-tight text-slate-950"
+                id="visitors-on-site-heading"
               >
-                Currently Checked-In Visitors
+                Visitors on site
               </h2>
-
-              {dashboard ? (
-                <p
-                  aria-live="polite"
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"
-                >
-                  {matchingSummary}
-                </p>
-              ) : null}
+              <p className="mt-1 text-sm text-slate-600">
+                Admit people waiting at reception, then track who is inside.
+              </p>
             </div>
 
-            <form
-              className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end"
-              noValidate
-              onSubmit={submitSearch}
-              role="search"
+            <button
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-full border border-brand-600 bg-white px-3 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+              disabled={listLoading}
+              onClick={refreshDashboard}
+              type="button"
             >
-              <div className="relative sm:w-64">
-                <label
-                  className="sr-only"
-                  htmlFor="dashboard-query"
-                >
-                  Name or reference
-                </label>
+              <RefreshCw
+                aria-hidden="true"
+                className={`size-4 ${listLoading ? "animate-spin" : ""}`}
+              />
+              <span className="max-sm:sr-only">Refresh</span>
+            </button>
+          </div>
 
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500"
-                />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              aria-label="Visitor views"
+              className="flex gap-2"
+              role="tablist"
+            >
+              {VISITOR_VIEWS.map((option) => {
+                const active = view === option.id;
+                const count =
+                  option.id === "pending"
+                    ? pending.count
+                    : stats?.active;
 
-                <input
-                  aria-describedby={
-                    filterError
-                      ? "dashboard-filter-error"
-                      : undefined
-                  }
-                  autoComplete="off"
-                  className="h-11 min-h-11 w-full rounded-full border border-slate-200 bg-white py-0 pl-10 pr-4 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:ring-4 focus:ring-brand-100"
-                  id="dashboard-query"
-                  maxLength="80"
-                  onChange={(
-                    event,
-                  ) =>
-                    setQueryDraft(
-                      event.target
-                        .value,
-                    )
-                  }
-                  placeholder="Search name or VIS-reference"
-                  type="search"
-                  value={queryDraft}
-                />
+                return (
+                  <button
+                    aria-controls="visitors-on-site-panel"
+                    aria-selected={active}
+                    className={`inline-flex min-h-12 flex-1 items-center justify-center gap-2.5 rounded-full py-1.5 pl-4 pr-2 text-sm font-bold transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 sm:flex-none sm:gap-3 sm:pl-5 ${
+                      active
+                        ? "bg-linear-to-r from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-lg shadow-[#115e59]/25"
+                        : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                    }`}
+                    id={`visitor-view-${option.id}`}
+                    key={option.id}
+                    onClick={() => changeView(option.id)}
+                    onKeyDown={moveBetweenViews}
+                    role="tab"
+                    tabIndex={active ? 0 : -1}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`size-2 shrink-0 rounded-full ${option.dotClassName}`}
+                    />
+                    <span className="sm:hidden">{option.shortLabel}</span>
+                    <span className="max-sm:sr-only">{option.label}</span>
+                    {Number.isInteger(count) ? (
+                      <span
+                        className={`grid h-7 min-w-7 place-items-center rounded-full px-2 text-xs font-black ${
+                          active
+                            ? "bg-[#ffffff] text-[#115e59]"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {administrator ? (
+              <div
+                aria-label="Tower filter"
+                className="flex gap-1 self-start rounded-full border border-slate-200 bg-slate-100 p-1 max-sm:w-full lg:self-auto"
+                role="group"
+              >
+                {[{ label: "All Towers", value: "" }, ...TOWER_OPTIONS].map(
+                  (towerOption) => (
+                    <button
+                      aria-pressed={tower === towerOption.value}
+                      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm transition sm:flex-none sm:px-5 ${
+                        tower === towerOption.value
+                          ? "bg-[#ffffff] font-bold text-[#0f766e] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
+                          : "font-semibold text-slate-600 hover:text-slate-900"
+                      }`}
+                      key={towerOption.value || "all"}
+                      onClick={() => changeTower(towerOption.value)}
+                      type="button"
+                    >
+                      {towerOption.label}
+                    </button>
+                  ),
+                )}
               </div>
+            ) : (
+              <div className="self-start lg:self-auto">
+                <TowerBadge tower={tower} />
+              </div>
+            )}
+          </div>
+        </div>
 
+        <form
+          className="flex flex-col gap-3 border-y border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6"
+          noValidate
+          onSubmit={submitSearch}
+          role="search"
+        >
+          <div className="relative min-w-0 sm:min-w-64 sm:flex-1">
+            <label className="sr-only" htmlFor="dashboard-query">
+              Name or reference
+            </label>
+
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-500"
+            />
+
+            <input
+              aria-describedby={
+                filterError ? "dashboard-filter-error" : undefined
+              }
+              autoComplete="off"
+              className="h-12 min-h-12 w-full rounded-full border border-slate-200 bg-white py-0 pl-11 pr-4 text-sm text-slate-950 shadow-none outline-none transition placeholder:text-slate-500 focus:border-brand-600 focus:ring-4 focus:ring-brand-100"
+              id="dashboard-query"
+              maxLength="80"
+              onChange={(event) => setQueryDraft(event.target.value)}
+              placeholder="Search name or VIS reference"
+              type="search"
+              value={queryDraft}
+            />
+          </div>
+
+          {/* The pending list can only be searched; agency filters apply to checked-in visitors. */}
+          {view === "checked-in" ? (
+            <>
               <AppSelect
                 appearance="filter"
                 className="sm:w-56"
@@ -1245,8 +1433,7 @@ export default function StaffHomePage() {
                 value={agencyDraft}
               />
 
-              {agencyDraft ===
-              MINISTRY_OF_FINANCE_AGENCY ? (
+              {agencyDraft === MINISTRY_OF_FINANCE_AGENCY ? (
                 <AppSelect
                   appearance="filter"
                   className="sm:w-56"
@@ -1258,241 +1445,237 @@ export default function StaffHomePage() {
                   value={divisionDraft}
                 />
               ) : null}
+            </>
+          ) : null}
 
-              <button
-                className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !filtersApplied &&
-                  !queryDraft &&
-                  !agencyDraft
-                }
-                onClick={
-                  clearFilters
-                }
-                type="button"
-              >
-                Reset
-              </button>
-            </form>
-          </div>
+          <button
+            className="inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!filtersApplied && !queryDraft && !agencyDraft}
+            onClick={clearFilters}
+            type="button"
+          >
+            Reset
+          </button>
 
           {filterError ? (
             <p
-              className="text-sm font-semibold text-red-700"
+              className="w-full text-sm font-semibold text-red-700"
               id="dashboard-filter-error"
               role="alert"
             >
               {filterError}
             </p>
           ) : null}
+        </form>
 
-          <div className="flex items-center gap-3 sm:flex-wrap sm:justify-end">
-            {administrator ? (
-              <div
-                aria-label="Tower filter"
-                className="flex flex-1 gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 sm:inline-flex sm:flex-none"
-                role="group"
+        <div
+          aria-labelledby={view ? `visitor-view-${view}` : undefined}
+          id="visitors-on-site-panel"
+          role="tabpanel"
+        >
+          {listSummary ? (
+            <div className="px-5 py-3 sm:px-6">
+              <p
+                aria-live="polite"
+                className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800 ring-1 ring-brand-100"
               >
-                {[
-                  {
-                    label:
-                      "All Towers",
-                    value: "",
-                  },
-                  ...TOWER_OPTIONS,
-                ].map(
-                  (towerOption) => (
-                    <button
-                      aria-pressed={
-                        tower ===
-                        towerOption.value
-                      }
-                      className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-2.5 text-sm transition sm:flex-none sm:px-5 ${
-                        tower ===
-                        towerOption.value
-                          ? "bg-[#ffffff] font-bold text-[#0f766e] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
-                          : "font-semibold text-slate-600 hover:text-slate-900"
-                      }`}
-                      key={
-                        towerOption.value ||
-                        "all"
-                      }
-                      onClick={() =>
-                        changeTower(
-                          towerOption.value,
-                        )
-                      }
-                      type="button"
-                    >
-                      {
-                        towerOption.label
-                      }
-                    </button>
-                  ),
-                )}
-              </div>
-            ) : (
-              <TowerBadge
-                tower={tower}
-              />
-            )}
+                {listSummary}
+              </p>
+            </div>
+          ) : null}
 
-            <button
-              className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-0 sm:px-4"
-              disabled={loading}
-              onClick={
-                refreshDashboard
-              }
-              type="button"
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={`size-4 ${
-                  loading
-                    ? "animate-spin"
-                    : ""
-                }`}
-              />
-              <span className="max-sm:sr-only">
-                Refresh
-              </span>
-            </button>
-          </div>
-        </div>
+          {view === null ? (
+            <div className="p-5 sm:p-6">
+              <LoadingState message={`Loading visitors for ${towerHeading}…`} />
+            </div>
+          ) : null}
 
-        {loading &&
-        !dashboard ? (
-          <div className="p-5 sm:p-6">
-            <LoadingState
-              message={`Loading active visitors for ${towerHeading}…`}
+          {view === "pending" ? (
+            <PendingAdmissionsPanel
+              goToPage={goToPendingPage}
+              list={pending.list}
+              onAssign={setAssignTarget}
+              onRetry={refreshDashboard}
+              searching={Boolean(filters.query)}
+              towerHeading={towerHeading}
             />
-          </div>
-        ) : null}
+          ) : null}
 
-        {status ===
-        "error" ? (
-          <div className="p-5 sm:p-6">
-            <ErrorMessage
-              message={
-                requestError
-              }
-              onRetry={
-                refreshDashboard
-              }
-              title="Dashboard unavailable"
-            />
-          </div>
-        ) : null}
+          {view === "checked-in" ? (
+            <>
+              {loading && !dashboard ? (
+                <div className="p-5 sm:p-6">
+                  <LoadingState
+                    message={`Loading active visitors for ${towerHeading}…`}
+                  />
+                </div>
+              ) : null}
 
-        {dashboard &&
-        status !==
-          "error" ? (
-          <div
-            className={
-              loading
-                ? "pointer-events-none opacity-60 transition"
-                : "transition"
-            }
-          >
-            {dashboard
-              .visitors
-              .length ===
-            0 ? (
-              <div className="p-5 sm:p-8">
-                <div className="rounded-2xl bg-slate-50 p-6 text-center">
-                  <Users
-                    aria-hidden="true"
-                    className="mx-auto size-10 text-slate-400"
+              {status === "error" ? (
+                <div className="p-5 sm:p-6">
+                  <ErrorMessage
+                    message={requestError}
+                    onRetry={refreshDashboard}
+                    title="Dashboard unavailable"
+                  />
+                </div>
+              ) : null}
+
+              {dashboard && status !== "error" ? (
+                <div
+                  className={
+                    loading
+                      ? "pointer-events-none opacity-60 transition"
+                      : "transition"
+                  }
+                >
+                  {dashboard.visitors.length === 0 ? (
+                    <EmptyVisitors
+                      message="No checked-in visitor matches the current tower, search and filters."
+                      title="No active visitors found"
+                    />
+                  ) : (
+                    <CheckedInVisitorsTable
+                      onCheckout={openCheckout}
+                      rows={dashboard.visitors.map(toCheckedInRow)}
+                    />
+                  )}
+
+                  <TableFooter
+                    showing={`Showing ${dashboard.visitors.length} of ${totalCount} active ${
+                      totalCount === 1 ? "visitor" : "visitors"
+                    } (${towerHeading})`}
+                    updatedAt={dashboard.generatedAt}
                   />
 
-                  <h3 className="mt-4 font-black text-slate-950">
-                    No active visitors found
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    No checked-in visitor matches the current
-                    tower, search and filters.
-                  </p>
+                  <Pagination
+                    currentPage={page}
+                    goToPage={goToPage}
+                    label="Checked-in visitor pages"
+                    totalPages={dashboard.pagination.totalPages}
+                  />
                 </div>
-              </div>
-            ) : (
-              <CheckedInVisitorsTable
-                onCheckout={openCheckout}
-                rows={dashboard.visitors.map(toCheckedInRow)}
-              />
-            )}
-
-            <div className="flex flex-col gap-1 border-t border-slate-200 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-              <p>
-                Showing{" "}
-                {
-                  dashboard
-                    .visitors
-                    .length
-                }{" "}
-                of {totalCount}{" "}
-                active{" "}
-                {totalCount === 1
-                  ? "visitor"
-                  : "visitors"}{" "}
-                ({towerHeading})
-              </p>
-
-              {dashboard
-                .generatedAt ? (
-                <p>
-                  Updated{" "}
-                  {formatDateTime(
-                    dashboard.generatedAt,
-                  )}
-                </p>
               ) : null}
-            </div>
-
-            {dashboard
-              .pagination
-              .totalPages >=
-            1 ? (
-              <Pagination
-                currentPage={
-                  page
-                }
-                goToPage={
-                  goToPage
-                }
-                totalPages={
-                  dashboard
-                    .pagination
-                    .totalPages
-                }
-                visiblePages={
-                  visiblePages
-                }
-              />
-            ) : null}
-          </div>
-        ) : null}
+            </>
+          ) : null}
+        </div>
       </section>
 
+      {assignTarget ? (
+        <AssignVisitorCardModal
+          accessToken={accessToken}
+          onClose={() => setAssignTarget(null)}
+          onSuccess={completeAssignment}
+          visitor={assignTarget}
+        />
+      ) : null}
+
       {checkoutTarget ? (
-        <CheckoutDialog
-          checkingOut={
-            checkingOut
-          }
-          error={
-            checkoutError
-          }
-          onCancel={
-            closeCheckout
-          }
-          onConfirm={
-            confirmCheckout
-          }
+        <CheckoutConfirmDialog
+          checkingOut={checkingOut}
+          error={checkoutError}
+          onCancel={closeCheckout}
+          onConfirm={confirmCheckout}
+          staff={profile}
           visitor={
             checkoutTarget
           }
         />
       ) : null}
+    </div>
+  );
+}
+
+function EmptyVisitors({ message, title }) {
+  return (
+    <div className="p-5 sm:p-8">
+      <div className="rounded-2xl bg-slate-50 p-6 text-center">
+        <Users aria-hidden="true" className="mx-auto size-10 text-slate-400" />
+
+        <h3 className="mt-4 font-black text-slate-950">{title}</h3>
+
+        <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function TableFooter({ showing, updatedAt }) {
+  return (
+    <div className="flex flex-col gap-1 border-t border-slate-200 px-5 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <p>{showing}</p>
+
+      {updatedAt ? <p>Updated {formatDateTime(updatedAt)}</p> : null}
+    </div>
+  );
+}
+
+function PendingAdmissionsPanel({
+  goToPage,
+  list,
+  onAssign,
+  onRetry,
+  searching,
+  towerHeading,
+}) {
+  if (list.status === "error") {
+    return (
+      <div className="p-5 sm:p-6">
+        <ErrorMessage
+          message={list.error}
+          onRetry={onRetry}
+          title="Pending admissions unavailable"
+        />
+      </div>
+    );
+  }
+
+  if (!list.fetchedAt) {
+    return (
+      <div className="p-5 sm:p-6">
+        <LoadingState
+          message={`Loading pending admissions for ${towerHeading}…`}
+        />
+      </div>
+    );
+  }
+
+  const { totalCount, totalPages, page } = list.pagination;
+
+  return (
+    <div
+      className={
+        list.status === "loading"
+          ? "pointer-events-none opacity-60 transition"
+          : "transition"
+      }
+    >
+      {list.records.length === 0 ? (
+        <EmptyVisitors
+          message={
+            searching
+              ? "No pending admission matches this search."
+              : "Visitors appear here as soon as they register at reception."
+          }
+          title={searching ? "No pending admissions found" : "No one is waiting"}
+        />
+      ) : (
+        <PendingAdmissionsTable onAssign={onAssign} records={list.records} />
+      )}
+
+      <TableFooter
+        showing={`Showing ${list.records.length} of ${totalCount} pending ${
+          totalCount === 1 ? "admission" : "admissions"
+        } (${towerHeading})`}
+        updatedAt={list.fetchedAt}
+      />
+
+      <Pagination
+        currentPage={page}
+        goToPage={goToPage}
+        label="Pending admission pages"
+        totalPages={totalPages}
+      />
     </div>
   );
 }
@@ -1681,253 +1864,62 @@ function MetricCard({
   );
 }
 
-function CheckoutDialog({
-  checkingOut,
-  error,
-  onCancel,
-  onConfirm,
-  visitor,
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
-      role="presentation"
-    >
-      <section
-        aria-describedby="checkout-dialog-description"
-        aria-labelledby="checkout-dialog-heading"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-7"
-        role="dialog"
-      >
-        <div className="flex items-start gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800">
-            <CircleAlert
-              aria-hidden="true"
-              className="size-6"
-            />
-          </span>
+function Pagination({ currentPage, goToPage, label, totalPages }) {
+  if (totalPages < 1) {
+    return null;
+  }
 
-          <div>
-            <h2
-              className="text-xl font-black text-slate-950"
-              id="checkout-dialog-heading"
-            >
-              Confirm visitor check-out
-            </h2>
+  const pageButton =
+    "grid size-11 place-items-center rounded-full border text-sm font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200";
+  const arrowButton = `${pageButton} border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40`;
 
-            <p
-              className="mt-2 leading-7 text-slate-600"
-              id="checkout-dialog-description"
-            >
-              Confirm that this visitor is leaving the
-              premises. This records the departure time,
-              tower and staff account performing the action.
-            </p>
-          </div>
-        </div>
-
-        <dl className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4">
-          <div>
-            <dt className="text-sm font-semibold text-slate-600">
-              Visitor
-            </dt>
-
-            <dd className="mt-1 font-black text-slate-950">
-              {visitor.fullName}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm font-semibold text-slate-600">
-              Visit reference
-            </dt>
-
-            <dd className="mt-1 font-mono font-black text-brand-800">
-              {visitor.reference}
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm font-semibold text-slate-600">
-              Reception tower
-            </dt>
-
-            <dd className="mt-2">
-              <TowerBadge
-                tower={
-                  visitor.tower
-                }
-              />
-            </dd>
-          </div>
-
-          <div>
-            <dt className="text-sm font-semibold text-slate-600">
-              Checked in
-            </dt>
-
-            <dd className="mt-1 font-bold text-slate-950">
-              {formatDateTime(
-                visitor.checkedInAt,
-              )}
-            </dd>
-          </div>
-        </dl>
-
-        {error ? (
-          <div
-            className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800"
-            role="alert"
-          >
-            {error}
-          </div>
-        ) : null}
-
-        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            autoFocus
-            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={
-              checkingOut
-            }
-            onClick={
-              onCancel
-            }
-            type="button"
-          >
-            Cancel
-          </button>
-
-          <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={
-              checkingOut
-            }
-            onClick={
-              onConfirm
-            }
-            type="button"
-          >
-            {checkingOut ? (
-              <LoaderCircle
-                aria-hidden="true"
-                className="size-5 animate-spin"
-              />
-            ) : (
-              <LogOut
-                aria-hidden="true"
-                className="size-5"
-              />
-            )}
-
-            {checkingOut
-              ? "Checking out…"
-              : "Confirm check-out"}
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Pagination({
-  currentPage,
-  goToPage,
-  totalPages,
-  visiblePages,
-}) {
   return (
     <nav
-      aria-label="Active visitor pages"
-      className="flex flex-col gap-4 border-t border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+      aria-label={label}
+      className="flex items-center justify-between gap-4 border-t border-slate-200 px-5 py-4 sm:px-6"
     >
-      <p
-        aria-live="polite"
-        className="text-center text-sm font-semibold text-slate-600 sm:text-left"
-      >
-        Page {currentPage} of{" "}
-        {totalPages}
+      <p aria-live="polite" className="text-sm font-bold text-slate-950">
+        Page {currentPage} of {totalPages}
       </p>
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center gap-2">
         <button
           aria-label="Previous page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={
-            currentPage <=
-            1
-          }
-          onClick={() =>
-            goToPage(
-              currentPage -
-                1,
-            )
-          }
+          className={arrowButton}
+          disabled={currentPage <= 1}
+          onClick={() => goToPage(currentPage - 1)}
           type="button"
         >
-          <ChevronLeft
-            aria-hidden="true"
-            className="size-5"
-          />
+          <ChevronLeft aria-hidden="true" className="size-5" />
         </button>
 
         <div className="hidden items-center gap-2 sm:flex">
-          {visiblePages.map(
-            (
-              pageNumber,
-            ) => (
-              <button
-                aria-current={
-                  pageNumber ===
-                  currentPage
-                    ? "page"
-                    : undefined
-                }
-                aria-label={`Page ${pageNumber}`}
-                className={`grid size-11 place-items-center rounded-xl border text-sm font-black ${
-                  pageNumber ===
-                  currentPage
-                    ? "border-brand-800 bg-brand-800 text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-                key={
-                  pageNumber
-                }
-                onClick={() =>
-                  goToPage(
-                    pageNumber,
-                  )
-                }
-                type="button"
-              >
-                {
-                  pageNumber
-                }
-              </button>
-            ),
-          )}
+          {getVisiblePages(currentPage, totalPages).map((pageNumber) => (
+            <button
+              aria-current={pageNumber === currentPage ? "page" : undefined}
+              aria-label={`Page ${pageNumber}`}
+              className={`${pageButton} ${
+                pageNumber === currentPage
+                  ? "border-transparent bg-linear-to-r from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-md shadow-[#115e59]/25"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+              key={pageNumber}
+              onClick={() => goToPage(pageNumber)}
+              type="button"
+            >
+              {pageNumber}
+            </button>
+          ))}
         </div>
 
         <button
           aria-label="Next page"
-          className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          disabled={
-            currentPage >=
-            totalPages
-          }
-          onClick={() =>
-            goToPage(
-              currentPage +
-                1,
-            )
-          }
+          className={arrowButton}
+          disabled={currentPage >= totalPages}
+          onClick={() => goToPage(currentPage + 1)}
           type="button"
         >
-          <ChevronRight
-            aria-hidden="true"
-            className="size-5"
-          />
+          <ChevronRight aria-hidden="true" className="size-5" />
         </button>
       </div>
     </nav>

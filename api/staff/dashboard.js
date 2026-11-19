@@ -12,12 +12,14 @@ import {
   getAccraDayStart,
   getAccraMonthStart,
   getAccraWeekStart,
+  loadStaffAttentionCounts,
   loadStaffNotifications,
 } from "../_lib/staffNotifications.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { addVisitorDetails } from "../_lib/visitDetails.js";
 import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { receptionDashboardSchema } from "../../src/validation/receptionDashboard.js";
+import { analyticsRequestSchema } from "../../src/validation/analytics.js";
 
 const DASHBOARD_PAGE_SIZE = 10;
 
@@ -262,16 +264,31 @@ async function handleNotifications(request) {
           tower,
         );
 
-    const notifications =
-      await loadStaffNotifications({
-        client: getAdminClient(),
-        includeCardProblems:
-          administrator,
-        towerScope,
-      });
+    // The side-menu badges follow the selected tower for everyone;
+    // "All towers" (no tower) counts every tower for administrators.
+    const badgeScope =
+      requireStaffTowerScope(profile, tower) || null;
+    const client = getAdminClient();
+
+    const [notifications, counts] =
+      await Promise.all([
+        loadStaffNotifications({
+          client,
+          includeCardProblems:
+            administrator,
+          towerScope,
+        }),
+        loadStaffAttentionCounts({
+          client,
+          includeCardProblems:
+            administrator,
+          towerScope: badgeScope,
+        }),
+      ]);
 
     return json(
       {
+        counts,
         generatedAt:
           new Date().toISOString(),
         notifications,
@@ -286,6 +303,142 @@ async function handleNotifications(request) {
   }
 }
 
+function isAnalyticsRequest(request) {
+  return (
+    new URL(request.url).searchParams.get("operation") ===
+    "analytics"
+  );
+}
+
+function getAnalyticsDatabaseError(error) {
+  if (error?.code === "42501") {
+    return new HttpError(
+      "You are not authorised to view reports for the selected tower.",
+      403,
+    );
+  }
+
+  if (
+    error?.code === "22023" ||
+    error?.code === "22P02"
+  ) {
+    return new HttpError(
+      "Check the report filters and try again.",
+      400,
+    );
+  }
+
+  return new HttpError(
+    "Reports could not be loaded. Please try again.",
+    500,
+  );
+}
+
+// Analytics & Reports page. Served from this function, like
+// notifications, to stay inside the Vercel Hobby function limit.
+// Receptionists are pinned to their own tower by
+// requireStaffTowerScope here and again by the database functions.
+async function handleAnalytics(request) {
+  try {
+    const { profile } =
+      await requireActiveStaff(
+        request,
+        [
+          "receptionist",
+          "admin",
+        ],
+      );
+
+    // Intern/NSP accounts do receptionist work but cannot generate
+    // reports.
+    if (profile.isNsp) {
+      throw new HttpError(
+        "Intern/NSP accounts cannot generate reports.",
+        403,
+      );
+    }
+
+    const parsed =
+      analyticsRequestSchema.safeParse(
+        await readJsonBody(request),
+      );
+
+    if (!parsed.success) {
+      throw new HttpError(
+        parsed.error.issues[0]?.message ||
+          "Check the report filters and try again.",
+        400,
+      );
+    }
+
+    const filters = parsed.data;
+
+    const towerScope =
+      requireStaffTowerScope(
+        profile,
+        filters.tower,
+      );
+
+    const client = getAdminClient();
+
+    const { data, error } =
+      filters.report === "csu-month"
+        ? await client.rpc(
+            "get_csu_monthly_report",
+            {
+              p_actor_id: profile.userId,
+              p_agency: filters.agency,
+              p_month: filters.month,
+              p_tower: towerScope,
+              p_year: filters.year,
+            },
+          )
+        : await client.rpc(
+            filters.report === "visits"
+              ? "get_visit_export"
+              : "get_visit_analytics",
+            {
+              p_actor_id: profile.userId,
+              p_agency: filters.agency,
+              p_date_from: filters.dateFrom,
+              p_date_to: filters.dateTo,
+              p_tower: towerScope,
+            },
+          );
+
+    if (error) {
+      throw getAnalyticsDatabaseError(error);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new HttpError(
+        "Reports could not be loaded. Please try again.",
+        500,
+      );
+    }
+
+    return json(
+      {
+        ...data,
+        generatedAt:
+          new Date().toISOString(),
+        report: filters.report,
+        staffRole: profile.role,
+        towerScope:
+          data.towerScope ??
+          towerScope ??
+          null,
+      },
+      200,
+    );
+  } catch (error) {
+    return errorResponse(
+      error,
+      "Reports could not be loaded. Please try again.",
+    );
+  }
+}
+
 export default {
   async fetch(request) {
     if (request.method !== "POST") {
@@ -294,6 +447,10 @@ export default {
 
     if (isNotificationsRequest(request)) {
       return handleNotifications(request);
+    }
+
+    if (isAnalyticsRequest(request)) {
+      return handleAnalytics(request);
     }
 
     try {

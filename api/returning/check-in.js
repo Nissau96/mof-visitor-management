@@ -17,6 +17,7 @@ import { PRIVACY_NOTICE_VERSION } from "../../src/constants/privacy.js";
 import { CUSTOM_MEETING_OPTION } from "../../src/constants/visitorOptions.js";
 import { readWeeklyQrAccess } from "../../src/server/weeklyQrAccess.js";
 import { returningVisitCheckInSchema } from "../../src/validation/returningVisit.js";
+import { VISITOR_WIFI_REQUIRED_MESSAGE } from "../../src/validation/wifiAccess.js";
 
 const CHECK_IN_RATE_LIMIT = {
   limit: 10,
@@ -46,7 +47,7 @@ export function createReturningCheckInHandler({
       }
 
       try {
-        readWeeklyQrAccess(request);
+        await readWeeklyQrAccess(request);
 
         const requestBody = await readJsonBody(request);
 
@@ -89,13 +90,16 @@ export function createReturningCheckInHandler({
 
         const { data, error } =
           await getAdminClientForRequest().rpc(
-            "register_return_visit",
+            "register_return_visit_with_wifi",
             {
               p_consent_version:
                 PRIVACY_NOTICE_VERSION,
               p_custom_meeting_title:
                 input.customMeetingTitle || "",
               p_destination_agency: input.agency,
+              p_email: input.email || "",
+              p_organization:
+                input.organization || "",
               p_destination_division:
                 input.division || "",
               p_meeting_id:
@@ -112,6 +116,8 @@ export function createReturningCheckInHandler({
               p_verification_token_id:
                 tokenData.tokenId,
               p_visitor_id: tokenData.visitorId,
+              p_wifi_requested:
+                input.wifiRequested ?? null,
             },
           );
 
@@ -135,6 +141,19 @@ export function createReturningCheckInHandler({
           )
         ) {
           return verificationRequired();
+        }
+
+        if (
+          error?.message ===
+          VISITOR_WIFI_REQUIRED_MESSAGE
+        ) {
+          return json(
+            {
+              error:
+                "Choose whether you need Wi-Fi access, then submit again.",
+            },
+            400,
+          );
         }
 
         if (

@@ -74,6 +74,89 @@ export function meetingOccursOn(meeting, isoDate) {
   return true;
 }
 
+// First day a booked schedule actually happens, or "" when none does
+// (a weekly range without any of the chosen weekdays). Mirrors
+// public.meeting_booking_first_day.
+export function firstMeetingDay(schedule) {
+  if (!schedule.startsOn) {
+    return "";
+  }
+
+  const last =
+    schedule.scheduleType === "single" || !schedule.endsOn
+      ? schedule.startsOn
+      : schedule.endsOn;
+
+  for (
+    let day = schedule.startsOn;
+    day <= last;
+    day = addDays(day, 1)
+  ) {
+    if (
+      meetingOccursOn(
+        { ...schedule, endsOn: last },
+        day,
+      )
+    ) {
+      return day;
+    }
+  }
+
+  return "";
+}
+
+// A booking's schedule and times on one line, for example
+// "Every Mon, Wed · 18 Nov – 16 Dec 2026 · 10:00 – 11:00".
+export function formatBookingSchedule(booking) {
+  const times = formatTimeRange(booking);
+  const scheduleType = booking.scheduleType || "single";
+  let dates;
+
+  if (scheduleType === "single" || !booking.endsOn) {
+    dates = formatDate(booking.startsOn || booking.meetingDate, {
+      weekday: true,
+    });
+  } else {
+    const range = `${shortDate.format(toDate(booking.startsOn))} – ${formatDate(booking.endsOn)}`;
+
+    if (scheduleType === "weekly") {
+      const days = WEEKDAYS.filter((day) =>
+        (booking.recurrenceDays || []).includes(day.value),
+      )
+        .map((day) => day.label)
+        .join(", ");
+
+      dates = `Every ${days} · ${range}`;
+    } else {
+      dates = `Every day · ${range}`;
+    }
+  }
+
+  return [dates, times].filter(Boolean).join(" · ");
+}
+
+// True when the meeting happens on more than one day, so guests must
+// check themselves in on the later days.
+export function isMultiDayBooking(booking) {
+  if ((booking.scheduleType || "single") === "single" || !booking.endsOn) {
+    return false;
+  }
+
+  const first = firstMeetingDay(booking);
+
+  if (!first) {
+    return false;
+  }
+
+  for (let day = addDays(first, 1); day <= booking.endsOn; day = addDays(day, 1)) {
+    if (meetingOccursOn(booking, day)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // The Monday-to-Sunday weeks covering a month, as YYYY-MM-DD dates.
 export function getMonthGrid(monthIso) {
   const first = `${monthIso.slice(0, 7)}-01`;
@@ -141,6 +224,14 @@ export function formatTimeRange(meeting) {
   }
 
   return meeting.startsAt ? `From ${meeting.startsAt}` : "";
+}
+
+// Time and venue of a meeting, for the line under its title in the
+// visitor form's meeting list. Empty when reception set neither.
+export function formatMeetingDetails(meeting) {
+  return [formatTimeRange(meeting), meeting.venue || ""]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // Label for a meeting in the visitor form: title, then time and venue

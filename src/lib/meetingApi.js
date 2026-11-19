@@ -5,7 +5,22 @@ export const MEETING_ENDPOINTS = Object.freeze({
   list: "/api/staff/meetings/list",
   save: "/api/staff/meetings/save",
   status: "/api/staff/meetings/status",
+  visitors: "/api/staff/meetings/visitors",
 });
+
+export function getStaffMeetingVisitors({
+  accessToken,
+  meetingId,
+  signal,
+  tower = "",
+}) {
+  return authorizedPost(
+    MEETING_ENDPOINTS.visitors,
+    accessToken,
+    { meetingId, tower },
+    signal,
+  );
+}
 
 function authorizedPost(path, accessToken, body, signal) {
   return apiRequest(path, {

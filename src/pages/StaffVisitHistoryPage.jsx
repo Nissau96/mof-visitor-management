@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useLocation } from "react-router-dom";
 import AppSelect from "../components/AppSelect.jsx";
+import { BookedGuestBadge } from "../components/CheckedInVisitorsTable.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import {
@@ -211,7 +212,10 @@ function normalizeHistoryResult(result) {
       typeof visit.fullName === "string" &&
       typeof visit.agency === "string" &&
       typeof visit.purpose === "string" &&
-      typeof visit.checkedInAt === "string" &&
+      // A visit cancelled before admission never checked in.
+      (typeof visit.checkedInAt === "string" ||
+        (visit.checkedInAt === null &&
+          visit.status === "cancelled")) &&
       VISIT_TOWER_VALUES.includes(visit.tower) &&
       VISIT_STATUSES.has(visit.status) &&
       (visit.checkedOutAt === null ||
@@ -1205,6 +1209,10 @@ function VisitTimes({ visit }) {
     visit.checkedOutAt,
   );
 
+  if (!visit.checkedInAt) {
+    return <p>Cancelled before check-in</p>;
+  }
+
   return (
     <>
       <p>
@@ -1251,6 +1259,7 @@ function HistoryCard({ visit }) {
               {visit.reference}
             </span>
             <VisitorTypeBadge type={visit.visitorType} />
+            <BookedGuestBadge booked={visit.bookedGuest} />
           </p>
         </div>
 
@@ -1348,6 +1357,7 @@ function HistoryRow({ visit }) {
               {visit.reference}
             </span>
             <VisitorTypeBadge type={visit.visitorType} />
+            <BookedGuestBadge booked={visit.bookedGuest} />
           </div>
         </div>
       </td>

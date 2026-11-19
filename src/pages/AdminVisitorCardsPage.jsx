@@ -1,19 +1,20 @@
 import {
   AlertTriangle,
   Archive,
+  ArrowLeftRight,
   ArrowRightLeft,
   ArrowUpRight,
   Building2,
   Check,
   CirclePlus,
   CreditCard,
+  Layers,
   LoaderCircle,
   MapPin,
   RefreshCw,
   Search,
   ShieldAlert,
   UserRound,
-  X,
 } from "lucide-react";
 import {
   useEffect,
@@ -22,6 +23,7 @@ import {
   useState,
 } from "react";
 import AppSelect from "../components/AppSelect.jsx";
+import DialogHeader from "../components/DialogHeader.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import ListPagination from "../components/ListPagination.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -39,6 +41,7 @@ import {
   adminVisitorCardInventorySchema,
   adminVisitorCardTowerSchema,
 } from "../validation/visitorCards.js";
+import { toast } from "../lib/toast.js";
 
 const PAGE_SIZE = 24;
 
@@ -430,28 +433,24 @@ function ModalShell({
   busy,
   children,
   description,
+  icon,
   onClose,
   title,
 }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="flex min-h-full items-center justify-center">
-        <section aria-describedby="visitor-card-modal-description" aria-labelledby="visitor-card-modal-title" aria-modal="true" className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl" role="dialog">
-          <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-950" id="visitor-card-modal-title">
-                {title}
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600" id="visitor-card-modal-description">
-                {description}
-              </p>
-            </div>
-
-            <button aria-label="Close dialog" className="grid size-10 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50" disabled={busy} onClick={onClose} type="button">
-              <X aria-hidden="true" className="size-5" />
-            </button>
-          </header>
+    <div className="fixed inset-0 z-50 bg-slate-950/60 p-4 backdrop-blur-sm">
+      <div className="flex h-full items-center justify-center">
+        <section aria-describedby="visitor-card-modal-description" aria-labelledby="visitor-card-modal-title" aria-modal="true" className="flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-4xl bg-white shadow-2xl shadow-slate-950/30 [&>form]:flex [&>form]:min-h-0 [&>form]:flex-1 [&>form]:flex-col" role="dialog">
+          <DialogHeader
+            busy={busy}
+            description={description}
+            descriptionId="visitor-card-modal-description"
+            eyebrow="Visitor card inventory"
+            icon={icon}
+            onClose={onClose}
+            title={title}
+            titleId="visitor-card-modal-title"
+          />
 
           {children}
         </section>
@@ -550,9 +549,9 @@ function CreateCardsModal({
   }
 
   return (
-    <ModalShell busy={submitting} description="Add a controlled range of regular or VIP visitor cards and select the tower that will issue them." onClose={onClose} title="Add visitor cards">
+    <ModalShell busy={submitting} description="Add a controlled range of regular or VIP visitor cards and select the tower that will issue them." icon={Layers} onClose={onClose} title="Add visitor cards">
       <form noValidate onSubmit={submitCards}>
-        <div className="space-y-5 px-5 py-5 sm:px-6">
+        <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
           <AppSelect
             disabled={submitting}
             id="inventory-card-type"
@@ -625,12 +624,12 @@ function CreateCardsModal({
           ) : null}
         </div>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
+        <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
             Cancel
           </button>
 
-          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 text-sm font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitting} type="submit">
+          <button className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] px-6 text-sm font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting} type="submit">
             {submitting ? (
               <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
             ) : (
@@ -723,9 +722,9 @@ function ChangeTowerModal({
   }
 
   return (
-    <ModalShell busy={submitting} description="Only an available card without an unresolved assignment can be issued from another tower." onClose={onClose} title="Change issuing tower">
+    <ModalShell busy={submitting} description="Only an available card without an unresolved assignment can be issued from another tower." icon={ArrowLeftRight} onClose={onClose} title="Change issuing tower">
       <form noValidate onSubmit={submitTower}>
-        <div className="space-y-5 px-5 py-5 sm:px-6">
+        <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-500">
               Visitor card
@@ -775,12 +774,12 @@ function ChangeTowerModal({
           ) : null}
         </div>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
+        <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
             Cancel
           </button>
 
-          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 text-sm font-black text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitting} type="submit">
+          <button className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] px-6 text-sm font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting} type="submit">
             {submitting ? (
               <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
             ) : (
@@ -1002,8 +1001,8 @@ function CardDetailsModal({
   onClose,
 }) {
   return (
-    <ModalShell busy={false} description={`${formatCardType(card.cardType)} visitor card issued from ${formatTower(card.tower)}.`} onClose={onClose} title={card.cardNumber}>
-      <div className="space-y-5 px-5 py-5 sm:px-6">
+    <ModalShell busy={false} icon={CreditCard} description={`${formatCardType(card.cardType)} visitor card issued from ${formatTower(card.tower)}.`} onClose={onClose} title={card.cardNumber}>
+      <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
         <dl className="grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <DetailItem label="Status">
             <StatusBadge status={card.status} />
@@ -1073,12 +1072,12 @@ function CardDetailsModal({
         )}
       </div>
 
-      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+      <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
         <button className={`${PILL_BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`} onClick={onClose} type="button">
           Close
         </button>
 
-        <button className={`${PILL_BUTTON} bg-brand-800 text-white hover:bg-brand-900 disabled:bg-slate-200 disabled:text-slate-500`} disabled={!card.canChangeTower} onClick={() => onChangeTower(card)} type="button">
+        <button className={`${PILL_BUTTON} bg-linear-to-r from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-lg shadow-[#0f766e]/25 hover:from-[#0f766e] hover:to-[#134e4a] disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none`} disabled={!card.canChangeTower} onClick={() => onChangeTower(card)} type="button">
           <ArrowRightLeft aria-hidden="true" className="size-4" />
           Change tower
         </button>
@@ -1097,9 +1096,6 @@ export default function AdminVisitorCardsPage() {
     useState("loading");
 
   const [requestError, setRequestError] =
-    useState("");
-
-  const [successMessage, setSuccessMessage] =
     useState("");
 
   const [filters, setFilters] =
@@ -1278,14 +1274,12 @@ export default function AdminVisitorCardsPage() {
   }
 
   function openCreateCards() {
-    setSuccessMessage("");
     setAction({
       type: "create",
     });
   }
 
   function openDetails(card) {
-    setSuccessMessage("");
     setAction({
       card,
       type: "details",
@@ -1309,7 +1303,7 @@ export default function AdminVisitorCardsPage() {
 
   function completeAction(message) {
     setAction(null);
-    setSuccessMessage(message);
+    toast.success("Card inventory updated", message);
     refreshInventory();
   }
 
@@ -1479,18 +1473,6 @@ export default function AdminVisitorCardsPage() {
           </button>
         </div>
       </header>
-
-      {successMessage ? (
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900" role="status">
-          <p className="flex-1">
-            {successMessage}
-          </p>
-
-          <button aria-label="Dismiss confirmation" className="grid size-9 shrink-0 place-items-center rounded-lg text-emerald-800 hover:bg-emerald-100" onClick={() => setSuccessMessage("")} type="button">
-            <X aria-hidden="true" className="size-4" />
-          </button>
-        </div>
-      ) : null}
 
       {statCards.length ? (
         <section aria-label="Visitor-card inventory summary" className="mt-6 grid grid-cols-2 gap-2 sm:gap-4 min-[1400px]:grid-cols-4">

@@ -1,13 +1,30 @@
+import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import buildingBackground from "../assets/images/building-bg-soft.webp";
 import ministryLogo from "../assets/images/mof-logo.webp";
+import {
+  isKioskDevice,
+  KIOSK_PATH,
+  useKioskIdleReset,
+  visitorHomePath,
+} from "../lib/kiosk.js";
 
 export default function VisitorLayout() {
-  // The landing and first-visit pages carry the logo in their own card;
-  // the first-visit card also holds the footer note.
+  // The landing, kiosk, first-visit and returning pages carry the logo in
+  // their own card; all but the landing page also hold the footer note.
+  // A finished check-in also carries the logo in its card (see
+  // CheckInSuccess), so it hides both.
   const { pathname } = useLocation();
-  const showHeader = !["/visit", "/visit/new"].includes(pathname);
-  const showFooter = pathname !== "/visit/new";
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const outletContext = useMemo(() => ({ setChromeHidden }), []);
+  const showHeader =
+    !chromeHidden &&
+    !["/visit", KIOSK_PATH, "/visit/new", "/visit/returning"].includes(pathname);
+  const showFooter =
+    !chromeHidden &&
+    ![KIOSK_PATH, "/visit/new", "/visit/returning"].includes(pathname);
+
+  useKioskIdleReset(isKioskDevice() && pathname !== KIOSK_PATH);
 
   return (
     <div className="relative isolate flex min-h-dvh flex-col bg-[#eef3f2] text-slate-950 dark:bg-[#07110f]">
@@ -33,7 +50,7 @@ export default function VisitorLayout() {
           <Link
             aria-label="Visitor Management home"
             className="inline-flex rounded-xl bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:bg-[#ffffff]"
-            to="/visit"
+            to={visitorHomePath()}
           >
             <img
               alt="Ministry of Finance, Republic of Ghana"
@@ -48,7 +65,7 @@ export default function VisitorLayout() {
       ) : null}
 
       <main className="flex-1" id="main-content" tabIndex="-1">
-        <Outlet />
+        <Outlet context={outletContext} />
       </main>
 
       {showFooter ? (

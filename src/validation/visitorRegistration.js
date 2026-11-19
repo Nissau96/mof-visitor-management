@@ -20,6 +20,31 @@ function optionalText(maximum, message) {
     .optional();
 }
 
+// Shared with the returning check-in, which can fill in a missing
+// organisation or email.
+export const optionalEmailField = z
+  .string()
+  .trim()
+  .max(
+    254,
+    "Email address must not exceed 254 characters.",
+  )
+  .refine(
+    (value) =>
+      value === "" ||
+      emailAddressSchema.safeParse(value).success,
+    "Enter a valid email address.",
+  )
+  .transform(
+    (value) => value.toLowerCase() || undefined,
+  )
+  .optional();
+
+export const optionalOrganizationField = optionalText(
+  160,
+  "Organisation must not exceed 160 characters.",
+);
+
 export function normalizePhone(value) {
   const compact = String(value)
     .trim()
@@ -118,28 +143,9 @@ export const visitorRegistrationSchema = z
       "Enter your mobile number, including the country code.",
     ),
 
-    email: z
-      .string()
-      .trim()
-      .max(
-        254,
-        "Email address must not exceed 254 characters.",
-      )
-      .refine(
-        (value) =>
-          value === "" ||
-          emailAddressSchema.safeParse(value).success,
-        "Enter a valid email address.",
-      )
-      .transform(
-        (value) => value.toLowerCase() || undefined,
-      )
-      .optional(),
+    email: optionalEmailField,
 
-    organization: optionalText(
-      160,
-      "Organisation must not exceed 160 characters.",
-    ),
+    organization: optionalOrganizationField,
 
     ...visitDetailsShape,
 

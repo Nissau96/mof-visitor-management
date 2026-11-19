@@ -24,7 +24,7 @@ export async function addVisitorDetails(
   ] = await Promise.all([
     client
       .from("visits")
-      .select("id, visitor_id")
+      .select("id, visitor_id, booking_guest_id")
       .in("id", visitIds),
 
     client
@@ -148,6 +148,11 @@ export async function addVisitorDetails(
 
       cardStatus:
         assignment?.status || null,
+
+      // Pre-registered through a meeting booking.
+      bookedGuest: Boolean(
+        visit?.booking_guest_id,
+      ),
 
       visitorType:
         cardStatuses.includes(assignment?.status)

@@ -100,6 +100,7 @@ export function getAvailableVisitorCards({
 export function admitVisitorWithCard({
   accessToken,
   cardId,
+  privacyConfirmed,
   signal,
   tower,
   visitId,
@@ -109,6 +110,9 @@ export function admitVisitorWithCard({
     accessToken,
     {
       cardId,
+      ...(privacyConfirmed === undefined
+        ? {}
+        : { privacyConfirmed }),
       tower,
       visitId,
     },

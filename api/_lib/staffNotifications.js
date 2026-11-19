@@ -77,6 +77,121 @@ function visitNotification(kind, visit, sortAt) {
   };
 }
 
+function countOf(query) {
+  return query.then(({ count, error }) => {
+    if (error) {
+      throw failed();
+    }
+
+    return count || 0;
+  });
+}
+
+function headCount(client, table, columns = "id") {
+  return client.from(table).select(columns, { count: "exact", head: true });
+}
+
+// Work still to do, for the badges on the staff side menu. Counts drop
+// only when the work is done, never when a page is opened.
+//
+// pendingAdmissions  visitors waiting to be admitted (Dashboard)
+// bookingRequests    booking requests waiting for a decision (Meetings)
+// overstays          visitors still checked in from an earlier day
+//                    (Visit History)
+// awaitingCard       visitors checked in today without a card
+//                    (Visitor Cards)
+// cardProblems       cards not returned or under investigation
+//                    (Card Inventory); null unless includeCardProblems
+export async function loadStaffAttentionCounts({
+  client,
+  includeCardProblems,
+  now = new Date(),
+  towerScope,
+}) {
+  const dayStart = getAccraDayStart(now).toISOString();
+  const today = dayStart.slice(0, 10);
+
+  const [
+    pendingAdmissions,
+    bookingRequests,
+    overstays,
+    checkedInToday,
+    cardedToday,
+    cardProblems,
+  ] = await Promise.all([
+    countOf(
+      scoped(
+        headCount(client, "visits").eq("status", "pending_admission"),
+        "tower",
+        towerScope,
+      ),
+    ),
+    // Requests nobody answered expire when the meeting starts; until
+    // the expiry job runs, a request for an earlier day is not counted.
+    countOf(
+      scoped(
+        headCount(client, "meeting_bookings")
+          .eq("status", "pending")
+          .gte("meeting_date", today),
+        "tower",
+        towerScope,
+      ),
+    ),
+    countOf(
+      scoped(
+        headCount(client, "visits")
+          .eq("status", "checked_in")
+          .lt("checked_in_at", dayStart),
+        "tower",
+        towerScope,
+      ),
+    ),
+    countOf(
+      scoped(
+        headCount(client, "visits")
+          .eq("status", "checked_in")
+          .gte("checked_in_at", dayStart),
+        "tower",
+        towerScope,
+      ),
+    ),
+    countOf(
+      scoped(
+        headCount(
+          client,
+          "visitor_card_assignments",
+          "visit_id, visits!inner(status, tower, checked_in_at)",
+        )
+          .eq("status", "assigned")
+          .eq("visits.status", "checked_in")
+          .gte("visits.checked_in_at", dayStart),
+        "visits.tower",
+        towerScope,
+      ),
+    ),
+    includeCardProblems
+      ? countOf(
+          scoped(
+            headCount(client, "visitor_cards").in(
+              "status",
+              CARD_PROBLEM_STATUSES,
+            ),
+            "tower",
+            towerScope,
+          ),
+        )
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    awaitingCard: Math.max(checkedInToday - cardedToday, 0),
+    bookingRequests,
+    cardProblems,
+    overstays,
+    pendingAdmissions,
+  };
+}
+
 // Builds the bell feed from existing visit and card records; nothing is
 // stored. Read/unread state is kept in the browser against `sortAt`.
 export async function loadStaffNotifications({

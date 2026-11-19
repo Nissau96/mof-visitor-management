@@ -74,9 +74,9 @@ assert.deepEqual(
   VISITOR_VERIFICATION_RATE_LIMIT,
   {
     keyMode: "subject",
-    limit: 5,
+    limit: 10,
     scope:
-      "returning-visitor-verification-record",
+      "returning-visitor-verification-phone",
     windowSeconds: 10 * 60,
   },
 );

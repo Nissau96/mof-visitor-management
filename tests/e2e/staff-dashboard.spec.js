@@ -53,18 +53,111 @@ const VISITORS = Array.from(
   },
 );
 
-async function installMockDashboardApi(page) {
+const PENDING = [
+  {
+    destinationAgency: "Public Procurement Authority (PPA)",
+    email: "synthetic.waiting@example.com",
+    fullName: "Synthetic Waiting Visitor",
+    organization: "Synthetic Waiting Organisation",
+    personVisiting: "Synthetic Host",
+    phone: "+233200000077",
+    purpose: "Follow up",
+    referenceCode: "VIS-WAIT01",
+    status: "pending_admission",
+    submittedAt: "2026-08-17T07:30:00.000Z",
+    tower: "tower_1",
+    visitId: "00000000-0000-4000-8000-000000000201",
+    visitorType: null,
+  },
+];
+
+async function installMockDashboardApi(
+  page,
+  { bookings = [], pending = [] } = {},
+) {
   const checkedOutVisitIds = new Set();
 
   const state = {
+    bookingListRequests: [],
     checkoutRequests: [],
     dashboardRequests: [],
+    decideRequests: [],
+    pendingRequests: [],
     sessionExpired: false,
 
     expireSession() {
       state.sessionExpired = true;
     },
   };
+
+  // Meetings booked by Ministry staff waiting for reception's decision.
+  let waitingBookings = [...bookings];
+
+  await page.route("**/api/staff/meetings/bookings", async (route) => {
+    const body = route.request().postDataJSON();
+    state.bookingListRequests.push(body);
+
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        bookings: body.view === "pending" ? waitingBookings : [],
+        pendingCount: waitingBookings.length,
+        scope: { role: "receptionist", tower: "tower_1" },
+      },
+      status: 200,
+    });
+  });
+
+  await page.route("**/api/staff/meetings/bookings/decide", async (route) => {
+    const body = route.request().postDataJSON();
+    state.decideRequests.push(body);
+
+    const decided = waitingBookings.find((booking) => booking.bookingId === body.bookingId);
+    waitingBookings = waitingBookings.filter((booking) => booking.bookingId !== body.bookingId);
+
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        ...decided,
+        canDecide: false,
+        emailSent: true,
+        status: body.decision === "approve" ? "approved" : "rejected",
+      },
+      status: 200,
+    });
+  });
+
+  await page.route(
+    "**/api/staff/cards/pending",
+    async (route) => {
+      const body = route.request().postDataJSON();
+
+      state.pendingRequests.push(body);
+
+      const matching = pending.filter(
+        (record) =>
+          !body.search ||
+          record.fullName
+            .toLowerCase()
+            .includes(body.search.toLowerCase()),
+      );
+      const shown = body.pageSize === 1 ? matching.slice(0, 1) : matching;
+
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          admissions: shown,
+          pagination: {
+            page: 1,
+            pageSize: body.pageSize,
+            totalCount: matching.length,
+            totalPages: matching.length > 0 ? 1 : 0,
+          },
+        },
+        status: 200,
+      });
+    },
+  );
 
   await page.route(
     "**/api/staff/dashboard",
@@ -294,7 +387,7 @@ test.describe(
 
       await expect(
         page.getByText(
-          "11 matching visitors",
+          "11 checked in · Tower 1",
         ),
       ).toBeVisible();
 
@@ -364,6 +457,86 @@ test.describe(
       expect(hasHorizontalOverflow).toBe(
         false,
       );
+    });
+
+    test("opens pending admissions first and keeps the chosen tab in the URL", async ({
+      page,
+    }) => {
+      await installMockStaffAuthentication(
+        page,
+      );
+
+      const dashboard =
+        await installMockDashboardApi(page, {
+          pending: PENDING,
+        });
+
+      await signInAsStaff(page);
+
+      const pendingTab = page.getByRole("tab", {
+        name: /Pending admissions/,
+      });
+
+      await expect(pendingTab).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+
+      await expect(
+        page.getByText("1 waiting · Tower 1"),
+      ).toBeVisible();
+
+      await expect(
+        page
+          .getByText("Synthetic Waiting Visitor", {
+            exact: true,
+          })
+          .filter({ visible: true }),
+      ).toBeVisible();
+
+      // Agency filters only apply to checked-in visitors.
+      await expect(
+        page.getByLabel("Agency"),
+      ).toHaveCount(0);
+
+      await expectNoWcagViolations(page);
+
+      await page
+        .getByRole("button", {
+          name: "Assign card to Synthetic Waiting Visitor",
+        })
+        .filter({ visible: true })
+        .click();
+
+      await expect(
+        page.getByRole("dialog"),
+      ).toBeVisible();
+
+      await page.keyboard.press("Escape");
+
+      await page
+        .getByRole("tab", {
+          name: /Currently checked in/,
+        })
+        .click();
+
+      await expect(page).toHaveURL(/view=checked-in/);
+
+      await expect(
+        page.getByText("11 checked in · Tower 1"),
+      ).toBeVisible();
+
+      await page.reload();
+
+      await expect(
+        page.getByRole("tab", {
+          name: /Currently checked in/,
+        }),
+      ).toHaveAttribute("aria-selected", "true");
+
+      expect(
+        dashboard.pendingRequests[0],
+      ).toMatchObject({ tower: "tower_1" });
     });
 
     test("supports server-side pagination and request-body filtering", async ({
@@ -438,7 +611,7 @@ test.describe(
 
       await expect(
         page.getByText(
-          "1 matching visitor",
+          "1 checked in · Tower 1",
         ),
       ).toBeVisible();
 
@@ -549,7 +722,7 @@ await expect(
 
       await expect(
         page.getByText(
-          "11 matching visitors",
+          "11 checked in · Tower 1",
         ),
       ).toBeVisible();
 
@@ -640,7 +813,7 @@ await expect(
         panel.getByRole("link", {
           name: /Synthetic Pending Visitor is waiting for admission/,
         }),
-      ).toHaveAttribute("href", "/staff");
+      ).toHaveAttribute("href", "/staff?view=pending");
 
       await expect(
         panel.getByRole("link", {
@@ -696,10 +869,175 @@ await expect(
       ).toBeVisible();
 
       await expect(
-        page.getByText("11 matching visitors"),
+        page.getByText("11 checked in · Tower 1"),
       ).toBeVisible();
 
       await expectNoWcagViolations(page);
     });
+
+    test("warns before signing out an idle session and explains it on the sign-in page", async ({
+      page,
+    }) => {
+      await page.clock.install();
+
+      const authentication =
+        await installMockStaffAuthentication(
+          page,
+        );
+
+      await installMockDashboardApi(page);
+      await signInAsStaff(page);
+
+      await expect(
+        page.getByRole("heading", {
+          name: "Welcome to your Reception Workspace",
+        }),
+      ).toBeVisible();
+
+      await page.clock.fastForward("23:30");
+
+      const warning = page.getByRole("dialog", {
+        name: "Are you still there?",
+      });
+
+      await expect(warning).toBeVisible();
+      await expectNoWcagViolations(page);
+
+      await warning
+        .getByRole("button", { name: "Stay signed in" })
+        .last()
+        .click();
+
+      await expect(warning).toBeHidden();
+
+      await page.clock.fastForward("23:30");
+      await expect(warning).toBeVisible();
+
+      await page.clock.fastForward("02:00");
+
+      await expect(
+        page.getByRole("heading", { name: "Sign in" }),
+      ).toBeVisible();
+
+      await expect(
+        page.getByText(
+          "You were signed out after 25 minutes without activity.",
+        ),
+      ).toBeVisible();
+
+      expect(authentication.logoutRequests).toBeGreaterThan(0);
+    });
   },
 );
+
+function bookingRequest(overrides = {}) {
+  return {
+    bookerEmail: "ama.mensah@mofep.gov.gh",
+    bookerName: "Ama Mensah",
+    bookingId: "00000000-0000-4000-8000-000000000801",
+    canDecide: true,
+    decisionReason: null,
+    endsAt: "11:00",
+    guests: [
+      {
+        email: null,
+        fullName: "Kofi Boateng",
+        guestId: "00000000-0000-4000-8000-000000000901",
+        organization: "World Bank",
+        phone: "+233240000001",
+        status: "expected",
+      },
+      {
+        email: null,
+        fullName: "Efua Owusu",
+        guestId: "00000000-0000-4000-8000-000000000902",
+        organization: "World Bank",
+        phone: "+233240000002",
+        status: "expected",
+      },
+    ],
+    hostAgency: "Ministry of Finance (MoF)",
+    hostDivision: "Budget Division",
+    meetingDate: new Date().toISOString().slice(0, 10),
+    notes: "Two guests will bring laptops.",
+    referenceCode: "MTG-A1B2C3",
+    startsAt: "10:00",
+    status: "pending",
+    title: "Synthetic Budget Review",
+    tower: "tower_1",
+    venue: "Conference Room B",
+    ...overrides,
+  };
+}
+
+test.describe("staff booking requests on the dashboard", () => {
+  test("hides the card while nothing is waiting", async ({ page }) => {
+    await installMockStaffAuthentication(page);
+    const state = await installMockDashboardApi(page);
+
+    await signInAsStaff(page);
+
+    await expect.poll(() => state.bookingListRequests.length).toBeGreaterThan(0);
+    expect(state.bookingListRequests[0]).toMatchObject({ view: "pending" });
+    await expect(page.getByRole("region", { name: /^Booking requests/ })).toHaveCount(0);
+  });
+
+  test("approves and rejects meetings booked by Ministry staff", async ({ page }) => {
+    await installMockStaffAuthentication(page);
+    const state = await installMockDashboardApi(page, {
+      bookings: [
+        bookingRequest(),
+        bookingRequest({
+          bookingId: "00000000-0000-4000-8000-000000000802",
+          referenceCode: "MTG-D4E5F6",
+          title: "Synthetic Partner Visit",
+        }),
+      ],
+    });
+
+    await signInAsStaff(page);
+
+    const panel = page.getByRole("region", { name: /^Booking requests/ });
+
+    await expect(panel.getByText("2 meetings are waiting for your approval.")).toBeVisible();
+    await expect(panel.getByRole("group", { name: "Booking view" })).toHaveCount(0);
+    await expect(panel.getByText("Ama Mensah").first()).toBeVisible();
+
+    await panel.getByRole("button", { name: "Show 2 guests" }).first().click();
+    await expect(panel.getByText("Kofi Boateng").filter({ visible: true })).toBeVisible();
+
+    await expectNoWcagViolations(page);
+
+    await panel.getByRole("button", { name: "Approve", exact: true }).first().click();
+
+    await expect
+      .poll(() => state.decideRequests.at(-1))
+      .toMatchObject({
+        bookingId: "00000000-0000-4000-8000-000000000801",
+        decision: "approve",
+        tower: "tower_1",
+      });
+
+    await expect(panel.getByText("1 meeting is waiting for your approval.")).toBeVisible();
+
+    await panel.getByRole("button", { name: "Reject", exact: true }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Reject “Synthetic Partner Visit”?" });
+    const reject = dialog.getByRole("button", { name: "Reject request" });
+
+    await expect(reject).toBeDisabled();
+    await dialog.getByLabel("Reason").fill("The conference room is booked.");
+    await expectNoWcagViolations(page, { include: "[role=dialog]" });
+    await reject.click();
+
+    await expect
+      .poll(() => state.decideRequests.at(-1))
+      .toMatchObject({
+        decision: "reject",
+        reason: "The conference room is booked.",
+      });
+
+    // Nothing left to decide, so the card goes away.
+    await expect(panel).toHaveCount(0);
+  });
+});

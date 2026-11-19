@@ -332,7 +332,7 @@ describe(
         expect(
           database.select,
         ).toHaveBeenCalledWith(
-          "user_id, full_name, role, active, password_change_required",
+          "user_id, full_name, role, active, password_change_required, sign_in_method",
         );
 
         expect(

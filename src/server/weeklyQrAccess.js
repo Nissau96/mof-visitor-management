@@ -1,10 +1,12 @@
 import { Buffer } from "node:buffer";
 import {
   createHmac,
+  randomUUID,
   timingSafeEqual,
 } from "node:crypto";
 import process from "node:process";
 import { HttpError } from "../../api/_lib/http.js";
+import { getAdminClient } from "../../api/_lib/supabase.js";
 
 const TOKEN_VERSION = "v1";
 
@@ -16,6 +18,16 @@ const MAXIMUM_TOKEN_LENGTH = 256;
 
 const WEEKLY_QR_COOKIE_NAME =
   "mof_visitor_weekly_access";
+
+// A reception tablet set up as a kiosk holds a signed device cookie
+// instead of reopening the weekly QR link every Monday.
+const KIOSK_AUDIENCE =
+  "mof-reception-kiosk-device";
+
+const KIOSK_COOKIE_NAME =
+  "mof_visitor_kiosk";
+
+export const KIOSK_DEVICE_LIFETIME_DAYS = 365;
 
 const ACCRA_DATE_FORMATTER =
   new Intl.DateTimeFormat("en-CA", {
@@ -333,6 +345,47 @@ function getVisitorApplicationUrl(
   return url;
 }
 
+// Local development serves the visitor app from the request's own
+// origin, so the QR code works without VISITOR_APP_URL. Deployed
+// environments return undefined and use VISITOR_APP_URL.
+export function getLocalVisitorApplicationUrl(
+  request,
+) {
+  const vercelEnvironment =
+    process.env.VERCEL_ENV || "";
+
+  if (
+    vercelEnvironment &&
+    vercelEnvironment !== "development"
+  ) {
+    return undefined;
+  }
+
+  let requestUrl;
+
+  try {
+    requestUrl = new URL(request.url);
+  } catch {
+    return undefined;
+  }
+
+  const localHostname =
+    requestUrl.hostname === "localhost" ||
+    requestUrl.hostname === "127.0.0.1";
+
+  if (
+    requestUrl.protocol !== "http:" ||
+    !localHostname
+  ) {
+    return undefined;
+  }
+
+  return new URL(
+    "/visit",
+    requestUrl.origin,
+  ).toString();
+}
+
 export function createWeeklyQrAccessUrl(
   token,
   applicationUrl,
@@ -385,25 +438,202 @@ function readCookie(request, cookieName) {
   return "";
 }
 
-export function readWeeklyQrAccess(
+function signKioskDevice(
+  deviceId,
+  expiresAt,
+) {
+  return createHmac(
+    "sha256",
+    getWeeklyQrSecret(),
+  )
+    .update(
+      [
+        KIOSK_AUDIENCE,
+        TOKEN_VERSION,
+        deviceId,
+        expiresAt,
+      ].join("\u0000"),
+      "utf8",
+    )
+    .digest();
+}
+
+export function createKioskDeviceCookie(
   request,
   now = new Date(),
+) {
+  const expiryTime =
+    now.getTime() +
+    KIOSK_DEVICE_LIFETIME_DAYS *
+      86_400_000;
+
+  const deviceId = randomUUID();
+  const expiresAt = String(expiryTime);
+
+  const token = [
+    TOKEN_VERSION,
+    deviceId,
+    expiresAt,
+    signKioskDevice(
+      deviceId,
+      expiresAt,
+    ).toString("base64url"),
+  ].join(".");
+
+  const attributes = [
+    `${KIOSK_COOKIE_NAME}=${token}`,
+    "Path=/api",
+    `Max-Age=${KIOSK_DEVICE_LIFETIME_DAYS * 86_400}`,
+    `Expires=${new Date(
+      expiryTime,
+    ).toUTCString()}`,
+    "HttpOnly",
+    "SameSite=Lax",
+  ];
+
+  if (requestUsesHttps(request)) {
+    attributes.push("Secure");
+  }
+
+  return {
+    cookie: attributes.join("; "),
+    deviceId,
+    expiresAt: new Date(
+      expiryTime,
+    ).toISOString(),
+  };
+}
+
+export function readKioskDevice(
+  request,
+  now = new Date(),
+) {
+  const segments = readCookie(
+    request,
+    KIOSK_COOKIE_NAME,
+  ).split(".");
+
+  if (segments.length !== 4) {
+    return null;
+  }
+
+  const [
+    version,
+    deviceId,
+    expiresAt,
+    encodedSignature,
+  ] = segments;
+
+  if (
+    version !== TOKEN_VERSION ||
+    !/^\d{13}$/.test(expiresAt) ||
+    Number(expiresAt) <= now.getTime()
+  ) {
+    return null;
+  }
+
+  const suppliedSignature =
+    Buffer.from(
+      encodedSignature,
+      "base64url",
+    );
+
+  const expectedSignature =
+    signKioskDevice(
+      deviceId,
+      expiresAt,
+    );
+
+  if (
+    suppliedSignature.length !==
+      expectedSignature.length ||
+    !timingSafeEqual(
+      suppliedSignature,
+      expectedSignature,
+    )
+  ) {
+    return null;
+  }
+
+  return { deviceId };
+}
+
+// A removed or expired tablet stops working on its next request.
+async function isRegisteredKioskActive(deviceId) {
+  const { data, error } =
+    await getAdminClient().rpc(
+      "touch_kiosk_device",
+      {
+        p_device_id: deviceId,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      "The kiosk device could not be checked.",
+    );
+  }
+
+  return data === true;
+}
+
+// Phones use the weekly QR cookie. A set-up kiosk tablet, or any
+// browser in local development, gets this week's access without it.
+export async function readWeeklyQrAccess(
+  request,
+  now = new Date(),
+  {
+    isKioskDeviceActive =
+      isRegisteredKioskActive,
+  } = {},
 ) {
   const token = readCookie(
     request,
     WEEKLY_QR_COOKIE_NAME,
   );
 
-  if (!token) {
-    throw new HttpError(
-      "Scan the current reception QR code to access visitor services.",
-      401,
-    );
+  let weeklyError = null;
+
+  if (token) {
+    try {
+      return validateWeeklyQrToken(
+        token,
+        now,
+      );
+    } catch (error) {
+      weeklyError = error;
+    }
   }
 
-  return validateWeeklyQrToken(
-    token,
+  if (
+    getLocalVisitorApplicationUrl(
+      request,
+    )
+  ) {
+    return createWeeklyQrToken(now);
+  }
+
+  const kioskDevice = readKioskDevice(
+    request,
     now,
+  );
+
+  if (
+    kioskDevice &&
+    (await isKioskDeviceActive(
+      kioskDevice.deviceId,
+    ))
+  ) {
+    return createWeeklyQrToken(now);
+  }
+
+  if (weeklyError) {
+    throw weeklyError;
+  }
+
+  throw new HttpError(
+    "Scan the current reception QR code to access visitor services.",
+    401,
   );
 }
 

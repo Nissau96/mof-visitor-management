@@ -2,6 +2,7 @@ import {
   Archive,
   CalendarDays,
   Building2,
+  ChartColumn,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   History,
   Landmark,
   LayoutDashboard,
+  Link2,
   LoaderCircle,
   LogOut,
   Menu,
@@ -18,6 +20,7 @@ import {
   Smartphone,
   Sun,
   UserCog,
+  Wifi,
   X,
 } from "lucide-react";
 import {
@@ -30,10 +33,29 @@ import {
   Link,
   NavLink,
   Outlet,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
+import IdleSignOutDialog from "../components/IdleSignOutDialog.jsx";
+import KioskDevicesDialog from "../components/KioskDevicesDialog.jsx";
+import StaffQuickActions from "../components/StaffQuickActions.jsx";
+import { quickActionsFor } from "../lib/visitorInvites.js";
 import NotificationBell from "../components/NotificationBell.jsx";
+import Toaster from "../components/Toaster.jsx";
 import useAuth from "../hooks/useAuth.js";
+import useStaffNotifications from "../hooks/useStaffNotifications.js";
+import useWifiWaitingCount from "../hooks/useWifiWaitingCount.js";
+import SidebarBadge from "../components/SidebarBadge.jsx";
+import {
+  BADGE_TONES,
+  NAV_BADGE_SOURCES,
+  mostUrgentBadgeTone,
+  navBadgeFor,
+} from "../lib/navBadges.js";
+import {
+  markIdleSignOut,
+  useStaffIdleSignOut,
+} from "../lib/staffIdle.js";
 import {
   setTheme,
   useTheme,
@@ -89,7 +111,9 @@ function getRoleLabel(role) {
   const labels = {
     admin: "Super Administrator",
     client_service_head:
-      "Client Service Head",
+      "Unit Head",
+    it_network_admin:
+      "IT",
     receptionist: "Receptionist",
   };
 
@@ -193,24 +217,30 @@ function HistorySearch() {
   );
 }
 
-// White button and dark text are set with arbitrary values so the dark
-// theme overrides for bg-white / text-brand-* leave this teal card alone.
-function KioskCard({
-  collapsed,
-  onNavigate,
-}) {
+// Set up kiosk opens the kiosk dialog in place, so the mobile menu stays
+// open behind it. White button and dark text are set with arbitrary
+// values so the dark theme overrides for bg-white / text-brand-* leave
+// this teal card alone.
+function KioskCard({ collapsed }) {
+  const [open, setOpen] = useState(false);
+
+  const dialog = open ? (
+    <KioskDevicesDialog onClose={() => setOpen(false)} />
+  ) : null;
+
   if (collapsed) {
     return (
       <div className="hidden px-3 pb-3 lg:block">
-        <Link
-          aria-label="Open self-check-in kiosk"
-          className="grid min-h-11 place-items-center rounded-xl bg-brand-800 text-white hover:bg-brand-900"
-          onClick={onNavigate}
-          title="Open self-check-in kiosk"
-          to="/visit"
+        <button
+          aria-label="Set up kiosk"
+          className="grid min-h-11 w-full place-items-center rounded-xl bg-brand-800 text-white hover:bg-brand-900"
+          onClick={() => setOpen(true)}
+          title="Set up kiosk"
+          type="button"
         >
           <Smartphone aria-hidden="true" className="size-5" />
-        </Link>
+        </button>
+        {dialog}
       </div>
     );
   }
@@ -248,14 +278,15 @@ function KioskCard({
           reception handles cards.
         </p>
 
-        <Link
-          className="relative mt-5 flex min-h-11 items-center justify-center rounded-full bg-[#ffffff] text-sm font-bold text-[#134e4a] transition hover:bg-[#f0fdfa]"
-          onClick={onNavigate}
-          to="/visit"
+        <button
+          className="relative mt-5 flex min-h-11 w-full items-center justify-center rounded-full bg-[#ffffff] text-sm font-bold text-[#134e4a] transition hover:bg-[#f0fdfa]"
+          onClick={() => setOpen(true)}
+          type="button"
         >
-          Open kiosk
-        </Link>
+          Set up kiosk
+        </button>
       </section>
+      {dialog}
     </div>
   );
 }
@@ -295,6 +326,7 @@ function ThemeToggle() {
 }
 
 function SidebarLink({
+  badge,
   collapsed,
   end,
   external,
@@ -303,7 +335,7 @@ function SidebarLink({
   onNavigate,
   to,
 }) {
-  const baseClass = `group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition ${
+  const baseClass = `group relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition ${
     collapsed ? "lg:justify-center lg:px-0" : ""
   }`;
 
@@ -316,12 +348,22 @@ function SidebarLink({
       <span className={collapsed ? "lg:sr-only" : ""}>
         {label}
       </span>
+      <SidebarBadge
+        badge={badge}
+        collapsed={collapsed}
+      />
     </>
   );
+
+  // Named in full so screen readers hear "Meetings, 3 need attention".
+  const ariaLabel = badge
+    ? `${label}, ${badge.count} need attention`
+    : undefined;
 
   if (external) {
     return (
       <Link
+        aria-label={ariaLabel}
         className={`${baseClass} text-slate-600 hover:bg-slate-100 hover:text-slate-900`}
         onClick={onNavigate}
         title={collapsed ? label : undefined}
@@ -334,6 +376,7 @@ function SidebarLink({
 
   return (
     <NavLink
+      aria-label={ariaLabel}
       className={({ isActive }) =>
         `${baseClass} ${
           isActive
@@ -343,7 +386,13 @@ function SidebarLink({
       }
       end={end}
       onClick={onNavigate}
-      title={collapsed ? label : undefined}
+      title={
+        collapsed
+          ? badge
+            ? `${label} (${badge.count} need attention)`
+            : label
+          : undefined
+      }
       to={to}
     >
       {content}
@@ -552,11 +601,60 @@ export default function StaffLayout() {
     profile?.role === "receptionist" ||
     administrator;
 
+  const location = useLocation();
+
+  const {
+    counts: attentionCounts,
+    loadError: notificationsError,
+    notifications,
+    reload: reloadNotifications,
+  } = useStaffNotifications({
+    accessToken: session?.access_token || "",
+    enabled: receptionAccess,
+    refreshKey: location.pathname,
+    tower: tower || "",
+  });
+
+  const itNetworkAdmin =
+    profile?.role === "it_network_admin";
+
+  // Wi-Fi requests: the IT network team, and administrators.
+  const wifiAccess = itNetworkAdmin || administrator;
+
+  const wifiWaiting = useWifiWaitingCount({
+    accessToken: session?.access_token || "",
+    enabled: wifiAccess,
+    refreshKey: location.pathname,
+  });
+
+  // Intern (NSP) accounts keep the bell but get no menu badges.
+  const badgeCounts =
+    profile?.isNsp ||
+    (!attentionCounts && wifiWaiting === null)
+      ? null
+      : { ...attentionCounts, wifiWaiting };
+
+  const badgeFor = (path) =>
+    navBadgeFor(badgeCounts, path);
+
+  const menuButtonTone =
+    mostUrgentBadgeTone(
+      badgeCounts,
+      Object.keys(NAV_BADGE_SOURCES),
+    );
+
+  // The Visitor Links page has its own Create button.
+  const showQuickActions =
+    Boolean(quickActionsFor(profile?.role)) &&
+    location.pathname !== "/staff/visitor-links";
+
   const homePath =
     profile?.role ===
       "client_service_head"
       ? "/staff/cards"
-      : "/staff";
+      : itNetworkAdmin
+        ? "/staff/wifi"
+        : "/staff";
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -620,11 +718,16 @@ export default function StaffLayout() {
     }
   }
 
+  const idle = useStaffIdleSignOut({
+    enabled: Boolean(session),
+    onExpire() {
+      markIdleSignOut();
+      void handleSignOut();
+    },
+  });
+
   const kioskCard = receptionAccess ? (
-    <KioskCard
-      collapsed={collapsed}
-      onNavigate={closeMobile}
-    />
+    <KioskCard collapsed={collapsed} />
   ) : null;
 
   return (
@@ -714,6 +817,7 @@ export default function StaffLayout() {
                   label="Dashboard"
                   onNavigate={closeMobile}
                   to="/staff"
+                  badge={badgeFor("/staff")}
                 />
                 <SidebarLink
                   collapsed={collapsed}
@@ -721,6 +825,7 @@ export default function StaffLayout() {
                   label="Visit History"
                   onNavigate={closeMobile}
                   to="/staff/history"
+                  badge={badgeFor("/staff/history")}
                 />
                 <SidebarLink
                   collapsed={collapsed}
@@ -732,21 +837,59 @@ export default function StaffLayout() {
               </>
             ) : null}
 
-            <SidebarLink
-              collapsed={collapsed}
-              icon={CreditCard}
-              label="Visitor Cards"
-              onNavigate={closeMobile}
-              to="/staff/cards"
-            />
+            {itNetworkAdmin ? null : (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={CreditCard}
+                label="Visitor Cards"
+                onNavigate={closeMobile}
+                to="/staff/cards"
+                badge={badgeFor("/staff/cards")}
+              />
+            )}
 
-            <SidebarLink
-              collapsed={collapsed}
-              icon={CalendarDays}
-              label="Meetings"
-              onNavigate={closeMobile}
-              to="/staff/meetings"
-            />
+            {/* Intern/NSP accounts cannot generate reports. */}
+            {receptionAccess && !profile?.isNsp ? (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={ChartColumn}
+                label="Analytics & Reports"
+                onNavigate={closeMobile}
+                to="/staff/reports"
+              />
+            ) : null}
+
+            {itNetworkAdmin ? null : (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={CalendarDays}
+                label="Meetings"
+                onNavigate={closeMobile}
+                to="/staff/meetings"
+                badge={badgeFor("/staff/meetings")}
+              />
+            )}
+
+            {itNetworkAdmin ? null : (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={Link2}
+                label="Visitor Links"
+                onNavigate={closeMobile}
+                to="/staff/visitor-links"
+              />
+            )}
+
+            {wifiAccess ? (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={Wifi}
+                label="WiFi Access"
+                onNavigate={closeMobile}
+                to="/staff/wifi"
+                badge={badgeFor("/staff/wifi")}
+              />
+            ) : null}
 
           </SidebarGroup>
 
@@ -761,6 +904,7 @@ export default function StaffLayout() {
                 label="Card Inventory"
                 onNavigate={closeMobile}
                 to="/staff/admin/cards"
+                badge={badgeFor("/staff/admin/cards")}
               />
               <SidebarLink
                 collapsed={collapsed}
@@ -803,14 +947,24 @@ export default function StaffLayout() {
             <button
               aria-controls="staff-sidebar"
               aria-expanded={mobileOpen}
-              aria-label="Open navigation menu"
-              className="grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 lg:hidden"
+              aria-label={
+                menuButtonTone
+                  ? "Open navigation menu, some pages need attention"
+                  : "Open navigation menu"
+              }
+              className="relative grid size-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 lg:hidden"
               onClick={() =>
                 setMobileOpen(true)
               }
               type="button"
             >
               <Menu aria-hidden="true" className="size-5" />
+              {menuButtonTone ? (
+                <span
+                  aria-hidden="true"
+                  className={`absolute -right-1 -top-1 size-3 rounded-full ring-2 ring-white ${BADGE_TONES[menuButtonTone].dot}`}
+                />
+              ) : null}
             </button>
 
             {receptionAccess ? (
@@ -825,10 +979,9 @@ export default function StaffLayout() {
               {receptionAccess &&
               session?.access_token ? (
                 <NotificationBell
-                  accessToken={
-                    session.access_token
-                  }
-                  tower={tower || ""}
+                  loadError={notificationsError}
+                  notifications={notifications}
+                  onReload={reloadNotifications}
                   userId={
                     session.user?.id ||
                     "staff"
@@ -853,10 +1006,34 @@ export default function StaffLayout() {
           </div>
         ) : null}
 
-        <main className="flex-1 print:block" id="staff-main-content" tabIndex="-1">
+        <main
+          className={`flex-1 print:block ${showQuickActions ? "pb-24" : ""}`}
+          id="staff-main-content"
+          tabIndex="-1"
+        >
           <Outlet />
         </main>
       </div>
+
+      <Toaster />
+
+      {showQuickActions ? (
+        <StaffQuickActions
+          accessToken={session?.access_token || ""}
+          fullName={profile?.fullName || ""}
+          role={profile?.role}
+          tower={tower || ""}
+        />
+      ) : null}
+
+      {idle.phase === "warning" && !signingOut ? (
+        <IdleSignOutDialog
+          onSignOut={() => void handleSignOut()}
+          onStay={idle.staySignedIn}
+          secondsLeft={idle.secondsLeft}
+          signingOut={signingOut}
+        />
+      ) : null}
     </div>
   );
 }

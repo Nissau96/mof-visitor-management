@@ -28,7 +28,7 @@ export function createHostsHandler({
       }
 
       try {
-        readWeeklyQrAccess(request);
+        await readWeeklyQrAccess(request);
 
         await enforceRateLimitForRequest(
           request,

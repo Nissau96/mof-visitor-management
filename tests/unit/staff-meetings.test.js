@@ -64,6 +64,7 @@ function createHandler({
 const BASE_MEETING = {
   endsAt: "11:30",
   endsOn: "",
+  floor: "7",
   hostAgency: "Ministry of Finance (MoF)",
   hostDivision: "Ministry Headquarters",
   meetingId: null,
@@ -74,6 +75,7 @@ const BASE_MEETING = {
   startsOn: "2026-11-03",
   title: "Budget review",
   venue: "Room B",
+  wifiAccess: "yes",
 };
 
 describe("staff meeting operations", () => {
@@ -91,7 +93,7 @@ describe("staff meeting operations", () => {
 
     expect(response.status).toBe(200);
     expect(rpc).toHaveBeenCalledWith(
-      "get_staff_meetings",
+      "get_staff_meetings_with_wifi",
       expect.objectContaining({
         p_actor_id: USER_ID,
         p_from: null,
@@ -148,7 +150,7 @@ describe("staff meeting operations", () => {
 
     expect(response.status).toBe(200);
     expect(rpc).toHaveBeenCalledWith(
-      "save_staff_meeting",
+      "save_staff_meeting_with_wifi",
       expect.objectContaining({
         p_ends_at: "11:30",
         p_ends_on: "2026-11-03",
@@ -159,6 +161,8 @@ describe("staff meeting operations", () => {
         p_recurrence_days: [],
         p_schedule_type: "single",
         p_starts_on: "2026-11-03",
+        p_floor: "7",
+        p_wifi_requested: true,
       }),
     );
   });
@@ -175,7 +179,7 @@ describe("staff meeting operations", () => {
 
     expect(response.status).toBe(200);
     expect(rpc).toHaveBeenCalledWith(
-      "save_staff_meeting",
+      "save_staff_meeting_with_wifi",
       expect.objectContaining({ p_host_agency: "GIPC", p_host_division: "" }),
     );
   });
@@ -219,6 +223,28 @@ describe("staff meeting operations", () => {
     );
   });
 
+  it("lists a meeting's registered visitors for view-only roles too", async () => {
+    const visitors = {
+      meetingId: MEETING_ID,
+      visitors: [{ fullName: "Ama Mensah", organization: "World Bank", status: "checked_in", visitId: "v1" }],
+    };
+    const { handler, rpc } = createHandler({
+      data: visitors,
+      role: "client_service_head",
+    });
+
+    const response = await handler.fetch(
+      createRequest("staff-visitors", { meetingId: MEETING_ID, tower: "tower_1" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(visitors);
+    expect(rpc).toHaveBeenCalledWith(
+      "get_staff_meeting_visitors",
+      expect.objectContaining({ p_meeting_id: MEETING_ID, p_tower: "tower_1" }),
+    );
+  });
+
   it("returns 404 for an unknown operation", async () => {
     const { handler } = createHandler();
 
@@ -259,6 +285,20 @@ describe("meeting form rules", () => {
     expect(
       meetingFormSchema.safeParse({ ...BASE_MEETING, hostAgency: "Synthetic Agency" }).success,
     ).toBe(false);
+  });
+
+  it("requires a host agency", () => {
+    const result = meetingFormSchema.safeParse({
+      ...BASE_MEETING,
+      hostAgency: "",
+      hostDivision: "",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error.issues[0]).toMatchObject({
+      message: "Select the hosting agency.",
+      path: ["hostAgency"],
+    });
   });
 
   it("requires the end time to follow the start time", () => {

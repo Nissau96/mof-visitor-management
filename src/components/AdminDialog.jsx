@@ -1,11 +1,12 @@
-import { X } from "lucide-react";
+import DialogHeader from "./DialogHeader.jsx";
 import { useId } from "react";
 
-// Modal shell for administration forms: eyebrow, title, optional
-// description and a close button above a divider. Put the form inside
+// Modal shell for administration forms: the shared DialogHeader (chip,
+// title, optional description, illustration and close button). Put the form inside
 // and use DialogBody and DialogFooter so the actions sit on their own
 // divided strip. Escape closes the dialog unless it is busy. An optional
-// icon sits in a tile beside the title.
+// icon is drawn into the header illustration; tone tints the header
+// (brand, warning or danger).
 export default function AdminDialog({
   busy = false,
   children,
@@ -15,13 +16,14 @@ export default function AdminDialog({
   icon: Icon,
   onClose,
   title,
+  tone = "brand",
 }) {
   const titleId = useId();
   const descriptionId = useId();
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center"
       onKeyDown={(event) => {
         if (event.key === "Escape" && !busy) {
           onClose();
@@ -33,55 +35,21 @@ export default function AdminDialog({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-4xl bg-white shadow-2xl shadow-slate-950/30 [&>form]:flex [&>form]:min-h-0 [&>form]:flex-1 [&>form]:flex-col"
         role="dialog"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 pb-5 pt-6 sm:px-7">
-          <div className="flex min-w-0 items-start gap-4">
-            {Icon ? (
-              <span
-                aria-hidden="true"
-                className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7f4] text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]"
-              >
-                <Icon className="size-6" />
-              </span>
-            ) : null}
-
-            <div className="min-w-0">
-              {eyebrow ? (
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-brand-700">
-                  {eyebrow}
-                </p>
-              ) : null}
-
-              <h2
-                className="mt-1 text-2xl font-black tracking-tight text-slate-950"
-                id={titleId}
-              >
-                {title}
-              </h2>
-
-              {description ? (
-                <p
-                  className="mt-2 text-sm leading-6 text-slate-600"
-                  id={descriptionId}
-                >
-                  {description}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <button
-            aria-label={closeLabel}
-            className="grid size-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden="true" className="size-5" />
-          </button>
-        </header>
+        <DialogHeader
+          busy={busy}
+          closeLabel={closeLabel}
+          description={description}
+          descriptionId={descriptionId}
+          eyebrow={eyebrow}
+          icon={Icon}
+          onClose={onClose}
+          title={title}
+          titleId={titleId}
+          tone={tone}
+        />
 
         {children}
       </section>
@@ -89,9 +57,13 @@ export default function AdminDialog({
   );
 }
 
-export function DialogBody({ children }) {
+// The only part of a dialog that scrolls.
+export function DialogBody({ children, className = "", ...props }) {
   return (
-    <div className="grid gap-5 px-5 py-6 sm:px-7">
+    <div
+      className={`scroll-pane grid min-h-0 flex-1 content-start gap-5 px-5 py-6 sm:px-7 ${className}`}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -99,18 +71,18 @@ export function DialogBody({ children }) {
 
 export function DialogFooter({ children }) {
   return (
-    <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+    <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
       {children}
     </div>
   );
 }
 
 export const DIALOG_BUTTON =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition-colors focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed";
 
 export const DIALOG_CANCEL_BUTTON = `${DIALOG_BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-60`;
 
-export const DIALOG_PRIMARY_BUTTON = `${DIALOG_BUTTON} bg-brand-800 text-white hover:bg-brand-900 disabled:bg-slate-200 disabled:text-slate-500`;
+export const DIALOG_PRIMARY_BUTTON = `${DIALOG_BUTTON} bg-linear-to-r from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-lg shadow-[#0f766e]/25 hover:from-[#0f766e] hover:to-[#134e4a] disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none`;
 
 // Rounded text input used inside administration dialogs.
 export const DIALOG_INPUT =

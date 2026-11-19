@@ -4,6 +4,12 @@ import {
   MINISTRY_OF_FINANCE_AGENCY,
   VISIT_AGENCIES,
 } from "../constants/visitorOptions.js";
+import {
+  FLOOR_REQUIRED_MESSAGE,
+  MEETING_WIFI_REQUIRED_MESSAGE,
+  floorField,
+  wifiAccessField,
+} from "./wifiAccess.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -104,6 +110,8 @@ export const meetingFormSchema = z
   .object({
     endsAt: optionalTimeSchema,
     endsOn: z.string().trim().default(""),
+    floor: floorField,
+    // Required, but checked below so the other errors show too.
     hostAgency: z
       .union([z.literal(""), z.enum(VISIT_AGENCIES)], {
         message: "Select a valid agency.",
@@ -130,8 +138,33 @@ export const meetingFormSchema = z
       .min(2, "Meeting title must contain at least 2 characters.")
       .max(160, "Meeting title cannot exceed 160 characters."),
     venue: optionalTextSchema(120, "Venue"),
+    wifiAccess: wifiAccessField,
   })
   .superRefine((value, context) => {
+    if (!value.floor) {
+      context.addIssue({
+        code: "custom",
+        message: FLOOR_REQUIRED_MESSAGE,
+        path: ["floor"],
+      });
+    }
+
+    if (!value.wifiAccess) {
+      context.addIssue({
+        code: "custom",
+        message: MEETING_WIFI_REQUIRED_MESSAGE,
+        path: ["wifiAccess"],
+      });
+    }
+
+    if (!value.hostAgency) {
+      context.addIssue({
+        code: "custom",
+        message: "Select the hosting agency.",
+        path: ["hostAgency"],
+      });
+    }
+
     if (
       value.hostAgency === MINISTRY_OF_FINANCE_AGENCY &&
       !MEETING_HOST_DIVISIONS.includes(value.hostDivision)
@@ -226,3 +259,6 @@ export const meetingDeleteSchema = z
     tower: optionalTowerSchema,
   })
   .strict();
+
+// The visitors registered for one meeting (details dialog).
+export const meetingVisitorsSchema = meetingDeleteSchema;
