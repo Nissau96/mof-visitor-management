@@ -1,27 +1,58 @@
-import { Link2, Plus, Search, X } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Link2, ScanSearch, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CreateVisitorLinkDialog from "./CreateVisitorLinkDialog.jsx";
 import FindBookingDialog from "./FindBookingDialog.jsx";
 import { createStaffInviteApi } from "../lib/visitorInviteApi.js";
 import { quickActionsFor } from "../lib/visitorInvites.js";
 
-const FAB =
-  "inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-brand-800 px-5 text-sm font-black text-white shadow-[0_18px_40px_-12px_rgba(17,94,89,0.6)] hover:bg-brand-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200";
+// Exponential ease-out; motion only for people who allow it.
+const EASE = "ease-[cubic-bezier(0.16,1,0.3,1)]";
 
-const MENU_ITEM =
-  "flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-slate-900 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none";
+// The rim keeps the button distinct when it floats over a teal card.
+const FAB = `relative grid size-16 place-items-center rounded-full border-4 border-[#ffffff] bg-[#115e59] dark:border-[#0f172a] text-[#ffffff] shadow-[0_14px_30px_-10px_rgba(17,94,89,0.65)] hover:bg-[#134e4a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 motion-safe:transition-[background-color,transform] motion-safe:duration-200 motion-safe:active:scale-95`;
+
+// Top to bottom; the pills step left as they rise from the button, and
+// the one nearest the button appears first.
+const ACTIONS = Object.freeze([
+  Object.freeze({
+    delay: "motion-safe:delay-[90ms]",
+    icon: ScanSearch,
+    key: "find",
+    label: "Find booking",
+    offset: "mr-9",
+  }),
+  Object.freeze({
+    delay: "motion-safe:delay-[40ms]",
+    icon: Link2,
+    key: "create",
+    label: "Create visitor link",
+    offset: "mr-3",
+  }),
+]);
+
+function FabIcon({ icon: Icon, shown }) {
+  return (
+    <Icon
+      aria-hidden="true"
+      className={`absolute size-7 motion-safe:transition-[transform,opacity] motion-safe:duration-300 ${EASE} ${
+        shown ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0"
+      }`}
+      strokeWidth={2.25}
+    />
+  );
+}
 
 /**
- * Floating button in the staff area. Receptionists and administrators
- * get a menu (Find booking, Create visitor link); Unit Heads get
- * Create visitor link alone; IT gets nothing.
+ * Floating booking button in the staff area. Receptionists and
+ * administrators open a fan of two actions (Find booking, Create visitor
+ * link); Unit Heads go straight to Create visitor link; IT gets nothing.
  */
 export default function StaffQuickActions({ accessToken, fullName = "", role, tower = "" }) {
-  const actions = quickActionsFor(role);
+  const available = quickActionsFor(role);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState("");
   const [hosts, setHosts] = useState([]);
-  const wrapperRef = useRef(null);
+  const fabRef = useRef(null);
   const firstItemRef = useRef(null);
 
   const api = useMemo(
@@ -36,28 +67,19 @@ export default function StaffQuickActions({ accessToken, fullName = "", role, to
 
     firstItemRef.current?.focus();
 
-    function close(event) {
-      if (event.type === "keydown" && event.key !== "Escape") {
-        return;
+    function closeOnEscape(event) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        fabRef.current?.focus();
       }
-
-      if (event.type === "pointerdown" && wrapperRef.current?.contains(event.target)) {
-        return;
-      }
-
-      setMenuOpen(false);
     }
 
-    document.addEventListener("keydown", close);
-    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeOnEscape);
 
-    return () => {
-      document.removeEventListener("keydown", close);
-      document.removeEventListener("pointerdown", close);
-    };
+    return () => document.removeEventListener("keydown", closeOnEscape);
   }, [menuOpen]);
 
-  if (!actions) {
+  if (!available) {
     return null;
   }
 
@@ -74,61 +96,82 @@ export default function StaffQuickActions({ accessToken, fullName = "", role, to
     }
   }
 
+  const actions = ACTIONS.filter((action) => available[action.key]);
+
   return (
     <>
-      <div
-        className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 print:hidden"
-        ref={wrapperRef}
-      >
-        {actions.find && menuOpen ? (
+      {available.find ? (
+        <div
+          aria-hidden="true"
+          className={`fixed inset-0 z-40 bg-slate-950/25 print:hidden motion-safe:transition-opacity motion-safe:duration-300 ${
+            menuOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+
+      {/* Only the button and open pills take clicks; the rest of this
+          corner passes them through to the page. */}
+      <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 print:hidden [&>*]:pointer-events-auto">
+        {available.find ? (
           <div
-            aria-label="Quick actions"
-            className="w-60 rounded-3xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-950/20"
+            aria-label="Booking actions"
+            className={`flex flex-col items-end gap-3 ${menuOpen ? "" : "invisible"}`}
             id="staff-quick-actions-menu"
             role="menu"
           >
-            <button
-              className={MENU_ITEM}
-              onClick={() => open("find")}
-              ref={firstItemRef}
-              role="menuitem"
-              type="button"
-            >
-              <Search aria-hidden="true" className="size-5 text-brand-800" />
-              Find booking
-            </button>
-            <button
-              className={MENU_ITEM}
-              onClick={() => open("create")}
-              role="menuitem"
-              type="button"
-            >
-              <Link2 aria-hidden="true" className="size-5 text-brand-800" />
-              Create visitor link
-            </button>
+            {actions.map((action, index) => {
+              const Icon = action.icon;
+
+              return (
+                <button
+                  className={`${action.offset} flex min-h-14 items-center gap-3 rounded-full border border-slate-200/80 bg-white py-2 pl-3 pr-6 text-base font-bold text-slate-900 shadow-[0_18px_40px_-18px_rgba(15,23,42,0.45)] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 motion-safe:transition-[opacity,transform,background-color] motion-safe:duration-300 ${EASE} ${
+                    menuOpen
+                      ? `${action.delay} translate-y-0 scale-100 opacity-100`
+                      : "translate-y-3 scale-90 opacity-0"
+                  }`}
+                  key={action.key}
+                  onClick={() => open(action.key)}
+                  ref={index === 0 ? firstItemRef : undefined}
+                  role="menuitem"
+                  tabIndex={menuOpen ? 0 : -1}
+                  type="button"
+                >
+                  <span className="grid size-10 place-items-center rounded-full bg-[#e6f7f4] text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]">
+                    <Icon aria-hidden="true" className="size-5" strokeWidth={2.25} />
+                  </span>
+                  {action.label}
+                </button>
+              );
+            })}
           </div>
         ) : null}
 
-        {actions.find ? (
+        {available.find ? (
           <button
-            aria-controls={menuOpen ? "staff-quick-actions-menu" : undefined}
+            aria-controls="staff-quick-actions-menu"
             aria-expanded={menuOpen}
             aria-haspopup="menu"
-            className={`${FAB} w-14 px-0 sm:w-auto sm:px-5`}
+            aria-label={menuOpen ? "Close booking actions" : "Bookings"}
+            className={FAB}
             onClick={() => setMenuOpen((current) => !current)}
+            ref={fabRef}
+            title={menuOpen ? "Close" : "Bookings"}
             type="button"
           >
-            {menuOpen ? (
-              <X aria-hidden="true" className="size-5" />
-            ) : (
-              <Plus aria-hidden="true" className="size-5" />
-            )}
-            <span className="sr-only sm:not-sr-only">Bookings</span>
+            <FabIcon icon={CalendarCheck} shown={!menuOpen} />
+            <FabIcon icon={X} shown={menuOpen} />
           </button>
         ) : (
-          <button className={FAB} onClick={() => open("create")} type="button">
-            <Link2 aria-hidden="true" className="size-5" />
-            Create visitor link
+          <button
+            aria-label="Create visitor link"
+            className={FAB}
+            onClick={() => open("create")}
+            ref={fabRef}
+            title="Create visitor link"
+            type="button"
+          >
+            <FabIcon icon={CalendarPlus} shown />
           </button>
         )}
       </div>

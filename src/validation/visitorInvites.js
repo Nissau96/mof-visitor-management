@@ -94,6 +94,16 @@ export const bookerInviteCreateSchema = z
 
 export const inviteListSchema = z.object({ tower: towerField }).strict();
 
+// The dashboard's Booked visitors view: today, or the next 30 days.
+export const BOOKED_VIEWS = Object.freeze(["today", "upcoming"]);
+
+export const bookedListSchema = z
+  .object({
+    tower: towerField,
+    view: z.enum(BOOKED_VIEWS, { message: "Choose Today or Upcoming." }).default("today"),
+  })
+  .strict();
+
 export const inviteCancelSchema = z
   .object({
     inviteId: uuidField("The visitor link could not be found."),

@@ -33,6 +33,8 @@ export function StatusPill({ children, icon: Icon, tone }) {
     amber: "bg-amber-50 text-amber-800 ring-amber-300",
     green: "bg-emerald-50 text-emerald-800 ring-emerald-200",
     red: "bg-red-50 text-red-700 ring-red-200",
+    slate: "bg-slate-100 text-slate-700 ring-slate-300",
+    teal: "bg-brand-50 text-brand-800 ring-brand-300",
   };
 
   return (

@@ -59,6 +59,14 @@ export const bookerInviteApi = Object.freeze({
   list: (signal) => bookerPost(INVITE_ENDPOINTS.bookerList, {}, signal),
 });
 
+export function getBookedVisitors({ accessToken, signal, tower = "", view = "today" }) {
+  return post(
+    "/api/staff/bookings/visitors",
+    { tower, view },
+    { headers: bearer(accessToken), signal },
+  );
+}
+
 export function findVisitorBooking({ accessToken, code, tower = "" }) {
   return post(INVITE_ENDPOINTS.find, { code, tower }, { headers: bearer(accessToken) });
 }

@@ -88,6 +88,85 @@ test.describe("Visitor booking links", () => {
     await expect(page.getByRole("dialog", { name: "Assign visitor card" })).toBeVisible();
   });
 
+  test("the dashboard switches to booked visitors and admits one", async ({ page }) => {
+    await quietOtherApis(page);
+    await installMockStaffAuthentication(page, { role: "receptionist" });
+
+    const views = [];
+
+    await page.route("**/api/staff/bookings/visitors", async (route) => {
+      const body = route.request().postDataJSON();
+      views.push(body.view);
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          bookings: [
+            {
+              agency: "Ministry of Finance (MoF)",
+              division: "Budget Office",
+              floor: "3",
+              hostName: "Ama Mensah",
+              id: "00000000-0000-4000-8000-000000000b02",
+              organization: "Synthetic Consulting",
+              purpose: "Official",
+              referenceCode: "VIS-1A2B3C4D",
+              status: "waiting",
+              tower: "tower_1",
+              visitDate: TODAY,
+              visitId: VISIT_ID,
+              visitorName: "Kofi Boateng",
+            },
+          ],
+          todayCount: 1,
+        },
+        status: 200,
+      });
+    });
+
+    await page.route("**/api/staff/cards/pending", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        json: {
+          admissions: [
+            {
+              bookedVisit: true,
+              fullName: "Kofi Boateng",
+              phone: "+233240000000",
+              purpose: "Official",
+              referenceCode: "VIS-1A2B3C4D",
+              visitId: VISIT_ID,
+            },
+          ],
+          pagination: { page: 1, pageSize: 5, totalCount: 1, totalPages: 1 },
+        },
+        status: 200,
+      }),
+    );
+
+    await signInAsStaff(page);
+
+    await page.getByRole("tablist", { name: "Visitor lists" }).getByRole("tab", { name: /Booked/ }).click();
+
+    await expect(page.getByRole("heading", { level: 2, name: "Booked visitors" })).toBeVisible();
+    await expect(page.getByText("Waiting at reception").filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByRole("img", { name: "Booked visit" }).first()).toBeAttached();
+
+    await expectNoWcagViolations(page);
+
+    const bookedDates = page.getByRole("tablist", { name: "Booked dates" });
+    await bookedDates.getByRole("tab", { name: "Next 30 days" }).click();
+    await expect.poll(() => views.at(-1)).toBe("upcoming");
+    await bookedDates.getByRole("tab", { exact: true, name: "Today" }).click();
+
+    await page
+      .getByRole("button", { name: "Assign card to Kofi Boateng" })
+      .filter({ visible: true })
+      .first()
+      .click();
+
+    await expect(page.getByRole("dialog", { name: "Assign visitor card" })).toBeVisible();
+  });
+
   test("reception is told when a booking is for another day", async ({ page }) => {
     await quietOtherApis(page);
     await installMockStaffAuthentication(page, { role: "receptionist" });

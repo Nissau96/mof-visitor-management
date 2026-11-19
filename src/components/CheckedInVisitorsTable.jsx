@@ -343,11 +343,33 @@ export function BookedGuestBadge({ booked }) {
   );
 }
 
+// A visitor who booked ahead with a visitor link: a small clock pill
+// set low beside the name, like a subscript.
+export function BookedVisitBadge({ booked }) {
+  if (!booked) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label="Booked visit"
+      className="inline-flex h-5 shrink-0 translate-y-1.5 items-center rounded-full bg-brand-50 px-1.5 text-brand-800 ring-1 ring-brand-300 dark:bg-[#0b2b29] dark:text-[#5eead4] dark:ring-[#14756d]"
+      role="img"
+      title="Booked visit"
+    >
+      <Clock aria-hidden="true" className="size-3" strokeWidth={2.5} />
+    </span>
+  );
+}
+
 export function VisitorName({ row }) {
   return (
     <span className="inline-flex items-center gap-2">
       <VisitorTypeIcon type={row.visitorType} />
-      <span className="font-bold text-slate-950">{row.fullName}</span>
+      <span className="inline-flex items-center gap-1">
+        <span className="font-bold text-slate-950">{row.fullName}</span>
+        <BookedVisitBadge booked={row.bookedVisit} />
+      </span>
       <BookedGuestBadge booked={row.bookedGuest} />
     </span>
   );

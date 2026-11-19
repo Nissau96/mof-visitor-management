@@ -10,5 +10,6 @@ export function toVisitorRow(record) {
     reference: record.referenceCode || "",
     visitorType: record.visitorType || null,
     bookedGuest: Boolean(record.bookedGuest),
+    bookedVisit: Boolean(record.bookedVisit),
   };
 }

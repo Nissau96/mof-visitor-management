@@ -805,6 +805,9 @@ async function addVisitorTypes(
           bookedGuest: Boolean(
             detailed[index]?.bookedGuest,
           ),
+          bookedVisit: Boolean(
+            detailed[index]?.bookedVisit,
+          ),
         }),
       ),
     };

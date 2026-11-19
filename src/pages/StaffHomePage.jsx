@@ -1,5 +1,6 @@
 import {
   ArrowUpRight,
+  CalendarClock,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -44,6 +45,9 @@ import {
 } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import usePendingAdmissions from "../hooks/usePendingAdmissions.js";
+import useBookedVisitors from "../hooks/useBookedVisitors.js";
+import BookedVisitorsTable from "../components/BookedVisitorsTable.jsx";
+import { getPendingAdmissions } from "../lib/visitorCardApi.js";
 import { ApiError, apiRequest } from "../lib/api.js";
 import { receptionDashboardSchema } from "../validation/receptionDashboard.js";
 import { toast } from "../lib/toast.js";
@@ -67,6 +71,19 @@ const VISITOR_VIEWS = [
 ];
 
 const VIEW_IDS = VISITOR_VIEWS.map((option) => option.id);
+
+// The top-level switch: who is here now, or who booked ahead.
+const LIST_MODES = Object.freeze([
+  Object.freeze({ id: "on-site", label: "Visitors on site", shortLabel: "On site" }),
+  Object.freeze({ id: "booked", label: "Booked visitors", shortLabel: "Booked" }),
+]);
+
+const LIST_MODE_IDS = LIST_MODES.map((mode) => mode.id);
+
+const BOOKED_VIEWS = Object.freeze([
+  Object.freeze({ id: "today", label: "Today" }),
+  Object.freeze({ id: "upcoming", label: "Next 30 days" }),
+]);
 
 const EMPTY_FILTERS = {
   agency: "",
@@ -164,6 +181,7 @@ function toCheckedInRow(visitor) {
     tower: visitor.tower,
     visitorType: visitor.visitorType || null,
     bookedGuest: Boolean(visitor.bookedGuest),
+    bookedVisit: Boolean(visitor.bookedVisit),
   };
 }
 
@@ -501,6 +519,87 @@ export default function StaffHomePage() {
       : pending.count === 0
         ? "checked-in"
         : "pending");
+
+  const listMode =
+    searchParams.get("list") === "booked" ? "booked" : "on-site";
+
+  const bookedView =
+    searchParams.get("booked") === "upcoming" ? "upcoming" : "today";
+
+  const booked = useBookedVisitors({
+    accessToken,
+    onAuthError: () => {
+      void signOut().catch(() => undefined);
+    },
+    refreshKey,
+    tower,
+    view: bookedView,
+  });
+
+  function setParam(name, value) {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set(name, value);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  // Arrow keys move along a tab row; ids are `${prefix}-${id}`.
+  function moveAlongTabs(event, ids, currentId, prefix, onChange) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const index = ids.indexOf(currentId);
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? ids.length - 1
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + ids.length) % ids.length;
+
+    onChange(ids[nextIndex]);
+    document.getElementById(`${prefix}-${ids[nextIndex]}`)?.focus();
+  }
+
+  // A booked visitor waiting at reception is admitted with the usual
+  // card dialog, which needs their pending-admission record.
+  async function assignBooked(booking) {
+    try {
+      const result = await getPendingAdmissions({
+        accessToken,
+        page: 1,
+        pageSize: 5,
+        search: booking.referenceCode,
+        tower,
+      });
+      const record = (result?.admissions || []).find(
+        (admission) => admission.referenceCode === booking.referenceCode,
+      );
+
+      if (record) {
+        setAssignTarget(record);
+        return;
+      }
+
+      toast.error(
+        "Not waiting",
+        "This visitor is no longer waiting. Refresh the list.",
+      );
+    } catch (error) {
+      toast.error(
+        "Not opened",
+        error instanceof Error && error.message
+          ? error.message
+          : "The visitor could not be opened. Please try again.",
+      );
+    }
+  }
 
   function changeView(nextView) {
     setSearchParams(
@@ -1278,16 +1377,71 @@ export default function StaffHomePage() {
       >
         <div className="flex flex-col gap-5 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2
-                className="text-xl font-black tracking-tight text-slate-950"
-                id="visitors-on-site-heading"
+            <div className="grid min-w-0 gap-4">
+              <div
+                aria-label="Visitor lists"
+                className="inline-flex w-full gap-1 rounded-full border border-slate-200 bg-slate-100 p-1 sm:w-auto sm:justify-self-start"
+                role="tablist"
               >
-                Visitors on site
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Admit people waiting at reception, then track who is inside.
-              </p>
+                {LIST_MODES.map((mode) => {
+                  const active = listMode === mode.id;
+                  const count =
+                    mode.id === "booked" ? booked.todayCount : null;
+
+                  return (
+                    <button
+                      aria-controls="visitor-list-panel"
+                      aria-selected={active}
+                      className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm sm:flex-none sm:px-5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 ${
+                        active
+                          ? "bg-[#ffffff] font-black text-[#115e59] shadow-sm dark:bg-[#24344c] dark:text-[#5eead4]"
+                          : "font-bold text-slate-600 hover:text-slate-900"
+                      }`}
+                      id={`visitor-list-${mode.id}`}
+                      key={mode.id}
+                      onClick={() => setParam("list", mode.id)}
+                      onKeyDown={(event) =>
+                        moveAlongTabs(event, LIST_MODE_IDS, listMode, "visitor-list", (id) =>
+                          setParam("list", id),
+                        )
+                      }
+                      role="tab"
+                      tabIndex={active ? 0 : -1}
+                      type="button"
+                    >
+                      {mode.id === "booked" ? (
+                        <CalendarClock aria-hidden="true" className="size-4" />
+                      ) : (
+                        <Users aria-hidden="true" className="size-4" />
+                      )}
+                      <span className="sm:hidden">{mode.shortLabel}</span>
+                      <span className="max-sm:sr-only">{mode.label}</span>
+                      {Number.isInteger(count) && count > 0 ? (
+                        <span
+                          aria-label={`${count} expected today`}
+                          className="grid h-6 min-w-6 place-items-center rounded-full bg-[#115e59] px-1.5 text-xs font-black text-[#ffffff]"
+                        >
+                          {count}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div>
+                <h2
+                  className="text-xl font-black tracking-tight text-slate-950"
+                  id="visitors-on-site-heading"
+                >
+                  {listMode === "booked" ? "Booked visitors" : "Visitors on site"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {listMode === "booked"
+                    ? "Visitors who booked ahead with a visitor link. Admit them when they arrive with their VIS- code."
+                    : "Admit people waiting at reception, then track who is inside."}
+                </p>
+              </div>
             </div>
 
             <button
@@ -1305,6 +1459,46 @@ export default function StaffHomePage() {
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {listMode === "booked" ? (
+              <div
+                aria-label="Booked dates"
+                className="flex gap-2"
+                role="tablist"
+              >
+                {BOOKED_VIEWS.map((option) => {
+                  const active = bookedView === option.id;
+
+                  return (
+                    <button
+                      aria-controls="booked-visitors-panel"
+                      aria-selected={active}
+                      className={`inline-flex min-h-12 flex-1 items-center justify-center rounded-full px-5 text-sm font-bold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 sm:flex-none ${
+                        active
+                          ? "bg-linear-to-r from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-lg shadow-[#115e59]/25"
+                          : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                      }`}
+                      id={`booked-view-${option.id}`}
+                      key={option.id}
+                      onClick={() => setParam("booked", option.id)}
+                      onKeyDown={(event) =>
+                        moveAlongTabs(
+                          event,
+                          BOOKED_VIEWS.map((item) => item.id),
+                          bookedView,
+                          "booked-view",
+                          (id) => setParam("booked", id),
+                        )
+                      }
+                      role="tab"
+                      tabIndex={active ? 0 : -1}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
             <div
               aria-label="Visitor views"
               className="flex gap-2"
@@ -1355,6 +1549,7 @@ export default function StaffHomePage() {
                 );
               })}
             </div>
+            )}
 
             {administrator ? (
               <div
@@ -1388,6 +1583,22 @@ export default function StaffHomePage() {
           </div>
         </div>
 
+        <div
+          aria-labelledby={`visitor-list-${listMode}`}
+          id="visitor-list-panel"
+          role="tabpanel"
+        >
+        {listMode === "booked" ? (
+          <BookedVisitorsPanel
+            booked={booked}
+            grouped={bookedView === "upcoming"}
+            onAssign={assignBooked}
+            onRetry={refreshDashboard}
+            towerHeading={towerHeading}
+            view={bookedView}
+          />
+        ) : (
+        <>
         <form
           className="flex flex-col gap-3 border-y border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6"
           noValidate
@@ -1559,6 +1770,9 @@ export default function StaffHomePage() {
             </>
           ) : null}
         </div>
+        </>
+        )}
+        </div>
       </section>
 
       {assignTarget ? (
@@ -1582,6 +1796,44 @@ export default function StaffHomePage() {
           }
         />
       ) : null}
+    </div>
+  );
+}
+
+function BookedVisitorsPanel({ booked, grouped, onAssign, onRetry, towerHeading, view }) {
+  return (
+    <div
+      aria-busy={booked.status === "loading"}
+      aria-labelledby={`booked-view-${view}`}
+      className="border-t border-slate-200"
+      id="booked-visitors-panel"
+      role="tabpanel"
+    >
+      {booked.status === "loading" && booked.bookings.length === 0 ? (
+        <div className="p-5 sm:p-6">
+          <LoadingState message={`Loading booked visitors for ${towerHeading}…`} />
+        </div>
+      ) : booked.status === "error" ? (
+        <div className="p-5 sm:p-6">
+          <ErrorMessage message={booked.error} onRetry={onRetry} title="Booked visitors unavailable" />
+        </div>
+      ) : booked.bookings.length === 0 ? (
+        <EmptyVisitors
+          message={
+            view === "today"
+              ? "Nobody has booked a visit for today. Staff can send visitor links from the Bookings button."
+              : "No visits are booked for the next 30 days."
+          }
+          title={view === "today" ? "No bookings today" : "No upcoming bookings"}
+        />
+      ) : (
+        <div className={booked.status === "loading" ? "pointer-events-none opacity-60" : ""}>
+          <BookedVisitorsTable bookings={booked.bookings} grouped={grouped} onAssign={onAssign} />
+          <TableFooter
+            showing={`${booked.bookings.length} booked ${booked.bookings.length === 1 ? "visitor" : "visitors"} (${towerHeading})`}
+          />
+        </div>
+      )}
     </div>
   );
 }

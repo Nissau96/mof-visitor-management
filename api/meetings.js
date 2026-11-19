@@ -54,6 +54,7 @@ import {
   getWifiSettings,
 } from "../src/server/wifiCredentials.js";
 import {
+  bookedListSchema,
   bookerInviteCreateSchema,
   bookingFindSchema,
   inviteCancelSchema,
@@ -220,6 +221,18 @@ const STAFF_OPERATIONS = Object.freeze({
     unexpected:
       "The booking request could not be answered. Please try again.",
     write: true,
+  }),
+  "booked-list": Object.freeze({
+    allowedRoles: MEETING_MANAGER_ROLES,
+    rpcName: "get_booked_visitors",
+    schema: bookedListSchema,
+    toArguments: (values, actorId, tower) => ({
+      p_actor_id: actorId,
+      p_tower: tower || null,
+      p_view: values.view,
+    }),
+    unexpected: "Booked visitors could not be loaded. Please try again.",
+    write: false,
   }),
   "booking-find": Object.freeze({
     allowedRoles: MEETING_MANAGER_ROLES,

@@ -1,5 +1,22 @@
 import { HttpError } from "./http.js";
 
+async function readBookedVisitIds(client, visitIds) {
+  try {
+    const { data, error } = await client
+      .from("visitor_invites")
+      .select("visit_id")
+      .in("visit_id", visitIds);
+
+    return new Set(
+      error || !Array.isArray(data)
+        ? []
+        : data.map((invite) => invite.visit_id),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 // Adds visitor email plus card number/type to visit rows. Only assignments
 // whose status is in `cardStatuses` count: the dashboard shows cards still
 // held, while history also shows cards that were returned.
@@ -21,6 +38,7 @@ export async function addVisitorDetails(
   const [
     visitsResult,
     assignmentsResult,
+    invitesResult,
   ] = await Promise.all([
     client
       .from("visits")
@@ -31,6 +49,10 @@ export async function addVisitorDetails(
       .from("visitor_card_assignments")
       .select("visit_id, card_id, status")
       .in("visit_id", visitIds),
+
+    // Visits booked through a visitor link. Only a display hint, so a
+    // failed lookup leaves the flag off rather than failing the list.
+    readBookedVisitIds(client, visitIds),
   ]);
 
   if (
@@ -94,6 +116,8 @@ export async function addVisitorDetails(
     );
   }
 
+  const bookedVisitIds = invitesResult;
+
   const visitsById = new Map(
     (visitsResult.data || []).map(
       (visit) => [visit.id, visit],
@@ -152,6 +176,11 @@ export async function addVisitorDetails(
       // Pre-registered through a meeting booking.
       bookedGuest: Boolean(
         visit?.booking_guest_id,
+      ),
+
+      // Booked by the visitor through a visitor link.
+      bookedVisit: bookedVisitIds.has(
+        visitor.visitId,
       ),
 
       visitorType:

@@ -51,6 +51,10 @@ const EXPECTED_REWRITES = [
     destination: "/api/meetings?operation=invite-cancel",
   },
   {
+    source: "/api/staff/bookings/visitors",
+    destination: "/api/meetings?operation=booked-list",
+  },
+  {
     source: "/api/staff/bookings/find",
     destination: "/api/meetings?operation=booking-find",
   },
