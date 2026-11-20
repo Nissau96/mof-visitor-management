@@ -526,6 +526,30 @@ test.describe(
         page.getByText("11 checked in · Tower 1"),
       ).toBeVisible();
 
+      // Reference first, then the Visit History columns, with an
+      // icon-only Action and no Check-out (everyone listed is inside).
+      if ((page.viewportSize()?.width ?? 1280) >= 1024) {
+        const checkedIn = page.getByRole("region", { name: "Checked-in visitors table" });
+
+        for (const column of ["Reference", "Visitor", "Organisation", "Contact", "Purpose", "Visiting", "Agency", "Date", "Check-in", "Card", "Status", "Action"]) {
+          await expect(
+            checkedIn.getByRole("columnheader", { exact: true, name: column }),
+          ).toBeVisible();
+        }
+
+        await expect(
+          checkedIn.getByRole("columnheader", { name: "Check-out" }),
+        ).toHaveCount(0);
+
+        // Only real emails show; there is no "No email" placeholder.
+        await expect(checkedIn.getByText("No email")).toHaveCount(0);
+
+        // The check-out button is an icon; its name stays for screen readers.
+        const checkout = checkedIn.getByRole("button", { name: /^Check out / }).first();
+        await expect(checkout).toBeVisible();
+        await expect(checkout).toHaveText("");
+      }
+
       await page.reload();
 
       await expect(

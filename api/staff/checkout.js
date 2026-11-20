@@ -816,6 +816,106 @@ async function addVisitorTypes(
   }
 }
 
+// The checked-in list and card incidents show the same visit columns
+// as Visit History, so each row gets its visit's purpose, destination,
+// meeting title and times. Display only: a failed lookup leaves the rows
+// as the RPC returned them.
+const VISIT_COLUMN_LISTS = Object.freeze({
+  "checked-in-list": "visitors",
+  "incident-list": "incidents",
+});
+
+async function addVisitColumns(
+  client,
+  operation,
+  data,
+) {
+  const key = VISIT_COLUMN_LISTS[operation];
+
+  if (
+    !key ||
+    !Array.isArray(data?.[key]) ||
+    data[key].length === 0
+  ) {
+    return data;
+  }
+
+  try {
+    const visitIds = [
+      ...new Set(
+        data[key]
+          .map((row) => row.visitId)
+          .filter(Boolean),
+      ),
+    ];
+
+    const { data: visits, error } = await client
+      .from("visits")
+      .select(
+        "id, purpose, person_visiting, destination_agency, destination_division, checked_in_at, checked_out_at, custom_meeting_title, meeting_id",
+      )
+      .in("id", visitIds);
+
+    if (error || !Array.isArray(visits)) {
+      return data;
+    }
+
+    const meetingIds = [
+      ...new Set(
+        visits
+          .map((visit) => visit.meeting_id)
+          .filter(Boolean),
+      ),
+    ];
+
+    let meetingTitles = new Map();
+
+    if (meetingIds.length) {
+      const meetings = await client
+        .from("meetings")
+        .select("id, title")
+        .in("id", meetingIds);
+
+      if (!meetings.error && Array.isArray(meetings.data)) {
+        meetingTitles = new Map(
+          meetings.data.map((meeting) => [meeting.id, meeting.title]),
+        );
+      }
+    }
+
+    const visitsById = new Map(
+      visits.map((visit) => [visit.id, visit]),
+    );
+
+    return {
+      ...data,
+      [key]: data[key].map((row) => {
+        const visit = visitsById.get(row.visitId);
+
+        if (!visit) {
+          return row;
+        }
+
+        return {
+          ...row,
+          agency: visit.destination_agency || "",
+          checkedInAt: visit.checked_in_at || null,
+          checkedOutAt: visit.checked_out_at || null,
+          division: visit.destination_division || "",
+          meetingTitle:
+            meetingTitles.get(visit.meeting_id) ||
+            visit.custom_meeting_title ||
+            "",
+          personVisiting: visit.person_visiting || "",
+          purpose: visit.purpose || row.purpose || "",
+        };
+      }),
+    };
+  } catch {
+    return data;
+  }
+}
+
 function createSuccessResponse(
   operation,
   data,
@@ -1001,10 +1101,14 @@ export function createCheckoutHandler({
 
         return createSuccessResponse(
           operation,
-          await addVisitorTypes(
+          await addVisitColumns(
             client,
             operation,
-            data,
+            await addVisitorTypes(
+              client,
+              operation,
+              data,
+            ),
           ),
         );
       } catch (error) {

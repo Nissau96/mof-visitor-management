@@ -94,16 +94,72 @@ const CHECKED_IN = [
   },
 ];
 
+// Today's check-outs, as the visit history API returns them.
+const CHECKED_OUT = [
+  {
+    agency: "Ministry of Finance (MoF)",
+    cardNumber: "MOF-V140",
+    cardStatus: "returned",
+    checkedInAt: iso(-5),
+    checkedOutAt: iso(-1),
+    division: "Budget Office",
+    email: "synthetic.left@example.com",
+    fullName: "Synthetic Departed Visitor",
+    meetingTitle: "",
+    organization: "Synthetic Consulting",
+    personVisiting: "Synthetic Host",
+    phone: "+233200000011",
+    purpose: "Official",
+    reference: "VIS-OUT001",
+    status: "checked_out",
+    tower: "tower_1",
+    visitId: "00000000-0000-4000-8000-000000000401",
+    visitorType: "regular",
+  },
+  {
+    agency: "Ghana Investment Promotion Centre (GIPC)",
+    cardNumber: null,
+    cardStatus: null,
+    checkedInAt: iso(-3),
+    checkedOutAt: iso(-2),
+    division: "",
+    email: null,
+    fullName: "Synthetic Cardless Departure",
+    meetingTitle: "",
+    organization: "",
+    personVisiting: "Synthetic Host",
+    phone: "+233200000012",
+    purpose: "Follow up",
+    reference: "VIS-OUT002",
+    status: "checked_out",
+    tower: "tower_1",
+    visitId: "00000000-0000-4000-8000-000000000402",
+    visitorType: null,
+  },
+];
+
+// Every check-out ever, for the count under the Checked-out list.
+const CHECKED_OUT_TOTAL = 1234;
+
 const INCIDENTS = [
   {
     assignedOfficer: null,
     canReprint: false,
     canResolve: false,
     canStartInvestigation: true,
+    // Visit fields the API adds so incidents match Visit History.
+    agency: "Ghana Investment Promotion Centre (GIPC)",
     cardNumber: "MOF-V102",
+    checkedInAt: iso(-74),
+    checkedOutAt: null,
+    division: "",
     email: "synthetic.overdue@example.com",
     fullName: "Synthetic Overdue Visitor",
     incidentId: "00000000-0000-4000-8000-000000000301",
+    organization: "Synthetic Traders",
+    personVisiting: "Synthetic Host",
+    phone: "+233200000002",
+    referenceCode: "VIS-CHK002",
     incidentStatus: "open",
     openedReason: "overdue",
     overdueSince: iso(-50),
@@ -114,7 +170,7 @@ const INCIDENTS = [
   },
 ];
 
-async function installMockCardsApi(browserPage) {
+async function installMockCardsApi(browserPage, state = { history: [] }) {
   const fulfil = (body) => async (route) => {
     if (route.request().method() !== "POST") {
       await route.fallback();
@@ -151,6 +207,31 @@ async function installMockCardsApi(browserPage) {
       pagination: page(INCIDENTS.length),
     }),
   );
+
+  // Checked-out visitors come from the visit history API: today's
+  // check-outs when a date is sent, otherwise every check-out.
+  await browserPage.route("**/api/staff/history", async (route) => {
+    const body = route.request().postDataJSON();
+    state.history.push(body);
+
+    const today = Boolean(body.dateFrom);
+
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        generatedAt: NOW.toISOString(),
+        pagination: {
+          page: 1,
+          pageSize: body.pageSize,
+          totalCount: today ? CHECKED_OUT.length : CHECKED_OUT_TOTAL,
+          totalPages: 1,
+        },
+        towerScope: body.tower || null,
+        visits: today ? CHECKED_OUT.slice(0, body.pageSize) : [],
+      },
+      status: 200,
+    });
+  });
 
   await browserPage.route(
     "**/api/staff/cards/checked-in-count",
@@ -189,14 +270,6 @@ async function expectNoHorizontalOverflow(browserPage) {
   ).toBe(false);
 }
 
-// The page opens on Checked-in when anyone is checked in, as in the
-// default mock; tests about admissions switch to Pending first.
-async function openPendingTab(browserPage) {
-  await browserPage
-    .getByRole("tab", { name: /Pending admissions/ })
-    .click();
-}
-
 test.describe("visitor cards page", () => {
   test("shows stat cards and all three views without accessibility or overflow problems", async ({
     page: browserPage,
@@ -205,7 +278,8 @@ test.describe("visitor cards page", () => {
       fullName: "Synthetic Administrator",
       role: "admin",
     });
-    await installMockCardsApi(browserPage);
+    const state = { history: [] };
+    await installMockCardsApi(browserPage, state);
 
     await signInAsStaff(browserPage, {
       destination: "/staff/cards",
@@ -217,13 +291,18 @@ test.describe("visitor cards page", () => {
       }),
     ).toBeVisible();
 
+    // Pending admissions live on the Dashboard only.
+    await expect(
+      browserPage.getByRole("tab", { name: /Pending/ }),
+    ).toHaveCount(0);
+
     // Phones show compact cards (short label, no note); wider screens
     // show the full cards with notes.
     const phone =
       (browserPage.viewportSize()?.width ?? 1280) < 768;
 
     if (phone) {
-      for (const label of ["Pending", "Checked-in", "Incidents"]) {
+      for (const label of ["Checked-in", "Checked-out", "Incidents"]) {
         await expect(
           browserPage
             .getByLabel("Visitor-card statistics")
@@ -232,7 +311,7 @@ test.describe("visitor cards page", () => {
       }
     } else {
       await expect(
-        browserPage.getByText("Waiting at reception"),
+        browserPage.getByText("Checked out today"),
       ).toBeVisible();
       await expect(
         browserPage.getByText("1 awaiting a card"),
@@ -261,24 +340,12 @@ test.describe("visitor cards page", () => {
         .first(),
     ).toHaveText(/MOF-VIP101/);
 
-    await openPendingTab(browserPage);
-
+    // Kept cards move to incidents after a day; the tab says so.
     await expect(
-      visible("Synthetic Pending Visitor"),
+      browserPage.getByText(
+        "Cards not returned within 24 hours of check-in move to Card incidents.",
+      ),
     ).toBeVisible();
-    await expect(
-      visible("Pending admission"),
-    ).toBeVisible();
-    await expect(
-      visible("Guest of Synthetic Pending Visitor"),
-    ).toBeVisible();
-
-    await expectNoWcagViolations(browserPage);
-    await expectNoHorizontalOverflow(browserPage);
-
-    await browserPage
-      .getByRole("tab", { name: /Checked-in visitors/ })
-      .click();
 
     await expect(
       visible("Synthetic VIP Visitor"),
@@ -286,16 +353,74 @@ test.describe("visitor cards page", () => {
     await expect(
       visible("Synthetic Institution"),
     ).toBeVisible();
+    // A card kept past its return time reads as not returned.
     await expect(
-      visible("Not returned"),
+      visible("Card not returned"),
+    ).toBeVisible();
+
+    // The same columns as Visit History, with no action column:
+    // check-out happens on the Dashboard.
+    if (!phone) {
+      const checkedInTable = browserPage.getByRole("region", { name: "Checked-in visitors table" });
+
+      for (const column of ["Visitor", "Organisation", "Contact", "Purpose", "Visiting", "Agency", "Date", "Check-in", "Check-out", "Card", "Status"]) {
+        await expect(
+          checkedInTable.getByRole("columnheader", { exact: true, name: column }),
+        ).toBeVisible();
+      }
+
+      await expect(checkedInTable.getByRole("columnheader", { name: "Action" })).toHaveCount(0);
+
+      // Only real emails show; there is no "No email" placeholder.
+      await expect(checkedInTable.getByText("synthetic.overdue@example.com")).toBeVisible();
+      await expect(checkedInTable.getByText("No email")).toHaveCount(0);
+    }
+
+    await expect(
+      browserPage.getByRole("button", { name: /Check out/ }),
+    ).toHaveCount(0);
+
+    await expectNoWcagViolations(browserPage);
+    await expectNoHorizontalOverflow(browserPage);
+
+    // Checked-out: today's departures, newest first, with every
+    // check-out counted underneath.
+    await browserPage
+      .getByRole("tab", { name: /Checked-out visitors/ })
+      .click();
+
+    await expect(
+      visible("Synthetic Departed Visitor"),
     ).toBeVisible();
     await expect(
-      browserPage
-        .getByRole("button", {
-          name: "MOF-V102 requires incident action",
-        })
-        .filter({ visible: true }),
-    ).toBeDisabled();
+      visible("Checked out"),
+    ).toBeVisible();
+    await expect(
+      visible("None"),
+    ).toBeVisible();
+
+    if (!phone) {
+      const checkedOutTable = browserPage.getByRole("region", { name: "Checked-out visitors table" });
+
+      await expect(checkedOutTable.getByRole("columnheader", { exact: true, name: "Agency" })).toBeVisible();
+      await expect(checkedOutTable.getByRole("columnheader", { name: "Action" })).toHaveCount(0);
+    }
+    await expect(
+      browserPage.getByText("2 checked out today · 1,234 checked out in total"),
+    ).toBeVisible();
+
+    const todayRequest = state.history.find(
+      (body) => body.dateFrom && body.pageSize === 10,
+    );
+
+    expect(todayRequest).toMatchObject({
+      dateBasis: "check_out",
+      dateFrom: NOW.toISOString().slice(0, 10),
+      dateTo: NOW.toISOString().slice(0, 10),
+      direction: "desc",
+      sort: "date",
+      status: "checked_out",
+    });
 
     await expectNoWcagViolations(browserPage);
     await expectNoHorizontalOverflow(browserPage);
@@ -315,11 +440,25 @@ test.describe("visitor cards page", () => {
       visible("2 days overdue"),
     ).toBeVisible();
 
+    // The same columns as Visit History, plus Action.
+    if (!phone) {
+      const incidentsTable = browserPage.getByRole("region", { name: "Card incidents table" });
+
+      for (const column of ["Visitor", "Organisation", "Contact", "Purpose", "Visiting", "Agency", "Date", "Check-in", "Check-out", "Card", "Status", "Action"]) {
+        await expect(
+          incidentsTable.getByRole("columnheader", { exact: true, name: column }),
+        ).toBeVisible();
+      }
+
+      await expect(incidentsTable.getByText("VIS-CHK002")).toBeVisible();
+      await expect(incidentsTable.getByText("GIPC", { exact: true })).toBeVisible();
+    }
+
     await expectNoWcagViolations(browserPage);
     await expectNoHorizontalOverflow(browserPage);
   });
 
-  test("opens on pending admissions when nobody is checked in", async ({
+  test("opens on checked-in visitors even when nobody is checked in", async ({
     page: browserPage,
   }) => {
     await installMockStaffAuthentication(browserPage);
@@ -338,13 +477,10 @@ test.describe("visitor cards page", () => {
     await signInAsStaff(browserPage, { destination: "/staff/cards" });
 
     await expect(
-      browserPage.getByRole("tab", { name: /Pending admissions/ }),
+      browserPage.getByRole("tab", { name: /Checked-in visitors/ }),
     ).toHaveAttribute("aria-selected", "true");
     await expect(
-      browserPage
-        .getByText("Synthetic Pending Visitor", { exact: true })
-        .filter({ visible: true })
-        .first(),
+      browserPage.getByText("There are no checked-in visitors matching these filters."),
     ).toBeVisible();
   });
 
@@ -405,14 +541,15 @@ test.describe("visitor cards page", () => {
 
     await expect(
       browserPage
-        .getByRole("button", {
-          name: "No card was issued. Check this visitor out from the dashboard.",
-        })
-        .filter({ visible: true }),
-    ).toBeDisabled();
+        .getByText("Awaiting card", { exact: true })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
   });
 
-  test("finds a card as the receptionist types and admits the visitor", async ({
+  // Admitting moved to the Dashboard with the pending admissions list;
+  // it uses the same table and card dialog.
+  test("finds a card as the receptionist types and admits the visitor from the dashboard", async ({
     page: browserPage,
   }) => {
     const searches = [];
@@ -472,9 +609,8 @@ test.describe("visitor cards page", () => {
     );
 
     await signInAsStaff(browserPage, {
-      destination: "/staff/cards",
+      destination: "/staff",
     });
-    await openPendingTab(browserPage);
 
     await browserPage
       .getByRole("button", {
@@ -541,7 +677,7 @@ test.describe("visitor cards page", () => {
     ]);
   });
 
-  test("marks booked meeting guests and confirms the privacy notice before admitting them", async ({
+  test("marks booked meeting guests on the dashboard and confirms the privacy notice before admitting them", async ({
     page: browserPage,
   }) => {
     const admissions = [];
@@ -599,8 +735,7 @@ test.describe("visitor cards page", () => {
       });
     });
 
-    await signInAsStaff(browserPage, { destination: "/staff/cards" });
-    await openPendingTab(browserPage);
+    await signInAsStaff(browserPage, { destination: "/staff" });
 
     await expect(
       browserPage

@@ -46,6 +46,7 @@ import useAuth from "../hooks/useAuth.js";
 import useStaffNotifications from "../hooks/useStaffNotifications.js";
 import useWifiWaitingCount from "../hooks/useWifiWaitingCount.js";
 import SidebarBadge from "../components/SidebarBadge.jsx";
+import SiteCredit from "../components/SiteCredit.jsx";
 import {
   BADGE_TONES,
   NAV_BADGE_SOURCES,
@@ -941,7 +942,7 @@ export default function StaffLayout() {
         ) : null}
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:gap-4 print:block">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col lg:min-h-0 lg:gap-4 print:block print:min-h-0">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur lg:top-4 lg:rounded-3xl lg:border lg:shadow-sm print:hidden">
           <div className="flex min-h-20 items-center gap-3 px-4 sm:px-6">
             <button
@@ -1007,12 +1008,24 @@ export default function StaffLayout() {
         ) : null}
 
         <main
-          className={`flex-1 print:block ${showQuickActions ? "pb-24" : ""}`}
+          className="flex-1 print:block"
           id="staff-main-content"
           tabIndex="-1"
         >
           <Outlet />
         </main>
+
+        {/* On desktop this is a 64px row whose bottom edge meets the
+            sidebar's, level with the floating booking button (also 64px,
+            16px from the bottom). On phones the bottom padding keeps the
+            button clear of the line. */}
+        <footer
+          className={`px-4 pt-4 sm:px-6 lg:flex lg:min-h-16 lg:items-center lg:justify-center lg:px-0 lg:py-0 print:hidden ${
+            showQuickActions ? "pb-24" : "pb-6"
+          }`}
+        >
+          <SiteCredit />
+        </footer>
       </div>
 
       <Toaster />

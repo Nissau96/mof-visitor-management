@@ -14,6 +14,9 @@ const LABEL_CLASS =
  * - `labelHidden`: keeps the label for screen readers only.
  * - `labelledBy`: id of an existing label (e.g. from <Field>); no label
  *   is rendered then.
+ * - `TriggerView` / `TriggerStartIcon`: optional, passed to Plex to
+ *   change what the closed select shows (e.g. "Tower  Tower 2").
+ * - `listMinWidth`: optional minimum width of the open list.
  */
 export default function AppSelect({
   appearance = "field",
@@ -23,6 +26,7 @@ export default function AppSelect({
   id,
   invalid = false,
   label,
+  listMinWidth,
   labelClassName = LABEL_CLASS,
   labelHidden = false,
   labelledBy,
@@ -32,6 +36,8 @@ export default function AppSelect({
   placeholder = "Select an option",
   required = false,
   size,
+  TriggerStartIcon,
+  TriggerView,
   value,
 }) {
   const labelId = labelledBy || `${id}-label`;
@@ -54,6 +60,7 @@ export default function AppSelect({
         aria-labelledby={labelId}
         block
         disabled={disabled}
+        listMinWidth={listMinWidth}
         // No id/name: Plex would render a hidden input inside the trigger,
         // which axe flags as nested interactive content. The value lives in
         // React state / react-hook-form instead.
@@ -66,6 +73,8 @@ export default function AppSelect({
         placeholder={placeholder}
         required={required}
         size={size || (filter ? "2xl" : "3xl")}
+        TriggerStartIcon={TriggerStartIcon}
+        TriggerView={TriggerView}
         // contain-inline-size: a long choice is cut short with "…"
         // instead of stretching the form wider than the screen.
         triggerClassName={

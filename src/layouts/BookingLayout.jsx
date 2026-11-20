@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import SiteCredit from "../components/SiteCredit.jsx";
 import buildingBackground from "../assets/images/building-bg-soft.webp";
 import ministryLogo from "../assets/images/Asset-8.svg";
 import ErrorMessage from "../components/ErrorMessage.jsx";
@@ -409,9 +410,7 @@ export default function BookingLayout() {
       </main>
 
       <footer className="flex justify-center px-4 pb-6">
-        <p className="rounded-full bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur">
-          Ministry of Finance · Staff Portal
-        </p>
+        <SiteCredit className="rounded-3xl bg-white/80 px-5 py-2 shadow-sm backdrop-blur sm:rounded-full" />
       </footer>
 
       <Toaster />

@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "docs/design/VisitHistory.dc.html"
+    ],
     "ignoreValues": [
       {
         "rule": "design-system-font",
@@ -16,6 +18,26 @@
         "rule": "design-system-font",
         "value": "arial",
         "createdAt": "2026-11-19T18:50:01.003Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "plus jakarta sans",
+        "createdAt": "2026-11-20T12:27:24.545Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "menlo",
+        "createdAt": "2026-11-20T12:31:05.515Z"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-20T12:40:10.968Z"
+      },
+      {
+        "rule": "overused-font",
+        "value": "plus jakarta sans",
+        "createdAt": "2026-11-20T12:40:11.014Z"
       }
     ]
   }

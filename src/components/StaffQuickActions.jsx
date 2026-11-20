@@ -112,7 +112,7 @@ export default function StaffQuickActions({ accessToken, fullName = "", role, to
 
       {/* Only the button and open pills take clicks; the rest of this
           corner passes them through to the page. */}
-      <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 print:hidden [&>*]:pointer-events-auto">
+      <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6 lg:bottom-4 lg:right-4 print:hidden [&>*]:pointer-events-auto">
         {available.find ? (
           <div
             aria-label="Booking actions"

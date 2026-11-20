@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@azure/msal-browser": "^4.30.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
     "@hookform/resolvers": "^5.4.0",
     "@plexui/ui": "^0.19.1",
     "@supabase/supabase-js": "^2.110.7",

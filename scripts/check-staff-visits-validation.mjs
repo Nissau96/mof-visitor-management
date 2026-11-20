@@ -94,14 +94,28 @@ function verifyHistoryValidation() {
   assert.deepEqual(defaultResult.data, {
     agency: "",
     dateFrom: null,
+    dateBasis: "check_in",
     dateTo: null,
+    direction: "desc",
     division: "",
     page: 1,
     pageSize: 10,
+    purpose: "",
     search: "",
+    sort: "date",
     status: "",
     tower: "",
   });
+
+  assert.equal(
+    visitHistorySchema.safeParse({ sort: "phone" }).success,
+    false,
+  );
+
+  assert.equal(
+    visitHistorySchema.safeParse({ direction: "up" }).success,
+    false,
+  );
 
   const validResult =
     visitHistorySchema.safeParse({

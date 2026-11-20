@@ -33,6 +33,7 @@ import {
 } from "../lib/microsoftSignIn.js";
 import { wasSignedOutForInactivity } from "../lib/staffIdle.js";
 import { staffLoginSchema } from "../validation/staffLogin.js";
+import SiteCredit from "../components/SiteCredit.jsx";
 
 const inputClassName =
   "min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70";
@@ -226,7 +227,7 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-[#5f7a77] px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-[#5f7a77] px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
       <main className="grid w-full max-w-6xl overflow-hidden rounded-xl bg-white p-2 shadow-[0_24px_80px_-30px_rgba(0,0,0,0.4)] sm:p-3 lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr] lg:rounded-none">
         {/* Form panel */}
         <section
@@ -601,6 +602,10 @@ export default function StaffLoginPage() {
           </div>
         </aside>
       </main>
+
+      <footer>
+        <SiteCredit tone="dark" />
+      </footer>
     </div>
   );
 }

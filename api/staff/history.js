@@ -10,13 +10,16 @@ import {
 } from "../_lib/http.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { addVisitorDetails } from "../_lib/visitDetails.js";
-import { visitHistorySchema } from "../../src/validation/staffVisits.js";
+import {
+  HISTORY_EXPORT_LIMIT,
+  visitHistorySchema,
+} from "../../src/validation/staffVisits.js";
 
-function normalizePagination(pagination) {
+function normalizePagination(pagination, maxPageSize) {
   return {
     page: Number(pagination?.page) || 1,
     pageSize: Math.min(
-      10,
+      maxPageSize,
       Math.max(
         1,
         Number(pagination?.pageSize) || 10,
@@ -86,7 +89,20 @@ export default {
         );
       }
 
-      const filters = parsed.data;
+      // /api/staff/history/export returns every matching row (up to the
+      // export limit) for the CSV download; otherwise one page of ten.
+      const exporting =
+        new URL(request.url).searchParams.get(
+          "operation",
+        ) === "export";
+
+      const filters = exporting
+        ? {
+            ...parsed.data,
+            page: 1,
+            pageSize: HISTORY_EXPORT_LIMIT,
+          }
+        : parsed.data;
 
       const towerScope =
         requireStaffTowerScope(
@@ -103,11 +119,15 @@ export default {
             p_actor_id: profile.userId,
             p_agency: filters.agency,
             p_date_from: filters.dateFrom,
+            p_date_basis: filters.dateBasis,
             p_date_to: filters.dateTo,
+            p_direction: filters.direction,
             p_division: filters.division,
             p_page: filters.page,
             p_page_size: filters.pageSize,
+            p_purpose: filters.purpose,
             p_search: filters.search,
+            p_sort: filters.sort,
             p_status: filters.status,
             p_tower: towerScope,
           },
@@ -140,6 +160,7 @@ export default {
             data?.generatedAt || null,
           pagination: normalizePagination(
             data?.pagination,
+            exporting ? HISTORY_EXPORT_LIMIT : 10,
           ),
           staffRole:
             data?.staffRole || profile.role,

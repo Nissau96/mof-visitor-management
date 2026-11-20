@@ -31,7 +31,13 @@ import {
 import { getAccraIsoDate } from "../lib/accraDate.js";
 import AppSelect from "../components/AppSelect.jsx";
 import CheckoutConfirmDialog from "../components/CheckoutConfirmDialog.jsx";
-import CheckedInVisitorsTable from "../components/CheckedInVisitorsTable.jsx";
+import { TableActionButton } from "../components/CheckedInVisitorsTable.jsx";
+import VisitHistoryTable from "../components/history/VisitHistoryTable.jsx";
+import {
+  CheckedInCard,
+  CheckedInStatus,
+} from "../components/history/HistoryPills.jsx";
+import "../styles/visit-history.css";
 import BookingRequestsPanel from "../components/BookingRequestsPanel.jsx";
 import PendingAdmissionsTable from "../components/PendingAdmissionsTable.jsx";
 import { AssignVisitorCardModal } from "../components/VisitorCardActions.jsx";
@@ -145,44 +151,52 @@ function formatDateTime(value) {
   );
 }
 
-function getVisitContact(visitor) {
-  if (visitor.purpose === "Meeting") {
-    return visitor.meetingTitle || "Meeting";
-  }
-
-  return visitor.personVisiting || "";
+// Checked-in visitors use the Visit History columns (no Check-out:
+// they are still inside), plus a Check out action.
+function toCheckedInVisit(visitor) {
+  return {
+    ...visitor,
+    checkedOutAt: null,
+    source: visitor,
+    status: "checked_in",
+  };
 }
 
-// Maps a dashboard visitor to the shared checked-in table row.
-function toCheckedInRow(visitor) {
-  const notReturned =
-    visitor.cardStatus === "not_returned";
+// An icon button in the table, a full-width button on phone cards. A
+// card kept past its return time must go through Card incidents first.
+function CheckoutAction({ fullWidth, onCheckout, visitor }) {
+  const blocked = visitor.cardStatus === "not_returned";
+  const label = blocked
+    ? `${visitor.cardNumber || "This card"} requires incident action`
+    : `Check out ${visitor.fullName}`;
 
-  return {
-    canCheckout: !notReturned,
-    cardNumber: visitor.cardNumber || null,
-    cardStatus: visitor.cardStatus || null,
-    checkedInAt: visitor.checkedInAt,
-    checkoutBlockedReason: notReturned
-      ? `${visitor.cardNumber || "This card"} requires incident action`
-      : "",
-    destinationAgency: visitor.agency,
-    destinationDetail:
-      visitor.division ||
-      getVisitContact(visitor),
-    email: visitor.email || "",
-    fullName: visitor.fullName,
-    id: visitor.visitId,
-    organization: visitor.organization || "",
-    phone: visitor.phone || "",
-    purpose: visitor.purpose || "",
-    reference: visitor.reference,
-    source: visitor,
-    tower: visitor.tower,
-    visitorType: visitor.visitorType || null,
-    bookedGuest: Boolean(visitor.bookedGuest),
-    bookedVisit: Boolean(visitor.bookedVisit),
-  };
+  if (fullWidth) {
+    return (
+      <TableActionButton
+        aria-label={label}
+        disabled={blocked}
+        fullWidth
+        icon={LogOut}
+        onClick={() => onCheckout(visitor)}
+        title={label}
+      >
+        Check out
+      </TableActionButton>
+    );
+  }
+
+  return (
+    <button
+      aria-label={label}
+      className="inline-grid size-11 place-items-center rounded-full bg-brand-800 text-[#ffffff] shadow-sm shadow-[#115e59]/20 transition hover:bg-brand-900 focus-visible:ring-4 focus-visible:ring-brand-200 motion-safe:active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+      disabled={blocked}
+      onClick={() => onCheckout(visitor)}
+      title={label}
+      type="button"
+    >
+      <LogOut aria-hidden="true" className="size-[18px]" strokeWidth={2.25} />
+    </button>
+  );
 }
 
 function normalizeDashboardResult(result) {
@@ -1746,10 +1760,26 @@ export default function StaffHomePage() {
                       title="No active visitors found"
                     />
                   ) : (
-                    <CheckedInVisitorsTable
-                      onCheckout={openCheckout}
-                      rows={dashboard.visitors.map(toCheckedInRow)}
-                    />
+                    <div className="vh">
+                      <VisitHistoryTable
+                        avatars
+                        iconAction
+                        label="Checked-in visitors"
+                        noteMissingEmail={false}
+                        omitColumns={["out"]}
+                        referenceColumn
+                        renderAction={(visit, { fullWidth }) => (
+                          <CheckoutAction
+                            fullWidth={fullWidth}
+                            onCheckout={openCheckout}
+                            visitor={visit.source}
+                          />
+                        )}
+                        renderCard={(visit) => <CheckedInCard visit={visit} />}
+                        renderStatus={(visit) => <CheckedInStatus visit={visit} />}
+                        visits={dashboard.visitors.map(toCheckedInVisit)}
+                      />
+                    </div>
                   )}
 
                   <TableFooter

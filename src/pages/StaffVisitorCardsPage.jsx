@@ -3,13 +3,14 @@ import {
   ChevronRight,
   CircleCheck,
   CreditCard,
+  Info,
+  LogOut,
   RefreshCw,
   Search,
   ShieldAlert,
   ShieldCheck,
   TriangleAlert,
   UserCheck,
-  UserPlus,
   X,
 } from "lucide-react";
 import {
@@ -17,52 +18,46 @@ import {
   useMemo,
   useState,
 } from "react";
-import {
-  AssignVisitorCardModal,
-  CheckoutVisitorModal,
-  IncidentManagementModal,
-} from "../components/VisitorCardActions.jsx";
+import { IncidentManagementModal } from "../components/VisitorCardActions.jsx";
 import AppSelect from "../components/AppSelect.jsx";
 import SegmentedButton from "../components/SegmentedButton.jsx";
 import StatCard from "../components/StatCard.jsx";
-import CheckedInVisitorsTable, {
-  ContactDetails,
-  PurposePill,
-  TableHead,
-  TowerPill,
-  VisitorName,
-} from "../components/CheckedInVisitorsTable.jsx";
-import PendingAdmissionsTable, {
-  MobileCardHeader,
-  MobileDetail,
-  StatusPill,
-} from "../components/PendingAdmissionsTable.jsx";
-import { toVisitorRow } from "../lib/cardVisitorRow.js";
+import VisitHistoryTable from "../components/history/VisitHistoryTable.jsx";
+import {
+  CardPill,
+  CheckedInCard,
+  CheckedInStatus,
+} from "../components/history/HistoryPills.jsx";
+import "../styles/visit-history.css";
+import { StatusPill } from "../components/PendingAdmissionsTable.jsx";
 import { getTowerLabel } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { ApiError, apiRequest } from "../lib/api.js";
 import {
   getCheckedInCardVisitors,
   getCheckedInVisitorCount,
-  getPendingAdmissions,
+  getCheckedOutVisitors,
   getVisitorCardIncidents,
 } from "../lib/visitorCardApi.js";
+import { accraToday } from "../lib/visitHistory.js";
 import { toast } from "../lib/toast.js";
 import { ADMISSIONS_CHANGED_EVENT } from "../components/FindBookingDialog.jsx";
 
 const PAGE_SIZE = 10;
 const DAY_MS = 86_400_000;
 
+// Pending admissions live on the Dashboard only; this page follows a
+// card from check-in to check-out, and to an incident if it is kept.
 const RECEPTION_TABS = Object.freeze([
-  Object.freeze({
-    id: "pending",
-    label: "Pending admissions",
-    shortLabel: "Pending",
-  }),
   Object.freeze({
     id: "checked-in",
     label: "Checked-in visitors",
     shortLabel: "Checked-in",
+  }),
+  Object.freeze({
+    id: "checked-out",
+    label: "Checked-out visitors",
+    shortLabel: "Checked-out",
   }),
   Object.freeze({
     id: "incidents",
@@ -98,8 +93,9 @@ const EMPTY_SUMMARY = Object.freeze({
   awaitingCard: null,
   checkedIn: null,
   firstOpenCard: "",
+  checkedOut: null,
+  checkedOutTotal: null,
   openIncidents: null,
-  pending: null,
 });
 
 const dateTimeFormatter =
@@ -108,30 +104,6 @@ const dateTimeFormatter =
     timeStyle: "short",
     timeZone: "Africa/Accra",
   });
-
-const overdueFormatter =
-  new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    month: "short",
-    timeZone: "Africa/Accra",
-    year: "numeric",
-  });
-
-function formatWith(formatter, value) {
-  const date = new Date(value || "");
-
-  if (
-    !value ||
-    Number.isNaN(date.getTime())
-  ) {
-    return "Not available";
-  }
-
-  return formatter.format(date);
-}
 
 function formatStatus(value) {
   return String(value || "")
@@ -185,30 +157,30 @@ function getTotalCount(result) {
   ).totalCount;
 }
 
-function toCheckedInRow(record) {
+// Checked-in visitors use the Visit History columns. The API adds the
+// visit's meeting title, agency and division to each row.
+function toCheckedInVisit(record) {
   return {
-    ...toVisitorRow(record),
-    canCheckout: record.canCheckout === true,
+    agency: record.agency || record.destinationAgency || "",
+    bookedGuest: Boolean(record.bookedGuest),
+    bookedVisit: Boolean(record.bookedVisit),
     cardNumber: record.cardNumber || null,
-    // "unassigned" rows have no card, so the shared table shows "Awaiting card".
-    cardStatus:
-      record.assignmentStatus === "unassigned"
-        ? null
-        : record.assignmentStatus || null,
-    checkedInAt: record.checkedInAt,
-    checkoutBlockedReason:
-      record.assignmentStatus === "unassigned"
-        ? "No card was issued. Check this visitor out from the dashboard."
-        : `${record.cardNumber || "This card"} requires incident action`,
-    destinationAgency:
-      record.destinationAgency || "",
-    destinationDetail:
-      record.destinationDivision ||
-      record.personVisiting ||
-      "",
-    id: record.visitId,
-    source: record,
+    cardStatus: record.assignmentStatus || null,
+    checkedInAt: record.checkedInAt || null,
+    checkedOutAt: null,
+    division: record.division || record.destinationDivision || "",
+    email: record.email || "",
+    fullName: record.fullName || "Unknown visitor",
+    meetingTitle: record.meetingTitle || "",
+    organization: record.organization || "",
+    personVisiting: record.personVisiting || "",
+    phone: record.phone || "",
+    purpose: record.purpose || "",
+    reference: record.referenceCode || "",
+    status: "checked_in",
     tower: record.tower,
+    visitId: record.visitId,
+    visitorType: record.visitorType || null,
   };
 }
 
@@ -216,6 +188,9 @@ const PILL_BUTTON =
   "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-sm font-bold transition focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed";
 
 const FILLED_BUTTON = `${PILL_BUTTON} bg-brand-800 text-white hover:bg-brand-900 disabled:bg-slate-200 disabled:text-slate-500`;
+
+const COMPACT_BUTTON =
+  "inline-flex min-h-10 max-w-full items-center justify-center whitespace-nowrap rounded-full bg-brand-800 px-3.5 text-[13px] font-bold text-white transition hover:bg-brand-900 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500";
 
 function IncidentStatusPill({ status }) {
   if (status === "resolved") {
@@ -239,59 +214,6 @@ function IncidentStatusPill({ status }) {
     >
       {formatStatus(status) || "Open"}
     </StatusPill>
-  );
-}
-
-function OfficerPill({ officer }) {
-  if (!officer?.fullName) {
-    return (
-      <span className="inline-flex whitespace-nowrap rounded-full border border-dashed border-slate-400 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-        Not assigned
-      </span>
-    );
-  }
-
-  return (
-    <span className="font-semibold text-slate-900">
-      {officer.fullName}
-    </span>
-  );
-}
-
-function OverdueSince({ value }) {
-  const days = getDaysOverdue(value);
-
-  return (
-    <div className="whitespace-nowrap">
-      <p className="font-bold text-red-700">
-        {formatWith(
-          overdueFormatter,
-          value,
-        )}
-      </p>
-      {days !== null ? (
-        <p className="text-xs font-semibold text-slate-600">
-          {days === 1
-            ? "1 day overdue"
-            : `${days} days overdue`}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function CardNumberStack({ record }) {
-  return (
-    <div className="grid justify-items-center gap-1">
-      <span className="inline-flex rounded-full px-2.5 py-0.5 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-300">
-        {record.cardNumber}
-      </span>
-      {record.openedReason ? (
-        <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-700">
-          {formatStatus(record.openedReason)}
-        </span>
-      ) : null}
-    </div>
   );
 }
 
@@ -339,8 +261,10 @@ function getIncidentAction(
   };
 }
 
+// `compact` fits the table's Action column: smaller, no icon.
 function IncidentActionButton({
   canManage,
+  compact = false,
   fullWidth = false,
   onManage,
   record,
@@ -353,18 +277,72 @@ function IncidentActionButton({
   return (
     <button
       aria-label={action.title}
-      className={`${FILLED_BUTTON} ${fullWidth ? "w-full" : ""}`}
+      className={
+        compact
+          ? COMPACT_BUTTON
+          : `${FILLED_BUTTON} ${fullWidth ? "w-full" : ""}`
+      }
       disabled={action.disabled}
       onClick={() => onManage(record)}
       title={action.title}
       type="button"
     >
-      <ShieldCheck
-        aria-hidden="true"
-        className="size-4"
-      />
+      {compact ? null : (
+        <ShieldCheck
+          aria-hidden="true"
+          className="size-4"
+        />
+      )}
       {action.label}
     </button>
+  );
+}
+
+// Incidents use the Visit History columns, plus Action. Each incident is
+// shaped like a visit row; the API adds the visit's purpose, destination
+// and times.
+function toIncidentVisit(record) {
+  return {
+    agency: record.agency || record.destinationAgency || "",
+    cardNumber: record.cardNumber || null,
+    cardStatus: record.assignmentStatus || record.cardStatus || "not_returned",
+    checkedInAt: record.checkedInAt || null,
+    checkedOutAt: record.checkedOutAt || null,
+    division: record.division || "",
+    email: record.email || "",
+    fullName: record.fullName,
+    meetingTitle: record.meetingTitle || "",
+    organization: record.organization || "",
+    personVisiting: record.personVisiting || "",
+    phone: record.phone || "",
+    purpose: record.purpose || "",
+    record,
+    reference: record.referenceCode || record.reference || record.cardNumber || "",
+    status: "checked_out",
+    tower: record.tower,
+    // Incidents are listed by incident, so the incident id keys the row.
+    visitId: record.incidentId,
+    visitorType: record.visitorType || null,
+  };
+}
+
+function IncidentState({ record }) {
+  const days = getDaysOverdue(record.overdueSince);
+
+  return (
+    <span className="vh-namestack vh-stack-start">
+      <IncidentStatusPill status={record.incidentStatus} />
+      {record.incidentStatus !== "resolved" && days !== null ? (
+        <span className="vh-subline">
+          {days === 1 ? "1 day overdue" : `${days} days overdue`}
+        </span>
+      ) : null}
+      {record.assignedOfficer?.fullName ? (
+        <span className="vh-subline" title={`Officer: ${record.assignedOfficer.fullName}`}>
+          {record.assignedOfficer.fullName}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -374,157 +352,28 @@ function CardIncidentsTable({
   records,
 }) {
   return (
-    <>
-      <div className="grid gap-4 p-4 md:grid-cols-2 lg:hidden">
-        {records.map((record) => {
-          const row = toVisitorRow(record);
-
-          return (
-            <article
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-              key={record.incidentId}
-            >
-              <MobileCardHeader
-                row={{ ...row, reference: "" }}
-              />
-
-              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <MobileDetail label="Card">
-                  <span className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex rounded-full px-2.5 py-0.5 font-mono text-xs font-bold text-brand-800 ring-1 ring-brand-300">
-                      {record.cardNumber}
-                    </span>
-                    <TowerPill tower={record.tower} />
-                  </span>
-                </MobileDetail>
-                <MobileDetail label="Overdue since">
-                  <OverdueSince
-                    value={record.overdueSince}
-                  />
-                </MobileDetail>
-                <MobileDetail label="Assigned officer">
-                  <OfficerPill
-                    officer={record.assignedOfficer}
-                  />
-                </MobileDetail>
-                <MobileDetail label="Purpose">
-                  <PurposePill
-                    purpose={row.purpose}
-                  />
-                </MobileDetail>
-                {row.phone || row.email ? (
-                  <MobileDetail
-                    label="Contact"
-                    wide
-                  >
-                    {[row.phone, row.email]
-                      .filter(Boolean)
-                      .map((value) => (
-                        <span
-                          className="block break-all"
-                          key={value}
-                        >
-                          {value}
-                        </span>
-                      ))}
-                  </MobileDetail>
-                ) : null}
-              </dl>
-
-              <div className="mb-4 mt-4">
-                <IncidentStatusPill
-                  status={record.incidentStatus}
-                />
-              </div>
-
-              <div className="mt-auto">
-                <IncidentActionButton
-                  canManage={canManage}
-                  fullWidth
-                  onManage={onManage}
-                  record={record}
-                />
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-300 border-collapse text-center">
-          <TableHead
-            columns={[
-              "Card",
-              "Visitor",
-              "Contact details",
-              "Purpose",
-              "Tower",
-              "Overdue since",
-              "Incident status",
-              "Assigned officer",
-              "Action",
-            ]}
+    <div className="vh">
+      <VisitHistoryTable
+        label="Card incidents"
+        renderAction={(visit, { fullWidth }) => (
+          <IncidentActionButton
+            canManage={canManage}
+            compact={!fullWidth}
+            fullWidth={fullWidth}
+            onManage={onManage}
+            record={visit.record}
           />
-
-          <tbody className="divide-y divide-slate-200 bg-white text-sm">
-            {records.map((record) => {
-              const row = toVisitorRow(record);
-
-              return (
-                <tr
-                  className="align-middle transition hover:bg-slate-50"
-                  key={record.incidentId}
-                >
-                  <td className="whitespace-nowrap px-4 py-4">
-                    <CardNumberStack record={record} />
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4">
-                    <VisitorName row={row} />
-                  </td>
-                  <td className="min-w-60 px-4 py-4">
-                    <ContactDetails
-                      email={row.email}
-                      organization={row.organization}
-                      phone={row.phone}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <PurposePill
-                      purpose={row.purpose}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <TowerPill tower={record.tower} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <OverdueSince
-                      value={record.overdueSince}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <IncidentStatusPill
-                      status={record.incidentStatus}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <OfficerPill
-                      officer={record.assignedOfficer}
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <IncidentActionButton
-                      canManage={canManage}
-                      onManage={onManage}
-                      record={record}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
+        )}
+        renderCard={(visit) => (
+          <CardPill
+            kept={visit.record.incidentStatus !== "resolved"}
+            visit={visit}
+          />
+        )}
+        renderStatus={(visit) => <IncidentState record={visit.record} />}
+        visits={records.map(toIncidentVisit)}
+      />
+    </div>
   );
 }
 
@@ -532,10 +381,10 @@ function TableEmptyState({ activeTab }) {
   const message = {
     "checked-in":
       "There are no checked-in visitors matching these filters.",
+    "checked-out":
+      "Nobody has checked out today, or no one matches this search.",
     incidents:
       "There are no visitor-card incidents matching these filters.",
-    pending:
-      "There are no pending admissions matching this search.",
   }[activeTab];
 
   return (
@@ -555,30 +404,42 @@ function TableEmptyState({ activeTab }) {
   );
 }
 
+// `noun` names what is counted ("entries" by default); `note` adds a
+// second figure after it, such as every check-out ever.
 function Pagination({
+  noun,
+  note,
   onPageChange,
   pagination,
 }) {
+  const counted = noun
+    ? `${pagination.totalCount} ${noun}`
+    : `${pagination.totalCount} ${pagination.totalCount === 1 ? "entry" : "entries"}`;
+
+  const summary = (
+    <p className="text-sm tabular-nums text-slate-600">
+      {pagination.totalPages > 1
+        ? `Page ${pagination.page} of ${pagination.totalPages} · `
+        : ""}
+      {counted}
+      {note ? (
+        <>
+          {" · "}
+          <span className="font-semibold text-slate-800">{note}</span>
+        </>
+      ) : null}
+    </p>
+  );
+
   if (
     pagination.totalPages <= 1
   ) {
-    return (
-      <p className="text-sm text-slate-600">
-        {pagination.totalCount}{" "}
-        {pagination.totalCount === 1
-          ? "entry"
-          : "entries"}
-      </p>
-    );
+    return summary;
   }
 
   return (
     <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-      <p className="text-sm text-slate-600">
-        Page {pagination.page} of{" "}
-        {pagination.totalPages} ·{" "}
-        {pagination.totalCount} entries
-      </p>
+      {summary}
 
       <div className="flex items-center gap-2">
         <button aria-label="Previous page" className="inline-flex size-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)} type="button">
@@ -634,14 +495,13 @@ export default function StaffVisitorCardsPage() {
     clientServiceHead,
   ]);
 
-  // Reception's first tab waits for the totals: Checked-in when anyone
-  // is checked in, otherwise Pending. It is chosen once, so the page
-  // never switches tab on its own later.
+  // Reception always opens on Checked-in; Unit Heads only have
+  // Card incidents.
   const [activeTab, setActiveTab] =
     useState(
       clientServiceHead
         ? "incidents"
-        : null,
+        : "checked-in",
     );
 
   const [rows, setRows] =
@@ -721,18 +581,30 @@ export default function StaffVisitorCardsPage() {
 
     async function loadSummary() {
       const [
-        pendingResult,
+        checkedOutResult,
+        checkedOutTotalResult,
         checkedInResult,
         incidentResult,
         dashboardResult,
       ] = await Promise.all([
         showsReception
           ? settle(
-              getPendingAdmissions({
+              getCheckedOutVisitors({
+                accessToken,
+                date: accraToday(),
+                page: 1,
+                pageSize: 1,
+                signal,
+                tower: requestTower,
+              }),
+            )
+          : null,
+        showsReception
+          ? settle(
+              getCheckedOutVisitors({
                 accessToken,
                 page: 1,
                 pageSize: 1,
-                search: "",
                 signal,
                 tower: requestTower,
               }),
@@ -802,24 +674,17 @@ export default function StaffVisitorCardsPage() {
         dashboardResult?.cardAssignment
           ?.notAssigned;
 
-      const checkedInTotal = checkedInResult
-        ? getTotalCount(checkedInResult)
-        : 0;
-
-      if (showsReception) {
-        setActiveTab((current) =>
-          current ||
-          (checkedInTotal > 0
-            ? "checked-in"
-            : "pending"),
-        );
-      }
-
       setSummary({
         awaitingCard: Number.isInteger(
           notAssigned,
         )
           ? notAssigned
+          : null,
+        checkedOut: checkedOutResult
+          ? getTotalCount(checkedOutResult)
+          : null,
+        checkedOutTotal: checkedOutTotalResult
+          ? getTotalCount(checkedOutTotalResult)
           : null,
         checkedIn: !checkedInResult
           ? null
@@ -835,9 +700,6 @@ export default function StaffVisitorCardsPage() {
             ?.cardNumber || "",
         openIncidents: incidentResult
           ? getTotalCount(incidentResult)
-          : null,
-        pending: pendingResult
-          ? getTotalCount(pendingResult)
           : null,
       });
     }
@@ -871,10 +733,11 @@ export default function StaffVisitorCardsPage() {
         let result;
         let nextRows;
 
-        if (activeTab === "pending") {
+        if (activeTab === "checked-out") {
           result =
-            await getPendingAdmissions({
+            await getCheckedOutVisitors({
               accessToken,
+              date: accraToday(),
               page,
               pageSize: PAGE_SIZE,
               search,
@@ -883,9 +746,9 @@ export default function StaffVisitorCardsPage() {
             });
 
           nextRows = Array.isArray(
-            result?.admissions,
+            result?.visits,
           )
-            ? result.admissions
+            ? result.visits
             : [];
         } else if (
           activeTab === "checked-in"
@@ -1070,21 +933,11 @@ export default function StaffVisitorCardsPage() {
 
   const tabCounts = {
     "checked-in": summary.checkedIn,
+    "checked-out": summary.checkedOut,
     incidents: summary.openIncidents,
-    pending: summary.pending,
   };
 
   const statCards = [
-    tabs.some((tab) => tab.id === "pending")
-      ? {
-          count: summary.pending,
-          icon: UserPlus,
-          id: "pending",
-          note: "Waiting at reception",
-          shortTitle: "Pending",
-          title: "Pending admissions",
-        }
-      : null,
     tabs.some(
       (tab) => tab.id === "checked-in",
     )
@@ -1115,6 +968,16 @@ export default function StaffVisitorCardsPage() {
             title: "Checked-in visitors",
           }
         : null,
+    tabs.some((tab) => tab.id === "checked-out")
+      ? {
+          count: summary.checkedOut,
+          icon: LogOut,
+          id: "checked-out",
+          note: "Checked out today",
+          shortTitle: "Checked-out",
+          title: "Checked-out visitors",
+        }
+      : null,
     canManageIncidents
       ? {
           count: summary.openIncidents,
@@ -1157,9 +1020,10 @@ export default function StaffVisitorCardsPage() {
           </h1>
 
           <p className="mt-3 max-w-3xl leading-7 text-slate-600">
-            Review visitor entries, assign physical
-            access cards and manage card-return
-            incidents.
+            Follow each visitor card from check-in
+            to check-out, and manage cards that were
+            not returned. Admit waiting visitors from
+            the Dashboard.
           </p>
         </div>
 
@@ -1426,6 +1290,13 @@ export default function StaffVisitorCardsPage() {
           </div>
         </div>
 
+        {activeTab === "checked-in" ? (
+          <p className="flex items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 sm:px-6">
+            <Info aria-hidden="true" className="size-4 shrink-0 text-brand-700" />
+            Cards not returned within 24 hours of check-in move to Card incidents.
+          </p>
+        ) : null}
+
         {requestError ? (
           <div className="border-t border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800" role="alert">
             {requestError}
@@ -1450,22 +1321,27 @@ export default function StaffVisitorCardsPage() {
           </div>
         ) : (
           <>
-            {activeTab === "pending" ? (
-              <PendingAdmissionsTable
-                onAssign={(record) =>
-                  openAction("assign", record)
-                }
-                records={rows}
-              />
+            {/* Checked-in and checked-out use the Visit History columns,
+                with no action column; check-out happens on the Dashboard. */}
+            {activeTab === "checked-out" ? (
+              <div className="vh">
+                <VisitHistoryTable
+                  label="Checked-out visitors"
+                  visits={rows}
+                />
+              </div>
             ) : null}
 
             {activeTab === "checked-in" ? (
-              <CheckedInVisitorsTable
-                onCheckout={(record) =>
-                  openAction("checkout", record)
-                }
-                rows={rows.map(toCheckedInRow)}
-              />
+              <div className="vh">
+                <VisitHistoryTable
+                  label="Checked-in visitors"
+                  noteMissingEmail={false}
+                  renderCard={(visit) => <CheckedInCard visit={visit} />}
+                  renderStatus={(visit) => <CheckedInStatus visit={visit} />}
+                  visits={rows.map(toCheckedInVisit)}
+                />
+              </div>
             ) : null}
 
             {activeTab === "incidents" ? (
@@ -1484,6 +1360,17 @@ export default function StaffVisitorCardsPage() {
 
         <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
           <Pagination
+            noun={
+              activeTab === "checked-out"
+                ? "checked out today"
+                : ""
+            }
+            note={
+              activeTab === "checked-out" &&
+              Number.isInteger(summary.checkedOutTotal)
+                ? `${summary.checkedOutTotal.toLocaleString("en-GB")} checked out in total`
+                : ""
+            }
             onPageChange={setPage}
             pagination={pagination}
           />
@@ -1508,14 +1395,6 @@ export default function StaffVisitorCardsPage() {
           </p>
         </div>
       </aside>
-
-      {actionTarget?.type === "assign" ? (
-        <AssignVisitorCardModal accessToken={accessToken} onClose={closeAction} onSuccess={completeAction} visitor={actionTarget.record} />
-      ) : null}
-
-      {actionTarget?.type === "checkout" ? (
-        <CheckoutVisitorModal accessToken={accessToken} onClose={closeAction} onSuccess={completeAction} visitor={actionTarget.record} />
-      ) : null}
 
       {actionTarget?.type === "incident" ? (
         <IncidentManagementModal accessToken={accessToken} incident={actionTarget.record} onClose={closeAction} onSuccess={completeAction} />

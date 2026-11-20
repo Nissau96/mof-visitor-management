@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import buildingBackground from "../assets/images/building-bg-soft.webp";
 import ministryLogo from "../assets/images/mof-logo.webp";
+import SiteCredit from "../components/SiteCredit.jsx";
 import {
   isKioskDevice,
   KIOSK_PATH,
@@ -68,14 +69,19 @@ export default function VisitorLayout() {
         <Outlet context={outletContext} />
       </main>
 
-      {showFooter ? (
-        <footer>
-          <div className="mx-auto grid w-full max-w-6xl gap-2 px-4 py-6 text-sm text-slate-700 sm:px-6 md:grid-cols-2 md:items-center lg:px-8">
-            <p>Visitor information is handled for access and security purposes.</p>
-            <p className="md:text-right">Use only on an authorised Ministry device or visitor link.</p>
-          </div>
+      {/* The credit line shows on every visitor page; the privacy notes
+          only where the page does not carry them in its own card. */}
+      {chromeHidden ? null : (
+        <footer className="mx-auto w-full max-w-6xl px-4 pb-6 sm:px-6 lg:px-8">
+          {showFooter ? (
+            <div className="grid gap-2 py-6 text-sm text-slate-700 md:grid-cols-2 md:items-center">
+              <p>Visitor information is handled for access and security purposes.</p>
+              <p className="md:text-right">Use only on an authorised Ministry device or visitor link.</p>
+            </div>
+          ) : null}
+          <SiteCredit className={showFooter ? "border-t border-slate-300/60 pt-4" : "pt-2"} />
         </footer>
-      ) : null}
+      )}
     </div>
   );
 }
