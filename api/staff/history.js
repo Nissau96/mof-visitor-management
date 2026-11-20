@@ -1,4 +1,6 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
+  recordAuditEvent,
   requireActiveStaff,
   requireStaffTowerScope,
 } from "../_lib/staffAuth.js";
@@ -60,7 +62,7 @@ function getHistoryDatabaseError(error) {
   );
 }
 
-export default {
+const handler = {
   async fetch(request) {
     if (request.method !== "POST") {
       return methodNotAllowed(["POST"]);
@@ -137,6 +139,27 @@ export default {
         throw getHistoryDatabaseError(error);
       }
 
+      if (exporting) {
+        // Exports are sensitive events. The search text can hold a
+        // visitor's name, so only whether one was used is kept.
+        await recordAuditEvent(client, {
+          action: "visit_history.exported",
+          actorId: profile.userId,
+          details: {
+            agency: filters.agency || undefined,
+            dateBasis: filters.dateBasis,
+            dateFrom: filters.dateFrom,
+            dateTo: filters.dateTo,
+            purpose: filters.purpose || undefined,
+            rows: Array.isArray(data?.visits) ? data.visits.length : 0,
+            searched: Boolean(filters.search),
+            status: filters.status || undefined,
+            tower: towerScope || undefined,
+          },
+          entityType: "export",
+        });
+      }
+
       // Returned and unreturned cards still identify the visit, so history
       // shows them; only cards never issued read as "Not assigned".
       const visits = await addVisitorDetails(
@@ -197,3 +220,5 @@ export default {
     }
   },
 };
+
+export default withAuditContext(handler);

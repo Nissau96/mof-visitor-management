@@ -1,3 +1,4 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import { randomInt } from "node:crypto";
 import process from "node:process";
 import {
@@ -417,4 +418,4 @@ export function createReturningVerifyHandler({
   };
 }
 
-export default createReturningVerifyHandler();
+export default withAuditContext(createReturningVerifyHandler());

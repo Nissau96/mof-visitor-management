@@ -1693,3 +1693,272 @@
 :root.dark .vh-softcard-alert .vh-cardnote {
   color: #fda4af;
 }
+
+/* ------------------------------------------------------------------ */
+/* Activity Log                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Category tints: icon tiles in the table, and the side panel theme. */
+.al-tone-teal { --t-bg: #e6f7f4; --t-fg: #0f766e; --t-strong: #0f766e; --t-dark: #115e59; --t-line: #ccfbf1; --t-accent: #5eead4; }
+.al-tone-amber { --t-bg: #fef3c7; --t-fg: #b45309; --t-strong: #b45309; --t-dark: #92400e; --t-line: #fde68a; --t-accent: #fcd34d; }
+.al-tone-blue { --t-bg: #eff6ff; --t-fg: #1d4ed8; --t-strong: #1d4ed8; --t-dark: #1e3a8a; --t-line: #bfdbfe; --t-accent: #93c5fd; }
+.al-tone-cyan { --t-bg: #ecfeff; --t-fg: #0e7490; --t-strong: #0e7490; --t-dark: #155e75; --t-line: #a5f3fc; --t-accent: #67e8f9; }
+.al-tone-indigo { --t-bg: #eef2ff; --t-fg: #4338ca; --t-strong: #4338ca; --t-dark: #312e81; --t-line: #c7d2fe; --t-accent: #a5b4fc; }
+.al-tone-purple { --t-bg: #f5f3ff; --t-fg: #6d28d9; --t-strong: #6d28d9; --t-dark: #4c1d95; --t-line: #ddd6fe; --t-accent: #c4b5fd; }
+.al-tone-rose { --t-bg: #fff1f2; --t-fg: #be123c; --t-strong: #be123c; --t-dark: #881337; --t-line: #fecdd3; --t-accent: #fda4af; }
+.al-tone-slate { --t-bg: #f1f5f9; --t-fg: #475569; --t-strong: #334155; --t-dark: #1e293b; --t-line: #e2e8f0; --t-accent: #94a3b8; }
+
+:root.dark .al-tone-teal { --t-bg: #0b2b29; --t-fg: #5eead4; --t-strong: #5eead4; --t-line: #134e4a; }
+:root.dark .al-tone-amber { --t-bg: #2a1d06; --t-fg: #fcd34d; --t-strong: #fcd34d; --t-line: #78350f; }
+:root.dark .al-tone-purple { --t-bg: #22163f; --t-fg: #c4b5fd; --t-strong: #c4b5fd; --t-line: #4c1d95; }
+:root.dark .al-tone-blue { --t-bg: #172554; --t-fg: #93c5fd; --t-strong: #93c5fd; --t-line: #1e3a8a; }
+:root.dark .al-tone-cyan { --t-bg: #083344; --t-fg: #67e8f9; --t-strong: #67e8f9; --t-line: #155e75; }
+:root.dark .al-tone-indigo { --t-bg: #1e1b4b; --t-fg: #a5b4fc; --t-strong: #a5b4fc; --t-line: #312e81; }
+:root.dark .al-tone-rose { --t-bg: #3b0a1a; --t-fg: #fda4af; --t-strong: #fda4af; --t-line: #881337; }
+:root.dark .al-tone-slate { --t-bg: #1a2436; --t-fg: #c3cbd7; --t-strong: #d8dee7; --t-line: #263247; }
+
+.al-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.al-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--t-bg);
+  color: var(--t-fg);
+}
+
+.al-action-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--vh-text);
+}
+
+.al-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--vh-muted);
+}
+
+.al-sensitive {
+  font-weight: 700;
+  color: #b45309;
+}
+
+:root.dark .al-sensitive {
+  color: #fcd34d;
+}
+
+.al-when {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.al-time {
+  font-weight: 700;
+  color: var(--vh-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A failed event: red bar on the row's leading edge. */
+.vh-table tbody tr.al-row-failed td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+.vh-status-failed {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.vh-status-failed .vh-dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 3px #fee2e2;
+}
+
+:root.dark .vh-status-failed {
+  color: #fca5a5;
+  background: #3b0a0a;
+  border-color: #7f1d1d;
+}
+
+.al-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.al-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 3px #d1fae5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .al-live-dot {
+    animation: al-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes al-pulse {
+  50% {
+    box-shadow: 0 0 0 5px rgb(16 185 129 / 0.15);
+  }
+}
+
+/* Side panel themed by category (--t-* from .al-tone-*). */
+.vh-drawer.al-drawer {
+  --c: var(--t-fg);
+  --c-dark: var(--t-dark);
+  --c-tint: var(--t-bg);
+  --c-line: var(--t-line);
+  --c-accent: var(--t-accent);
+  --c-ink: var(--t-strong);
+}
+
+.al-eyebrowless {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-ink);
+}
+
+.al-changes {
+  width: 100%;
+  margin-top: 6px;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--vh-line-soft);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.al-changes th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--vh-muted);
+  background: var(--vh-bar);
+}
+
+.al-changes td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--vh-line-soft);
+  color: var(--vh-text);
+  overflow-wrap: anywhere;
+}
+
+.al-before {
+  color: #be123c;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.al-after {
+  font-weight: 700;
+  color: #047857;
+}
+
+:root.dark .al-before {
+  color: #fda4af;
+}
+
+:root.dark .al-after {
+  color: #6ee7b7;
+}
+
+.al-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.al-grid .vh-cvalue {
+  font-size: 14px;
+}
+
+.vh-avatar-admin {
+  background: #115e59;
+  color: #ffffff;
+}
+
+.vh-avatar-muted {
+  background: var(--vh-head);
+  color: var(--vh-muted);
+}
+
+:root.dark .vh-avatar-admin {
+  background: #14b8a6;
+  color: #0b1220;
+}
+
+.vh-mcard.al-mcard-failed {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+/* Wide screens: search on its own row, the six filters on one row. */
+@media (min-width: 1024px) {
+  .al-filterbar .vh-search {
+    flex-basis: 100%;
+  }
+}
+
+/* Phone cards: the action shrinks, the result pill keeps its size. */
+.vh-mcard-top > .al-action {
+  flex: 1;
+  min-width: 0;
+}
+
+.vh-mcard-top > .vh-status {
+  flex-shrink: 0;
+}
+
+/* Dark amber/teal tags are light fills; dark text keeps contrast. */
+:root.dark .al-drawer .vh-tag {
+  color: #0b1220;
+}
+
+/* Grid items default to their content's width; let cards shrink. */
+.vh-cards > li,
+.vh-mcard {
+  min-width: 0;
+}
+
+/* Header wash per category (r, g, b of the tint). */
+.al-tone-teal { --t-rgb: 230, 247, 244; }
+.al-tone-amber { --t-rgb: 254, 243, 199; }
+.al-tone-blue { --t-rgb: 239, 246, 255; }
+.al-tone-cyan { --t-rgb: 236, 254, 255; }
+.al-tone-indigo { --t-rgb: 238, 242, 255; }
+.al-tone-purple { --t-rgb: 245, 243, 255; }
+.al-tone-rose { --t-rgb: 255, 241, 242; }
+.al-tone-slate { --t-rgb: 241, 245, 249; }
+
+.vh-drawer.al-drawer {
+  --c-rgb: var(--t-rgb);
+}
+
+/* Dark: keep the category theme over the drawer's teal default. */
+:root.dark .vh-drawer.al-drawer {
+  --c-tint: var(--t-bg);
+  --c-line: var(--t-line);
+  --c-ink: var(--t-strong);
+  --c-rgb: 17, 26, 43;
+}

@@ -1,4 +1,5 @@
 import process from "node:process";
+import { setAuditActor } from "./auditContext.js";
 import { createRemoteJWKSet, errors, jwtVerify } from "jose";
 import { HttpError } from "./http.js";
 
@@ -114,9 +115,13 @@ export async function verifyWorkEmailToken(
     );
   }
 
-  return {
+  const booker = {
     email,
     name: String(payload.name || email).trim().slice(0, 160) || email,
     oid,
   };
+
+  setAuditActor({ name: booker.name, role: "booker" });
+
+  return booker;
 }

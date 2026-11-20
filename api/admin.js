@@ -1,5 +1,7 @@
+import { withAuditContext } from "./_lib/auditContext.js";
+import { handleActivityExport, handleActivityList } from "./_lib/activityLog.js";
 import {
-  recordStaffAuditEvent,
+  recordAuditEvent,
   requireActiveStaff,
 } from "./_lib/staffAuth.js";
 import {
@@ -1314,6 +1316,13 @@ async function handleStaffUpdate(request) {
         : {}),
     };
 
+    // The activity log shows these as before/after changes.
+    const { data: before } = await adminClient
+      .from("staff_profiles")
+      .select("sign_in_method, is_nsp, access_expires_at")
+      .eq("user_id", parsed.data.userId)
+      .maybeSingle();
+
     const { data: updated, error: settingsError } =
       await adminClient
         .from("staff_profiles")
@@ -1332,9 +1341,11 @@ async function handleStaffUpdate(request) {
       );
     }
 
-    await recordStaffAuditEvent(adminClient, {
+    await recordAuditEvent(adminClient, {
       action: "staff_sign_in_settings_updated",
       actorId: profile.userId,
+      entityId: parsed.data.userId,
+      entityType: "staff",
       details: {
         accessExpiresAt:
           "access_expires_at" in changes
@@ -1343,6 +1354,13 @@ async function handleStaffUpdate(request) {
         isNsp: changes.is_nsp,
         signInMethod: changes.sign_in_method ?? undefined,
         staffUserId: parsed.data.userId,
+        changes: Object.keys(changes)
+          .filter((field) => before && before[field] !== changes[field])
+          .map((field) => ({
+            after: changes[field],
+            before: before[field],
+            field,
+          })),
       },
     });
   }
@@ -1647,6 +1665,8 @@ export async function handleEmailTest(
 }
 
 const OPERATION_HANDLERS = new Map([
+  ["activity-export", handleActivityExport],
+  ["activity-list", handleActivityList],
   ["email-test", handleEmailTest],
   [
     "card-create",
@@ -1749,4 +1769,4 @@ export function createAdminHandler({
   };
 }
 
-export default createAdminHandler();
+export default withAuditContext(createAdminHandler());

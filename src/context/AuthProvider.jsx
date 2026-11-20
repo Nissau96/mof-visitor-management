@@ -17,6 +17,7 @@ import {
   resetStaffActivity,
 } from "../lib/staffIdle.js";
 import { supabase } from "../lib/supabase.js";
+import { reportFailedSignIn, reportSignOut } from "../lib/activityEvents.js";
 import AuthContext from "./authContext.js";
 
 const ALLOWED_STAFF_ROLES = new Set([
@@ -527,6 +528,7 @@ export default function AuthProvider({ children }) {
       if (error || !data.session) {
         writeStoredTower("");
         takeFreshSignIn();
+        void reportFailedSignIn({ email, tower: normalizedTower });
 
         throw new Error(
           "The email address or password is incorrect.",
@@ -668,7 +670,13 @@ export default function AuthProvider({ children }) {
     ],
   );
 
-  const signOut = useCallback(async () => {
+  // reason ("manual" | "idle") is given only when the person signs out
+  // or goes idle; sign-outs after an expired session are not logged.
+  const signOut = useCallback(async ({ reason } = {}) => {
+    if (reason) {
+      await reportSignOut(reason);
+    }
+
     validationSequence.current += 1;
     writeStoredTower("");
     resetStaffActivity();

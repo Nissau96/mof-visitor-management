@@ -1,3 +1,4 @@
+import { withAuditContext } from "./_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -581,4 +582,4 @@ export function createRegisterHandler({
   };
 }
 
-export default createRegisterHandler();
+export default withAuditContext(createRegisterHandler());

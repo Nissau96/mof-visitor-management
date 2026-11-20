@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { setAuditActor } from "./auditContext.js";
 import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { HttpError } from "./http.js";
 import { getAdminClient } from "./supabase.js";
@@ -283,6 +284,45 @@ export function checkStaffNetwork(
   }
 }
 
+// Writes one audit_events row for the activity log. The database fills
+// in IP, device, tower and the actor's name and role. A failed write
+// never blocks the response; it is logged instead.
+export async function recordAuditEvent(
+  adminClient,
+  {
+    action,
+    actorId = null,
+    actorName = null,
+    actorRole = null,
+    details = {},
+    entityId = null,
+    entityType = "system",
+    result,
+  },
+) {
+  try {
+    const { error } = await adminClient.from("audit_events").insert({
+      action,
+      actor_id: actorId || null,
+      ...(actorName ? { actor_name: actorName } : {}),
+      ...(actorRole ? { actor_role: actorRole } : {}),
+      details,
+      entity_id: entityId ? String(entityId) : null,
+      entity_type: entityType,
+      ...(result ? { result } : {}),
+    });
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error("Audit event could not be recorded.", {
+      action,
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
 // Writes one audit_events row. A failed audit write never blocks or
 // changes the response; it is logged instead.
 export async function recordStaffAuditEvent(
@@ -552,6 +592,12 @@ async function checkStaffProfile({
       403,
     );
   }
+
+  setAuditActor({
+    id: profile.user_id,
+    name: profile.full_name,
+    role: profile.role,
+  });
 
   return {
     profile: {

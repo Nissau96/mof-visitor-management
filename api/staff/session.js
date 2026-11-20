@@ -1,3 +1,4 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -6,9 +7,14 @@ import {
 } from "../_lib/http.js";
 import {
   readSessionAuthentication,
+  recordAuditEvent,
   recordStaffAuditEvent,
   requireActiveStaff,
 } from "../_lib/staffAuth.js";
+import {
+  RateLimitExceededError,
+  enforceRateLimit,
+} from "../_lib/rateLimit.js";
 import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import {
   getAdminClient,
@@ -251,11 +257,108 @@ async function handleKioskDevices(
   );
 }
 
+// Failed sign-ins are reported by the browser (Supabase checks the
+// password there). Unauthenticated, so rate-limited per client.
+export const SIGN_IN_FAILED_RATE_LIMIT = Object.freeze({
+  limit: 20,
+  scope: "staff-sign-in-failed",
+  windowSeconds: 10 * 60,
+});
+
+const REPORT_NAME = /^[\w .,&()'/-]{1,80}$/;
+
+// POST /api/staff/session?event=… : events the browser reports for the
+// activity log. sign-in-failed is public; the rest need a staff session.
+async function handleClientEvent(
+  request,
+  event,
+  {
+    enforceRateLimitForRequest,
+    getAdminClientForRequest,
+    requireActiveStaffForRequest,
+  },
+) {
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+
+  const body = (await readJsonBody(request).catch(() => null)) || {};
+
+  if (event === "sign-in-failed") {
+    await enforceRateLimitForRequest(request, SIGN_IN_FAILED_RATE_LIMIT);
+
+    const email = String(body.email || "").trim().toLowerCase().slice(0, 254);
+
+    if (!/^[^\s@]+@[^\s@]+$/.test(email)) {
+      throw new HttpError("The sign-in report is invalid.", 400);
+    }
+
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "staff_sign_in_failed",
+      actorName: email,
+      actorRole: "staff",
+      details: {
+        email,
+        reportedBy: "browser",
+        tower: VISIT_TOWER_VALUES.includes(body.tower) ? body.tower : undefined,
+      },
+      entityType: "staff_session",
+      result: "failed",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  const { profile } = await requireActiveStaffForRequest(request, [], {
+    allowPasswordChangeRequired: true,
+    getAdminClientForRequest,
+  });
+
+  if (event === "signed-out") {
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "staff_signed_out",
+      actorId: profile.userId,
+      details: { reason: body.reason === "idle" ? "idle" : "manual" },
+      entityId: profile.userId,
+      entityType: "staff_session",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  if (event === "report-exported") {
+    const report = String(body.report || "").trim();
+    const format = body.format === "pdf" ? "pdf" : "csv";
+
+    if (!REPORT_NAME.test(report)) {
+      throw new HttpError("The export report is invalid.", 400);
+    }
+
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "report.exported",
+      actorId: profile.userId,
+      details: {
+        format,
+        period: typeof body.period === "string" ? body.period.slice(0, 60) : undefined,
+        report,
+        rows: Number.isInteger(body.rows) && body.rows >= 0 ? body.rows : undefined,
+      },
+      entityType: "export",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  throw new HttpError("Unknown session event.", 400);
+}
+
 export function createStaffSessionHandler({
   getAdminClientForRequest =
     getAdminClient,
   requireActiveStaffForRequest =
     requireActiveStaff,
+  enforceRateLimitForRequest =
+    enforceRateLimit,
 } = {}) {
   return {
     async fetch(request) {
@@ -282,6 +385,16 @@ export function createStaffSessionHandler({
           (searchParams.get("kiosks") === "1"
             ? "list"
             : null);
+
+        const clientEvent = searchParams.get("event");
+
+        if (clientEvent !== null) {
+          return await handleClientEvent(request, clientEvent, {
+            enforceRateLimitForRequest,
+            getAdminClientForRequest,
+            requireActiveStaffForRequest,
+          });
+        }
 
         if (kioskParameter !== null) {
           return await handleKioskDevices(
@@ -465,6 +578,16 @@ export function createStaffSessionHandler({
         const weeklyAccess =
           createWeeklyQrToken();
 
+        await recordAuditEvent(getAdminClientForRequest(), {
+          action: "weekly_qr.generated",
+          actorId: profile.userId,
+          details: {
+            validFrom: weeklyAccess.validFrom,
+            validThrough: weeklyAccess.validThrough,
+          },
+          entityType: "weekly_qr",
+        });
+
         return json(
           {
             weeklyQr: {
@@ -495,6 +618,10 @@ export function createStaffSessionHandler({
           200,
         );
       } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return json({ error: "Too many sign-in reports. Try again later." }, 429);
+        }
+
         if (error instanceof HttpError) {
           return json(
             {
@@ -543,4 +670,4 @@ export function createStaffSessionHandler({
   };
 }
 
-export default createStaffSessionHandler();
+export default withAuditContext(createStaffSessionHandler());

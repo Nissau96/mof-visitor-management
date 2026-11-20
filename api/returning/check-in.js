@@ -1,3 +1,4 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -246,4 +247,4 @@ export function createReturningCheckInHandler({
   };
 }
 
-export default createReturningCheckInHandler();
+export default withAuditContext(createReturningCheckInHandler());

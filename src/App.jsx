@@ -40,6 +40,9 @@ const AdminVisitorCardsPage = lazy(() =>
 const AdminStaffPage = lazy(() =>
   import("./pages/AdminStaffPage.jsx"),
 );
+const StaffActivityLogPage = lazy(() =>
+  import("./pages/StaffActivityLogPage.jsx"),
+);
 
 const NewVisitorPage = lazy(() =>
   import("./pages/NewVisitorPage.jsx"),
@@ -317,6 +320,11 @@ export default function App() {
               <Route
                 element={<AdminStaffPage />}
                 path="admin/staff"
+              />
+
+              <Route
+                element={<StaffActivityLogPage />}
+                path="admin/activity"
               />
             </Route>
 

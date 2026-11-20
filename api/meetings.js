@@ -1,3 +1,4 @@
+import { withAuditContext } from "./_lib/auditContext.js";
 import {
   RateLimitExceededError,
   enforceRateLimit,
@@ -10,6 +11,7 @@ import {
   readJsonBody,
 } from "./_lib/http.js";
 import {
+  recordAuditEvent,
   requireActiveStaff,
   requireStaffTowerScope,
 } from "./_lib/staffAuth.js";
@@ -504,11 +506,22 @@ const STAFF_OPERATIONS = Object.freeze({
     write: true,
   }),
   "wifi-secret": Object.freeze({
-    after: (data, values) => ({
-      expiresAt: data.expiresAt,
-      networkName: getWifiNetworkName(undefined, values.tower),
-      password: decryptWifiPassword(data.cipher),
-    }),
+    after: async (data, values, { actorId, client }) => {
+      // Showing a password is a sensitive event in the activity log.
+      await recordAuditEvent(client, {
+        action: "wifi.password_revealed",
+        actorId,
+        details: { entryType: values.type, tower: values.tower || undefined },
+        entityId: values.id,
+        entityType: values.type === "visit" ? "visit" : "meeting_booking_guest",
+      });
+
+      return {
+        expiresAt: data.expiresAt,
+        networkName: getWifiNetworkName(undefined, values.tower),
+        password: decryptWifiPassword(data.cipher),
+      };
+    },
     allowedRoles: WIFI_REVIEWER_ROLES,
     notFound: "This password has expired. Grant access again with a new password.",
     rpcName: "get_wifi_grant_secret",
@@ -1094,4 +1107,4 @@ export function createMeetingsHandler({
   };
 }
 
-export default createMeetingsHandler();
+export default withAuditContext(createMeetingsHandler());

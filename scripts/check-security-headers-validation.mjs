@@ -83,6 +83,14 @@ const EXPECTED_REWRITES = [
     destination: "/api/register?operation=invite-submit",
   },
   {
+    source: "/api/admin/activity/list",
+    destination: "/api/admin?operation=activity-list",
+  },
+  {
+    source: "/api/admin/activity/export",
+    destination: "/api/admin?operation=activity-export",
+  },
+  {
     source: "/api/admin/email/test",
     destination:
       "/api/admin?operation=email-test",

@@ -1,4 +1,5 @@
 import {
+  Activity,
   Archive,
   CalendarDays,
   Building2,
@@ -702,12 +703,12 @@ export default function StaffLayout() {
     setMobileOpen(false);
   }
 
-  async function handleSignOut() {
+  async function handleSignOut(reason = "manual") {
     setSignOutError("");
     setSigningOut(true);
 
     try {
-      await signOut();
+      await signOut({ reason });
     } catch (error) {
       setSignOutError(
         error instanceof Error && error.message
@@ -723,7 +724,7 @@ export default function StaffLayout() {
     enabled: Boolean(session),
     onExpire() {
       markIdleSignOut();
-      void handleSignOut();
+      void handleSignOut("idle");
     },
   });
 
@@ -921,6 +922,13 @@ export default function StaffLayout() {
                 onNavigate={closeMobile}
                 to="/staff/admin/staff"
               />
+              <SidebarLink
+                collapsed={collapsed}
+                icon={Activity}
+                label="Activity Log"
+                onNavigate={closeMobile}
+                to="/staff/admin/activity"
+              />
             </SidebarGroup>
           ) : null}
         </nav>
@@ -991,7 +999,7 @@ export default function StaffLayout() {
               ) : null}
 
             <UserMenu
-              onSignOut={handleSignOut}
+              onSignOut={() => void handleSignOut("manual")}
               profile={profile}
               signingOut={signingOut}
             />

@@ -1,3 +1,4 @@
+import { withAuditContext } from "./_lib/auditContext.js";
 import {
   RateLimitExceededError,
   enforceRateLimit,
@@ -107,4 +108,4 @@ export function createHostsHandler({
   };
 }
 
-export default createHostsHandler();
+export default withAuditContext(createHostsHandler());

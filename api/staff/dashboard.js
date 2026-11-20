@@ -1,3 +1,4 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -439,7 +440,7 @@ async function handleAnalytics(request) {
   }
 }
 
-export default {
+const handler = {
   async fetch(request) {
     if (request.method !== "POST") {
       return methodNotAllowed(["POST"]);
@@ -596,3 +597,5 @@ export default {
     }
   },
 };
+
+export default withAuditContext(handler);

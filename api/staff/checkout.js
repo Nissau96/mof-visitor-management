@@ -1,3 +1,4 @@
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
   requireActiveStaff,
   requireStaffTowerScope,
@@ -1159,4 +1160,4 @@ export function createCheckoutHandler({
   };
 }
 
-export default createCheckoutHandler();
+export default withAuditContext(createCheckoutHandler());
