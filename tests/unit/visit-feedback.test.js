@@ -3,8 +3,11 @@ import { summariseFeedback } from "../../api/_lib/visitFeedbackReport.js";
 import { createRegisterHandler } from "../../api/register.js";
 import { notify } from "../../src/server/notify.js";
 import {
+  createFeedbackCode,
   createFeedbackToken,
+  feedbackShortUrl,
   hashFeedbackToken,
+  isFeedbackCode,
   isFeedbackToken,
   requestVisitFeedback,
 } from "../../src/server/visitFeedback.js";
@@ -43,6 +46,21 @@ describe("feedback tokens", () => {
   });
 });
 
+describe("short feedback codes", () => {
+  it("are 8 characters without look-alikes and build the short link", () => {
+    const codes = new Set(Array.from({ length: 500 }, () => createFeedbackCode()));
+
+    expect(codes.size).toBe(500);
+    for (const code of codes) {
+      expect(isFeedbackCode(code)).toBe(true);
+      expect(code).not.toMatch(/[0O1Il]/);
+    }
+    expect(isFeedbackCode("K7pQ2xZ0")).toBe(false);
+    expect(feedbackShortUrl("K7pQ2xZm", {})).toBe("https://mofv.vercel.app/f/K7pQ2xZm");
+    expect(feedbackShortUrl("K7pQ2xZm", { FEEDBACK_SHORT_LINK_BASE: "https://mofv.gh/" })).toBe("https://mofv.gh/f/K7pQ2xZm");
+  });
+});
+
 describe("feedback request at check-out", () => {
   const now = () => new Date("2026-11-24T12:00:00Z");
 
@@ -61,9 +79,11 @@ describe("feedback request at check-out", () => {
     const saved = client.inserts[0];
     expect(saved.table).toBe("visit_feedback");
     expect(saved.row.expires_at).toBe("2026-12-01T12:00:00.000Z");
+    expect(isFeedbackCode(saved.row.short_code)).toBe(true);
     const call = notifyVisitor.mock.calls[0][0];
     expect(call).toMatchObject({ parameters: ["VIS-7F31A2"], purpose: "visit_feedback", referenceCode: "VIS-7F31A2" });
     expect(hashFeedbackToken(call.buttonParameters[0])).toBe(saved.row.token_hash);
+    expect(call.smsContext).toEqual({ shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}` });
   });
 
   it("skips visitors without a phone and visits already asked", async () => {
@@ -116,9 +136,39 @@ describe("feedback message", () => {
     });
   });
 
-  it("is WhatsApp only: no SMS when WhatsApp fails", async () => {
+  it("goes by SMS with the short link when WhatsApp is off, and not at all without a link", async () => {
     const recorder = { insert: vi.fn().mockResolvedValue("row-1"), update: vi.fn() };
-    const senders = { sms: vi.fn(), whatsapp: vi.fn().mockRejectedValue(new Error("refused")) };
+    const senders = { sms: vi.fn().mockResolvedValue({ provider: "arkesel", providerMessageId: "a1" }), whatsapp: vi.fn() };
+    const options = {
+      buttonParameters: ["tok"],
+      environment: { SMS_PROVIDER: "arkesel", WHATSAPP_PROVIDER: "off" },
+      logger: { error: vi.fn() },
+      parameters: ["VIS-7F31A2"],
+      phone: "+233241112233",
+      purpose: "visit_feedback",
+      recorder,
+      senders,
+    };
+
+    await expect(notify({ ...options, smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } })).resolves.toEqual({
+      channel: "sms",
+      status: "accepted",
+    });
+    expect(senders.sms.mock.calls[0][0].message).toBe(
+      "Ministry of Finance: thank you for your visit today (VIS-7F31A2). Rate your visit experience: https://mofv.vercel.app/f/K7pQ2xZm",
+    );
+    expect(senders.whatsapp).not.toHaveBeenCalled();
+
+    await expect(notify(options)).resolves.toEqual({ channel: null, status: "failed" });
+    expect(senders.sms).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to SMS when WhatsApp fails", async () => {
+    const recorder = { insert: vi.fn().mockResolvedValue("row-1"), update: vi.fn() };
+    const senders = {
+      sms: vi.fn().mockResolvedValue({ provider: "log", providerMessageId: null }),
+      whatsapp: vi.fn().mockRejectedValue(new Error("refused")),
+    };
 
     await expect(
       notify({
@@ -130,9 +180,10 @@ describe("feedback message", () => {
         purpose: "visit_feedback",
         recorder,
         senders,
+        smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" },
       }),
-    ).resolves.toEqual({ channel: null, status: "failed" });
-    expect(senders.sms).not.toHaveBeenCalled();
+    ).resolves.toEqual({ channel: "sms", status: "accepted" });
+    expect(senders.sms.mock.calls[0][0].message).toContain("https://mofv.vercel.app/f/K7pQ2xZm");
   });
 });
 
@@ -175,9 +226,15 @@ describe("public feedback endpoints", () => {
     const rpc = vi
       .fn()
       .mockResolvedValueOnce({ data: { reference: "VIS-7F31A2" }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: "55000" } })
       .mockResolvedValueOnce({ data: null, error: { code: "55000" } });
     const handler = handlerWith(
-      fakeClient({ rows: { visit_feedback: { expires_at: "2999-01-01T00:00:00Z", submitted_at: null, visit_id: "v1" } }, rpc }),
+      fakeClient({
+        rows: {
+          visit_feedback: { expires_at: "2999-01-01T00:00:00Z", submitted_at: null, token_hash: hashFeedbackToken(token), visit_id: "v1" },
+        },
+        rpc,
+      }),
     );
 
     const saved = await handler.fetch(post("feedback-submit", { comment: "Quick and friendly", rating: 5, token }));
@@ -191,6 +248,11 @@ describe("public feedback endpoints", () => {
       p_token_hash: hashFeedbackToken(token),
     });
     expect(again.status).toBe(410);
+
+    const byCode = await handler.fetch(post("feedback-submit", { code: "K7pQ2xZm", rating: 3 }));
+    expect(byCode.status).toBe(410);
+    expect(rpc).toHaveBeenLastCalledWith("submit_visit_feedback", expect.objectContaining({ p_token_hash: hashFeedbackToken(token) }));
+    expect((await handler.fetch(post("feedback-view", { code: "bad-code" }))).status).toBe(404);
     expect(bad.status).toBe(400);
   });
 });

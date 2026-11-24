@@ -329,6 +329,10 @@ const EXPECTED_REWRITES = [
     destination: "/index.html",
   },
   {
+    source: "/f/:path*",
+    destination: "/index.html",
+  },
+  {
     source: "/book/:path*",
     destination: "/index.html",
   },

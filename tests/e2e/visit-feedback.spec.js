@@ -37,6 +37,27 @@ test.describe("visitor feedback link", () => {
     expect(overflow).toBe(false);
   });
 
+  test("opens from the short SMS link and sends the code, not a token", async ({ page }) => {
+    const requests = [];
+
+    await page.route("**/api/feedback/view", async (route) => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({ json: { feedback: { reference: "VIS-7F31A2", status: "open" } } });
+    });
+    await page.route("**/api/feedback/submit", async (route) => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({ json: { saved: true }, status: 201 });
+    });
+
+    await page.goto("/f/K7pQ2xZm");
+    await expect(page.getByRole("heading", { level: 1, name: "How was your visit?" })).toBeVisible();
+    await page.getByRole("radio", { name: "5 stars, Excellent" }).locator("..").click();
+    await page.getByRole("button", { name: "Send feedback" }).click();
+    await expect(page.getByRole("heading", { name: "Thank you" })).toBeVisible();
+
+    expect(requests).toEqual([{ code: "K7pQ2xZm" }, { code: "K7pQ2xZm", comment: "", rating: 5 }]);
+  });
+
   test("explains an expired or unknown link", async ({ page }) => {
     await page.route("**/api/feedback/view", (route) =>
       route.fulfill({ json: { feedback: { reference: "VIS-7F31A2", status: "expired" } } }),

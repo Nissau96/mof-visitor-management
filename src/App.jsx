@@ -209,6 +209,7 @@ export default function App() {
 
         {/* Public: the link visitors get on WhatsApp after check-out. */}
         <Route element={<VisitorFeedbackPage />} path="feedback/:token" />
+        <Route element={<VisitorFeedbackPage />} path="f/:code" />
 
         <Route
           element={<MicrosoftSignInCallbackPage />}

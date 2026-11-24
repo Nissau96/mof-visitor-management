@@ -73,7 +73,10 @@ function StarRating({ onChange, value }) {
 }
 
 export default function VisitorFeedbackPage() {
-  const { token = "" } = useParams();
+  // /feedback/<token> from WhatsApp, /f/<code> from SMS.
+  const { code = "", token: linkToken = "" } = useParams();
+  const token = linkToken || code;
+  const keyField = linkToken ? "token" : "code";
   const [state, setState] = useState({ error: "", feedback: null, token: "" });
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -84,7 +87,7 @@ export default function VisitorFeedbackPage() {
     document.title = "Rate your visit · Ministry of Finance";
     let active = true;
 
-    apiRequest("/api/feedback/view", { body: JSON.stringify({ token }), method: "POST" })
+    apiRequest("/api/feedback/view", { body: JSON.stringify({ [keyField]: token }), method: "POST" })
       .then((response) => {
         if (active) {
           setState({ error: "", feedback: response.feedback, token });
@@ -99,7 +102,7 @@ export default function VisitorFeedbackPage() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [keyField, token]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -113,7 +116,7 @@ export default function VisitorFeedbackPage() {
 
     try {
       await apiRequest("/api/feedback/submit", {
-        body: JSON.stringify({ comment, rating, token }),
+        body: JSON.stringify({ comment, rating, [keyField]: token }),
         method: "POST",
       });
       setSubmit({ error: "", saving: false, saved: true });

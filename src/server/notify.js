@@ -27,10 +27,13 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
       `Ministry of Finance: reminder of your visit tomorrow, ${date} at ${time}. Show code ${code} at reception.`,
     template: "visit_reminder",
   },
-  // WhatsApp only, no SMS fallback: optional, and each SMS costs credit.
-  // The button parameter is the feedback link token.
+  // WhatsApp button carries the long token; the SMS carries the short
+  // link (smsContext.shortUrl), which hides the full site address.
   visit_feedback: {
-    sms: null,
+    sms: ([code], context = {}) =>
+      context.shortUrl
+        ? `Ministry of Finance: thank you for your visit today (${code}). Rate your visit experience: ${context.shortUrl}`
+        : null,
     template: "visit_feedback",
   },
   // SMS only: WhatsApp refuses a password in a Utility template (it is
@@ -161,7 +164,7 @@ export async function sendSmsFallback({
 }
 
 /**
- * notify({ purpose, phone, parameters, buttonParameters?, referenceCode?, meetingId? })
+ * notify({ purpose, phone, parameters, buttonParameters?, smsContext?, referenceCode?, meetingId? })
  * → { channel: "whatsapp" | "sms" | null, status: "accepted" | "failed" }
  */
 export async function notify({
@@ -175,8 +178,10 @@ export async function notify({
   recorder = createSupabaseRecorder(),
   referenceCode = null,
   senders = { sms: sendSms, whatsapp: sendWhatsappTemplate },
+  smsContext = {},
 }) {
   const definition = NOTIFICATION_PURPOSES[purpose];
+  const smsText = definition?.sms ? definition.sms(parameters, smsContext) : null;
 
   if (!definition || !phone) {
     return { channel: null, status: "failed" };
@@ -192,18 +197,16 @@ export async function notify({
 
   // WhatsApp switched off: SMS-capable messages go straight to SMS with
   // no failed WhatsApp row; WhatsApp-only messages are not sent.
-  if (definition.template && isWhatsappSwitchedOff(environment)) {
-    if (!definition.sms) {
+  if (!definition.template || isWhatsappSwitchedOff(environment)) {
+    if (!smsText) {
       return { channel: null, status: "failed" };
     }
-  }
 
-  if (!definition.template || isWhatsappSwitchedOff(environment)) {
     return sendSmsFallback({
       base,
       environment,
       logger,
-      message: definition.sms(parameters),
+      message: smsText,
       phone,
       recorder,
       sms: senders.sms,
@@ -252,7 +255,7 @@ export async function notify({
     );
   }
 
-  if (!definition.sms) {
+  if (!smsText) {
     return { channel: null, status: "failed" };
   }
 
@@ -261,7 +264,7 @@ export async function notify({
     environment,
     fallbackOf: whatsappRowId,
     logger,
-    message: definition.sms(parameters),
+    message: smsText,
     phone,
     recorder,
     sms: senders.sms,

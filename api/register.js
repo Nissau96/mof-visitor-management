@@ -29,7 +29,7 @@ import {
 import { hashInviteToken } from "../src/server/visitorInviteToken.js";
 import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
 import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
-import { hashFeedbackToken, isFeedbackToken } from "../src/server/visitFeedback.js";
+import { hashFeedbackToken, isFeedbackCode, isFeedbackToken } from "../src/server/visitFeedback.js";
 
 export const REGISTRATION_RATE_LIMIT =
   Object.freeze({
@@ -184,18 +184,21 @@ export const FEEDBACK_RATE_LIMIT = Object.freeze({
 
 const FEEDBACK_INVALID = "This feedback link is not valid.";
 
+// The WhatsApp link carries the long token; the SMS link carries the
+// 8-character short code. Either finds the same row.
 async function readFeedbackRow(request, getAdminClientForRequest) {
   const body = await readJsonBody(request);
+  const byToken = isFeedbackToken(body?.token);
 
-  if (!isFeedbackToken(body?.token)) {
+  if (!byToken && !isFeedbackCode(body?.code)) {
     throw new HttpError(FEEDBACK_INVALID, 404);
   }
 
   const client = getAdminClientForRequest();
   const { data, error } = await client
     .from("visit_feedback")
-    .select("visit_id, expires_at, submitted_at")
-    .eq("token_hash", hashFeedbackToken(body.token))
+    .select("visit_id, expires_at, submitted_at, token_hash")
+    .eq(byToken ? "token_hash" : "short_code", byToken ? hashFeedbackToken(body.token) : body.code)
     .maybeSingle();
 
   if (error) {
@@ -238,7 +241,7 @@ async function viewFeedback(request, { enforceRateLimitForRequest, getAdminClien
 async function submitFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
   await enforceRateLimitForRequest(request, FEEDBACK_RATE_LIMIT);
 
-  const { body, client } = await readFeedbackRow(request, getAdminClientForRequest);
+  const { body, client, row } = await readFeedbackRow(request, getAdminClientForRequest);
   const rating = Number(body?.rating);
   const comment = typeof body?.comment === "string" ? body.comment : "";
 
@@ -253,7 +256,7 @@ async function submitFeedback(request, { enforceRateLimitForRequest, getAdminCli
   const { error } = await client.rpc("submit_visit_feedback", {
     p_comment: comment,
     p_rating: rating,
-    p_token_hash: hashFeedbackToken(body.token),
+    p_token_hash: row.token_hash,
   });
 
   if (error?.code === "55000") {

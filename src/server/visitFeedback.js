@@ -8,7 +8,44 @@ import { notify } from "./notify.js";
 
 export const FEEDBACK_LINK_DAYS = 7;
 
+// Base of the short SMS link: <base>/f/<code>. A short address keeps the
+// full site address out of the message; the Ministry's own short domain
+// replaces it later through FEEDBACK_SHORT_LINK_BASE.
+export const DEFAULT_FEEDBACK_SHORT_LINK_BASE = "https://mofv.vercel.app";
+
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+// No 0, O, 1, I or l: codes are read off a phone screen.
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+const CODE_PATTERN = /^[A-HJ-NP-Za-km-z2-9]{8}$/;
+
+export function createFeedbackCode() {
+  let code = "";
+
+  // 228 = 4 x 57 (the alphabet size): rejecting bytes above it keeps
+  // every character equally likely.
+  while (code.length < 8) {
+    for (const byte of randomBytes(16)) {
+      if (code.length < 8 && byte < 228) {
+        code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+      }
+    }
+  }
+
+  return code;
+}
+
+export function isFeedbackCode(value) {
+  return CODE_PATTERN.test(String(value || ""));
+}
+
+export function feedbackShortUrl(code, environment = process.env) {
+  const base = String(environment.FEEDBACK_SHORT_LINK_BASE || DEFAULT_FEEDBACK_SHORT_LINK_BASE)
+    .trim()
+    .replace(/\/+$/, "");
+
+  return `${base}/f/${code}`;
+}
 
 export function createFeedbackToken() {
   const token = randomBytes(32).toString("base64url");
@@ -60,27 +97,40 @@ export async function requestVisitFeedback({
 
     const { hash, token } = createFeedbackToken();
     const expiresAt = new Date(now().getTime() + FEEDBACK_LINK_DAYS * 86_400_000);
+    let code = "";
 
-    // One request per visit: a second check-out attempt finds the row.
-    const { error } = await client.from("visit_feedback").insert({
-      expires_at: expiresAt.toISOString(),
-      token_hash: hash,
-      visit_id: visitId,
-    });
+    // One request per visit: a second check-out attempt finds the row. A
+    // clash on the short code (very unlikely) is retried with a new one.
+    for (let attempt = 0; attempt < 3 && !code; attempt += 1) {
+      const candidate = createFeedbackCode();
+      const { error } = await client.from("visit_feedback").insert({
+        expires_at: expiresAt.toISOString(),
+        short_code: candidate,
+        token_hash: hash,
+        visit_id: visitId,
+      });
 
-    if (error) {
-      return { reason: error.code === "23505" ? "already_requested" : "not_saved", sent: false };
+      if (!error) {
+        code = candidate;
+      } else if (error.code !== "23505" || !/short_code/.test(String(error.message || ""))) {
+        return { reason: error.code === "23505" ? "already_requested" : "not_saved", sent: false };
+      }
     }
 
-    const code = visit.reference_code || reference;
+    if (!code) {
+      return { reason: "not_saved", sent: false };
+    }
+
+    const visitReference = visit.reference_code || reference;
     const result = await notifyVisitor({
       buttonParameters: [token],
       environment,
       logger,
-      parameters: [code],
+      parameters: [visitReference],
       phone: profile.phone,
       purpose: "visit_feedback",
-      referenceCode: code,
+      referenceCode: visitReference,
+      smsContext: { shortUrl: feedbackShortUrl(code, environment) },
     });
 
     return { sent: result?.status === "accepted" };
