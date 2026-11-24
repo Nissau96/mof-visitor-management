@@ -186,6 +186,25 @@ describe("notify()", () => {
     expect(JSON.stringify(recorder.rows)).not.toContain("Volta-Cedar-4821");
   });
 
+  it("goes straight to SMS when WhatsApp is switched off", async () => {
+    const recorder = memoryRecorder();
+    const senders = {
+      sms: vi.fn().mockResolvedValue({ provider: "arkesel", providerMessageId: "ark-1" }),
+      whatsapp: vi.fn(),
+    };
+
+    await expect(
+      notify({ ...base, environment: { SMS_PROVIDER: "arkesel", WHATSAPP_PROVIDER: "off" }, recorder, senders }),
+    ).resolves.toEqual({ channel: "sms", status: "accepted" });
+    expect(senders.whatsapp).not.toHaveBeenCalled();
+    expect(recorder.rows.map((row) => [row.channel, row.fallback_of])).toEqual([["sms", null]]);
+
+    await expect(
+      notify({ ...base, buttonParameters: ["t"], environment: { WHATSAPP_PROVIDER: "off" }, purpose: "visit_feedback", recorder, senders }),
+    ).resolves.toEqual({ channel: null, status: "failed" });
+    expect(senders.whatsapp).not.toHaveBeenCalled();
+  });
+
   it("reports failure without throwing when nothing can send", async () => {
     const recorder = memoryRecorder();
     const senders = {

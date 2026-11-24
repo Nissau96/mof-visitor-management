@@ -1,6 +1,11 @@
 import process from "node:process";
 import { resolveSmsProvider, sendSms } from "./smsSender.js";
-import { WhatsappUnavailableError, resolveWhatsappProvider, sendWhatsappTemplate } from "./whatsappSender.js";
+import {
+  WhatsappUnavailableError,
+  isWhatsappSwitchedOff,
+  resolveWhatsappProvider,
+  sendWhatsappTemplate,
+} from "./whatsappSender.js";
 
 // Every visitor-facing WhatsApp or SMS message goes through notify():
 // WhatsApp first, SMS when WhatsApp refuses or is not set up. Each
@@ -185,7 +190,15 @@ export async function notify({
   };
   let whatsappRowId;
 
-  if (!definition.template) {
+  // WhatsApp switched off: SMS-capable messages go straight to SMS with
+  // no failed WhatsApp row; WhatsApp-only messages are not sent.
+  if (definition.template && isWhatsappSwitchedOff(environment)) {
+    if (!definition.sms) {
+      return { channel: null, status: "failed" };
+    }
+  }
+
+  if (!definition.template || isWhatsappSwitchedOff(environment)) {
     return sendSmsFallback({
       base,
       environment,

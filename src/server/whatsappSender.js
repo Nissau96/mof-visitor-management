@@ -125,12 +125,23 @@ const PROVIDERS = {
   },
 };
 
+// WHATSAPP_PROVIDER=off switches WhatsApp off everywhere (for example
+// while templates wait for Meta's approval): visitor messages go
+// straight to SMS, and WhatsApp-only messages are not sent.
+export function isWhatsappSwitchedOff(environment = process.env) {
+  return String(environment.WHATSAPP_PROVIDER || "").trim().toLowerCase() === "off";
+}
+
 export function resolveWhatsappProvider(environment = process.env) {
   const provider = String(environment.WHATSAPP_PROVIDER || "").trim().toLowerCase();
 
+  if (provider === "off") {
+    throw new WhatsappUnavailableError("WhatsApp is switched off (WHATSAPP_PROVIDER=off).");
+  }
+
   if (provider) {
     if (!PROVIDERS[provider]) {
-      throw new WhatsappUnavailableError("WHATSAPP_PROVIDER must be meta.");
+      throw new WhatsappUnavailableError("WHATSAPP_PROVIDER must be meta or off.");
     }
 
     return provider;
