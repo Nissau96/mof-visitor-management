@@ -64,7 +64,10 @@ describe("WiFi delivery", () => {
   });
 
   it("texts everyone with a number and emails everyone with an address", async () => {
-    const send = { email: vi.fn().mockResolvedValue(1), sms: vi.fn().mockResolvedValue(undefined) };
+    const send = {
+      email: vi.fn().mockResolvedValue(1),
+      phone: vi.fn().mockResolvedValue({ channel: "whatsapp", status: "accepted" }),
+    };
 
     const result = await deliverWifiCredentials({
       channels: ["sms", "email"],
@@ -72,10 +75,18 @@ describe("WiFi delivery", () => {
       expiresAt: "2026-11-19T23:59:59Z",
       password: "Volta-Cedar-4821",
       recipients,
+      referenceCode: "VIS-1A2B3C4D",
       send,
     });
 
-    expect(send.sms).toHaveBeenCalledTimes(2);
+    expect(send.phone).toHaveBeenCalledTimes(2);
+    expect(send.phone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parameters: ["MoF-Guest", "Volta-Cedar-4821", expect.stringContaining("11:59")],
+        purpose: "wifi_details",
+        referenceCode: "VIS-1A2B3C4D",
+      }),
+    );
     expect(send.email).toHaveBeenCalledWith([recipients[0]], expect.any(Object));
     expect(result).toEqual({ delivered: ["sms", "email"], problems: [] });
   });
@@ -83,7 +94,10 @@ describe("WiFi delivery", () => {
   it("reports what could not be sent", async () => {
     const send = {
       email: vi.fn().mockRejectedValue(new Error("SMTP down")),
-      sms: vi.fn().mockRejectedValueOnce(new Error("refused")).mockResolvedValue(undefined),
+      phone: vi
+        .fn()
+        .mockResolvedValueOnce({ channel: null, status: "failed" })
+        .mockResolvedValue({ channel: "sms", status: "accepted" }),
     };
 
     const result = await deliverWifiCredentials({

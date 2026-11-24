@@ -3,7 +3,7 @@ import "@fontsource/plus-jakarta-sans/latin-800.css";
 import "../styles/visit-history.css";
 
 import { CalendarX2, ChevronLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
@@ -146,6 +146,15 @@ export default function StaffVisitHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const accessToken = session?.access_token || "";
+  const loadMessages = useCallback(
+    (reference) =>
+      apiRequest("/api/staff/history/messages", {
+        body: JSON.stringify({ reference, tower }),
+        headers: { Authorization: `Bearer ${accessToken}` },
+        method: "POST",
+      }).then((response) => (Array.isArray(response?.messages) ? response.messages : [])),
+    [accessToken, tower],
+  );
   const administrator = profile.role === "admin";
   const today = accraToday();
 
@@ -617,7 +626,7 @@ export default function StaffVisitHistoryPage() {
         </div>
       </section>
 
-      {openVisit ? <VisitDetailDrawer onClose={closeDrawer} visit={openVisit} /> : null}
+      {openVisit ? <VisitDetailDrawer loadMessages={loadMessages} onClose={closeDrawer} visit={openVisit} /> : null}
     </div>
   );
 }

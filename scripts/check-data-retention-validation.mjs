@@ -313,8 +313,8 @@ const deployableFunctions =
 
 assert.equal(
   deployableFunctions.length,
-  10,
-  `Expected 10 deployable Vercel Functions, found ${deployableFunctions.length}.`,
+  11,
+  `Expected 11 deployable Vercel Functions, found ${deployableFunctions.length}.`,
 );
 
 assert.ok(

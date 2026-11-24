@@ -29,6 +29,7 @@ import {
 import { hashInviteToken } from "../src/server/visitorInviteToken.js";
 import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
 import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
+import { hashFeedbackToken, isFeedbackToken } from "../src/server/visitFeedback.js";
 
 export const REGISTRATION_RATE_LIMIT =
   Object.freeze({
@@ -173,7 +174,109 @@ async function submitInvite(
   );
 }
 
+// Feedback links come by WhatsApp after check-out; the token in the link
+// is the only key, so both operations are rate-limited per address.
+export const FEEDBACK_RATE_LIMIT = Object.freeze({
+  limit: 30,
+  scope: "visit-feedback",
+  windowSeconds: 10 * 60,
+});
+
+const FEEDBACK_INVALID = "This feedback link is not valid.";
+
+async function readFeedbackRow(request, getAdminClientForRequest) {
+  const body = await readJsonBody(request);
+
+  if (!isFeedbackToken(body?.token)) {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  const client = getAdminClientForRequest();
+  const { data, error } = await client
+    .from("visit_feedback")
+    .select("visit_id, expires_at, submitted_at")
+    .eq("token_hash", hashFeedbackToken(body.token))
+    .maybeSingle();
+
+  if (error) {
+    throw new HttpError("This feedback link could not be opened. Please try again.", 500);
+  }
+
+  if (!data) {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  return { body, client, row: data };
+}
+
+async function viewFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
+  await enforceRateLimitForRequest(request, FEEDBACK_RATE_LIMIT);
+
+  const { client, row } = await readFeedbackRow(request, getAdminClientForRequest);
+  const { data: visit } = await client
+    .from("visits")
+    .select("reference_code, checked_out_at")
+    .eq("id", row.visit_id)
+    .maybeSingle();
+
+  return json(
+    {
+      feedback: {
+        checkedOutAt: visit?.checked_out_at || null,
+        reference: visit?.reference_code || null,
+        status: row.submitted_at
+          ? "submitted"
+          : new Date(row.expires_at) < new Date()
+            ? "expired"
+            : "open",
+      },
+    },
+    200,
+  );
+}
+
+async function submitFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
+  await enforceRateLimitForRequest(request, FEEDBACK_RATE_LIMIT);
+
+  const { body, client } = await readFeedbackRow(request, getAdminClientForRequest);
+  const rating = Number(body?.rating);
+  const comment = typeof body?.comment === "string" ? body.comment : "";
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new HttpError("Choose a rating from 1 to 5 stars.", 400);
+  }
+
+  if (comment.length > 1000) {
+    throw new HttpError("Keep the comment under 1000 characters.", 400);
+  }
+
+  const { error } = await client.rpc("submit_visit_feedback", {
+    p_comment: comment,
+    p_rating: rating,
+    p_token_hash: hashFeedbackToken(body.token),
+  });
+
+  if (error?.code === "55000") {
+    throw new HttpError("This feedback link was already used or has expired.", 410);
+  }
+
+  if (error?.code === "P0002") {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  if (error) {
+    throw new HttpError(
+      error.code === "22023" ? error.message : "Your feedback could not be saved. Please try again.",
+      error.code === "22023" ? 400 : 500,
+    );
+  }
+
+  return json({ saved: true }, 201);
+}
+
 const INVITE_OPERATIONS = Object.freeze({
+  "feedback-submit": submitFeedback,
+  "feedback-view": viewFeedback,
   "invite-submit": submitInvite,
   "invite-view": viewInvite,
 });

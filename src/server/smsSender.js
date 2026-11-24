@@ -67,6 +67,12 @@ async function postJson(fetchImplementation, url, { body, headers }) {
   return response.json().catch(() => ({}));
 }
 
+function idFrom(value) {
+  const id = String(value ?? "").trim();
+
+  return id ? id.slice(0, 200) : null;
+}
+
 const PROVIDERS = {
   // Arkesel SMS API v2: api-key header, recipients in 233… form.
   async arkesel({ environment, fetchImplementation, message, phone }) {
@@ -86,6 +92,8 @@ const PROVIDERS = {
     if (result?.status && result.status !== "success") {
       throw new Error("Arkesel did not accept the message.");
     }
+
+    return { providerMessageId: idFrom(result?.data?.[0]?.id) };
   },
 
   // Hubtel SMS "send message": Basic auth with the client ID and secret.
@@ -95,7 +103,7 @@ const PROVIDERS = {
       "utf8",
     ).toString("base64");
 
-    await postJson(fetchImplementation, "https://smsc.hubtel.com/v1/messages/send", {
+    const result = await postJson(fetchImplementation, "https://smsc.hubtel.com/v1/messages/send", {
       body: {
         Content: message,
         From: senderId(environment),
@@ -103,6 +111,8 @@ const PROVIDERS = {
       },
       headers: { Authorization: `Basic ${credentials}` },
     });
+
+    return { providerMessageId: idFrom(result?.messageId) };
   },
 };
 
@@ -125,7 +135,8 @@ export function resolveSmsProvider(environment = process.env) {
 }
 
 // Any text message. Outside Production with no provider, it is
-// written to the server log instead.
+// written to the server log instead. Resolves to { provider,
+// providerMessageId } so the caller can record the message.
 export async function sendSms({
   environment = process.env,
   fetchImplementation = fetch,
@@ -137,10 +148,17 @@ export async function sendSms({
 
   if (provider === "log") {
     logger.info(`[sms:development] To ${phone}: ${message}`);
-    return;
+    return { provider, providerMessageId: null };
   }
 
-  await PROVIDERS[provider]({ environment, fetchImplementation, message, phone });
+  const { providerMessageId } = await PROVIDERS[provider]({
+    environment,
+    fetchImplementation,
+    message,
+    phone,
+  });
+
+  return { provider, providerMessageId };
 }
 
 export function sendVisitorCodeSms({ code, ...options }) {

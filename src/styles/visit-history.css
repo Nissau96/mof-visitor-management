@@ -1962,3 +1962,36 @@
   --c-ink: var(--t-strong);
   --c-rgb: 17, 26, 43;
 }
+
+/* ------------------------------------------------------------------ */
+/* Visit drawer: WhatsApp / SMS messages                                */
+/* ------------------------------------------------------------------ */
+
+.vh-msglist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vh-msgtime {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--vh-muted);
+}
+
+.vh-msg-delivered {
+  color: #047857;
+}
+
+.vh-msg-failed {
+  color: #b91c1c;
+}
+
+:root.dark .vh-msg-delivered {
+  color: #6ee7b7;
+}
+
+:root.dark .vh-msg-failed {
+  color: #fca5a5;
+}

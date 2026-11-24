@@ -7,7 +7,9 @@ import {
 } from "node:crypto";
 import process from "node:process";
 import nodemailer from "nodemailer";
-import { resolveSmsProvider, sendSms } from "./smsSender.js";
+import { notify } from "./notify.js";
+import { resolveSmsProvider } from "./smsSender.js";
+import { isWhatsappAvailable } from "./whatsappSender.js";
 import { escapeHtml, readSmtpConfiguration } from "./staffInvitation.js";
 
 // Guest Wi-Fi credentials. IT creates the password in the Wi-Fi system
@@ -93,6 +95,11 @@ export function isSmsAvailable(environment = process.env) {
   }
 }
 
+// Visitor messages go by WhatsApp first and SMS second; either is enough.
+export function isPhoneMessagingAvailable(environment = process.env) {
+  return isWhatsappAvailable(environment) || isSmsAvailable(environment);
+}
+
 export function isEmailAvailable() {
   try {
     readSmtpConfiguration();
@@ -129,7 +136,7 @@ export function formatWifiExpiry(expiresAt) {
 
 export function createWifiMessages({ expiresAt, networkName, password }) {
   const until = formatWifiExpiry(expiresAt);
-  const sms = `Ministry of Finance guest Wi-Fi. Network: ${networkName}. Password: ${password}. Valid until ${until}.`;
+  const sms = `Ministry of Finance guest Wi-Fi. SSID: ${networkName}. Credentials: ${password}. Valid until ${until}.`;
   const text = [
     "Your guest Wi-Fi access at the Ministry of Finance",
     "",
@@ -205,22 +212,24 @@ async function sendEmails(recipients, messages) {
   return sent;
 }
 
-// Sends by the chosen channels ("sms", "email"). Returns the channels
-// that reached at least one person, and a note for any that failed.
+// Sends by the chosen channels ("sms", "email"). Wi-Fi details go by SMS
+// only, through notify() so each one is logged (never by WhatsApp: the
+// password must not pass through Meta). Returns the channels that reached
+// at least one person, and a note for any that failed. referenceCode or
+// meetingId ties the delivery log to the visit.
 export async function deliverWifiCredentials({
   channels,
   environment = process.env,
   expiresAt,
   password,
   recipients,
-  send = { email: sendEmails, sms: sendSms },
+  meetingId = null,
+  referenceCode = null,
+  send = { email: sendEmails, phone: notify },
   tower = "",
 }) {
-  const messages = createWifiMessages({
-    expiresAt,
-    networkName: getWifiNetworkName(environment, tower),
-    password,
-  });
+  const networkName = getWifiNetworkName(environment, tower);
+  const messages = createWifiMessages({ expiresAt, networkName, password });
   const delivered = [];
   const problems = [];
 
@@ -230,8 +239,18 @@ export async function deliverWifiCredentials({
 
     for (const recipient of withPhone) {
       try {
-        await send.sms({ environment, message: messages.sms, phone: recipient.phone });
-        sent += 1;
+        const result = await send.phone({
+          environment,
+          meetingId,
+          parameters: [networkName, password, formatWifiExpiry(expiresAt)],
+          phone: recipient.phone,
+          purpose: "wifi_details",
+          referenceCode,
+        });
+
+        if (result?.status === "accepted") {
+          sent += 1;
+        }
       } catch {
         // Counted below.
       }

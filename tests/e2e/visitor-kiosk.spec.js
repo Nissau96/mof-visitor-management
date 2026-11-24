@@ -159,7 +159,7 @@ test.describe("reception kiosk", () => {
     await page.goto("/visit/new");
     await page.getByLabel("First name").fill("Synthetic");
     await page.getByLabel("Last name").fill("Visitor");
-    await page.getByLabel("Phone number").fill("024 111 2233");
+    await page.getByLabel("Phone/WhatsApp number").fill("024 111 2233");
     await page
       .getByRole("button", { name: "Continue to visit details" })
       .click();

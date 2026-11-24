@@ -1,8 +1,8 @@
 import {
   Activity,
   Archive,
-  CalendarDays,
   Building2,
+  CalendarDays,
   ChartColumn,
   ChevronDown,
   ChevronLeft,
@@ -15,6 +15,7 @@ import {
   LoaderCircle,
   LogOut,
   Menu,
+  MessageSquareHeart,
   Moon,
   QrCode,
   Search,
@@ -620,6 +621,10 @@ export default function StaffLayout() {
   const itNetworkAdmin =
     profile?.role === "it_network_admin";
 
+  // Visitor feedback: administrators and the client service head.
+  const feedbackAccess =
+    administrator || profile?.role === "client_service_head";
+
   // Wi-Fi requests: the IT network team, and administrators.
   const wifiAccess = itNetworkAdmin || administrator;
 
@@ -858,6 +863,16 @@ export default function StaffLayout() {
                 label="Analytics & Reports"
                 onNavigate={closeMobile}
                 to="/staff/reports"
+              />
+            ) : null}
+
+            {feedbackAccess ? (
+              <SidebarLink
+                collapsed={collapsed}
+                icon={MessageSquareHeart}
+                label="Visitor Feedback"
+                onNavigate={closeMobile}
+                to="/staff/feedback"
               />
             ) : null}
 

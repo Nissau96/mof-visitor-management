@@ -103,7 +103,7 @@ idempotency key and a sandbox that the current Hubtel integration lacks.
 | D11 | SMS fallback happens in two cases only: WhatsApp rejects at send time, or a WhatsApp webhook later reports `failed`. |
 | D12 | The log keeps visit, channel, template, provider message id, status, error and last four phone digits. No message text. |
 | D13 | Reception sees a read-only delivery line per message in visit details. No resend button. |
-| D14 | Ship as three PRs: (1) SasuSync, (2) log + `notify()` + WhatsApp + webhooks, (3) reminder cron. |
+| D14 | Ship as three PRs: (1) SasuSync, (2) log + `notify()` + WhatsApp + webhooks, (3) reminder cron. Order superseded by P7 (Demo phase). |
 | D15 | SMS sender ID: `MoFVisitor`. |
 
 ## Design
@@ -378,6 +378,139 @@ The SMS fallback texts match these, filled in.
 - `ReturningCodeLookup.jsx` keeps the "Mobile number" label.
 - Privacy notice updated and version bumped (required by Act 843).
 - Rollout runs PR 2 with WhatsApp off first.
+
+---
+
+## Demo phase (product owner's company account)
+
+Added 2026-11-23. The Ministry has no Meta or SMS account yet. Until it
+does, development and demos run on the product owner's company accounts.
+The Ministry setup in Appendices A and B still applies later. Moving to the
+Ministry changes environment variables and templates only, not code.
+
+### Decisions
+
+| # | Decision |
+|---|---|
+| P1 | WhatsApp is sent from Meta's free Cloud API **test number**, under the company's Meta Business portfolio. The company mobile is one of the allowed recipients, not the sender. A real sender number is registered only under the Ministry's account. |
+| P2 | Demo templates are created in the company's WhatsApp Business account with the same names and parameters (`visit_booked`, `visit_reminder`, `wifi_details`) and **neutral wording**. The fixed text does not claim to be the Ministry. The Ministry account later re-creates the same names with official wording. |
+| P3 | Demo SMS uses **Arkesel** (`SMS_PROVIDER=arkesel`, already supported): the 10 free sign-up credits first, then Arkesel top-ups. The no-expiry plan is GHS 20 = 645 SMS (≈ GHS 0.031 each, cheaper than SasuSync's GHS 0.05 at that size; Arkesel price list, 2026-11-23). The demo sender ID is `MOFVMSDEMO`, requested 2026-11-23. Set `SMS_SENDER_ID=MOFVMSDEMO` once Arkesel approves it, because the code default `MoF-Visitor` is not registered there. SasuSync remains the planned Ministry Production provider (D6). |
+| P4 | Company credentials go only into Vercel **Development and Preview** environments. Production stays empty, so it remains in log mode or later uses the Ministry's own keys. |
+| P5 | The dev deployment is behind Vercel Standard Protection (`all_except_custom_domains`, checked 2026-11-23). Meta's webhook callback is the dev branch's stable alias with Vercel's protection-bypass secret as a query parameter: `https://<dev-alias>/api/webhooks/whatsapp?x-vercel-protection-bypass=<secret>`. The secret goes into Meta's dashboard only, never into git. The `X-Hub-Signature-256` check stays the real gate. |
+| P6 | Demos use only consenting staff or test numbers on the test number's 5-recipient allowlist. No real visitor data is sent through the company accounts (Act 843). |
+| P7 | Build order changes from D14. (1) Notification log, `notify()`, Meta WhatsApp and webhooks; SMS fallback goes through the existing Arkesel provider, and `sendSms()` returns `{ provider, providerMessageId }`. (2) SasuSync provider. (3) Reminder cron. |
+
+### Demo setup (done by the product owner)
+
+1. At business.facebook.com, use or create the company's business
+   portfolio.
+2. At developers.facebook.com, create a "Business" app linked to it and
+   add the WhatsApp product. Meta creates a test WhatsApp Business
+   account and test number. Test numbers need no payment method and no
+   business verification.
+3. Under API Setup, add up to 5 recipient numbers (the company mobile
+   and demo staff phones). Each recipient confirms by code.
+4. Send the pre-approved `hello_world` template once to confirm the
+   setup works.
+5. In WhatsApp Manager, create the three Utility templates with neutral
+   wording (P2) and wait for approval.
+6. Create a system user and a long-lived token (Appendix A, step 6). The
+   24-hour token from API Setup is for a first try only.
+7. Put the values into Vercel's Development and Preview environments
+   only: `WHATSAPP_PROVIDER=meta`, `WHATSAPP_PHONE_NUMBER_ID`,
+   `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_ACCESS_TOKEN`,
+   `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
+   `WHATSAPP_GRAPH_VERSION`.
+8. After the first build is deployed to dev, set the webhook (P5) and
+   subscribe to `messages`.
+9. Arkesel: account created and sender ID `MOFVMSDEMO` requested
+   (2026-11-23). Once Arkesel shows it as Approved, set
+   `SMS_PROVIDER=arkesel`, `ARKESEL_API_KEY` and
+   `SMS_SENDER_ID=MOFVMSDEMO` in Development and Preview only. Top up on
+   the no-expiry plan when the balance runs low. If messages to
+   AirtelTigo numbers fail, submit the "AT whitelisted" documents in
+   Arkesel's Sender ID page.
+
+### Draft neutral templates
+
+| Name | Body (demo) |
+|---|---|
+| `visit_booked` | Visitor booking: your visit on {{1}} with {{2}} is booked. Show code {{3}} at reception. |
+| `visit_reminder` | Visitor reminder: your visit is tomorrow, {{1}} at {{2}}. Show code {{3}} at reception. |
+| `wifi_details` | Guest Wi-Fi details. Network: {{1}}. Password: {{2}}. Valid until {{3}}. |
+
+### Moving to the Ministry
+
+1. The Ministry completes Appendix A (verified portfolio, real number,
+   payment method) and Appendix B (SasuSync, `MoFVisitor`).
+2. Re-create the three templates under the Ministry's account with the
+   official wording from "WhatsApp templates".
+3. Replace the environment values, set Production for the first time, and
+   point the webhooks at the production domain (no bypass secret needed
+   on a custom domain).
+4. Remove the company credentials from Vercel and revoke the company
+   system-user token.
+
+### Build notes (first build, 2026-11-24)
+
+Where the first build differs from the design above:
+
+- **Log link.** `notification_log` has `reference_code` and `meeting_id`
+  instead of `visit_id`. An invite booking has no visit row until its
+  day, but it shares its `VIS-` code with the visit created later.
+  Meeting guests without a visit row are linked by `meeting_id`.
+- **Cleanup.** The log is purged by a trigger on insert, which deletes
+  rows older than `transient_record_retention`. This avoids rewriting
+  `execute_data_retention_cleanup`. The privacy notice says "about 24
+  hours" because cleanup runs when the next message is logged.
+- **Webhook fallback.** A WhatsApp `failed` webhook re-sends by SMS only
+  for booking confirmations, rebuilt from `visitor_invites`. A failed
+  Wi-Fi message is shown as failed in the drawer, and staff resend it
+  from the Wi-Fi page. Rebuilding it would need the password, which is
+  never logged. Send-time WhatsApp failures fall back to SMS for every
+  purpose.
+- **Template language** is `en_US`, matching the Meta account.
+- **Wi-Fi details go by SMS only (decided 2026-11-24).** Meta rejected
+  `wifi_details` twice as "incorrect category": a password reads as
+  Authentication content, which only allows Meta's one-time-code format.
+  The product owner chose SMS only, so the password never passes through
+  Meta. D1 now applies to booking confirmation and reminder only. The
+  rejected template was deleted. `visit_booked` and `visit_reminder` were
+  created on the test account through Meta's WhatsApp Business Tools MCP.
+- **Endpoints.** The webhook is `api/webhooks.js` (Vercel function 11 of
+  12), reached as `/api/webhooks/whatsapp`. The drawer reads
+  `/api/staff/history/messages`, which goes to the history function.
+- **Privacy notice version** is not bumped yet. `2.1` is hard-coded in the
+  returning-visitor and meeting-guest database functions, so the bump
+  needs its own migration.
+
+### Visit feedback (added 2026-11-24)
+
+- After a normal check-out (not lost-card or incident closures), the
+  visitor gets one WhatsApp template, `visit_feedback`, with a "Rate your
+  visit" URL button to `https://mof-visitor-management.vercel.app/feedback/<token>`.
+  WhatsApp only, no SMS fallback.
+- The token is 32 random bytes; only its SHA-256 hash is stored in
+  `visit_feedback` (one row per visit, cascades with the visit, so it
+  follows the two-year visitor-record retention). Links expire after
+  7 days and take one answer: 1-5 stars and an optional comment of up
+  to 1000 characters. The public endpoints are rate-limited.
+- Administrators and the client service head see the results on
+  **Visitor Feedback** (`/staff/feedback`): average, count per star,
+  response rate, comments with the visit reference, and a CSV export.
+  It is a separate page because the client service head has no access
+  to Analytics & Reports.
+- The privacy notice mentions the feedback message and the retention.
+
+### Demo-phase sources (checked 2026-11-23)
+
+- Meta test number, 5 free recipients, no payment method for test
+  numbers:
+  https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started
+  and
+  https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform
+- Arkesel free sign-up (trial credit amount not published; check the
+  dashboard): https://arkesel.com/?p=7091
 
 ---
 

@@ -6,8 +6,8 @@ import {
   getFloorLabel,
 } from "../constants/visitorOptions.js";
 import { formatDate } from "../lib/meetingSchedule.js";
-import { sendSms } from "./smsSender.js";
-import { isSmsAvailable } from "./wifiCredentials.js";
+import { notify } from "./notify.js";
+import { isPhoneMessagingAvailable } from "./wifiCredentials.js";
 import {
   escapeHtml,
   getStaffLoginUrl,
@@ -182,14 +182,15 @@ export async function sendInviteEmail({ message, to }) {
 }
 
 // After a visitor books: email the visitor (when they gave an address)
-// and the host, and text the visitor once SMS is set up. Nothing here
-// can fail the booking; the result says what went out.
+// and the host, and message the visitor on WhatsApp (SMS if WhatsApp
+// fails) once either is set up. Nothing here can fail the booking; the
+// result says what went out.
 export async function notifyInviteBooked(
   booking,
   {
     environment = process.env,
-    send = { email: sendInviteEmail, sms: sendSms },
-    smsAvailable = isSmsAvailable(environment),
+    send = { email: sendInviteEmail, phone: notify },
+    smsAvailable = isPhoneMessagingAvailable(environment),
   } = {},
 ) {
   const tasks = {
@@ -201,11 +202,19 @@ export async function notifyInviteBooked(
       : null,
     visitorSms:
       smsAvailable && booking.visitorPhone
-        ? send.sms({
-            environment,
-            message: `Ministry of Finance: your visit on ${formatDate(booking.visitDate)} is booked. Show code ${booking.referenceCode} at reception.`,
-            phone: booking.visitorPhone,
-          })
+        ? send
+            .phone({
+              environment,
+              parameters: [formatDate(booking.visitDate), booking.hostName, booking.referenceCode],
+              phone: booking.visitorPhone,
+              purpose: "booking_confirmation",
+              referenceCode: booking.referenceCode,
+            })
+            .then((result) => {
+              if (result?.status !== "accepted") {
+                throw new Error("The visitor message was not sent.");
+              }
+            })
         : null,
   };
 

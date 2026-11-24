@@ -105,12 +105,34 @@ function encryptOrExplain(password) {
 
 // Sends by SMS and email, then records what actually went out. Print is
 // done by the browser, so it is recorded as chosen.
+// The visit's reference code ties the WhatsApp/SMS delivery log to the
+// visit; a missing code only leaves the log unlinked.
+async function readVisitReference(client, values) {
+  if (values.type !== "visit") {
+    return null;
+  }
+
+  try {
+    const { data } = await client
+      .from("visits")
+      .select("reference_code")
+      .eq("id", values.id)
+      .maybeSingle();
+
+    return data?.reference_code || null;
+  } catch {
+    return null;
+  }
+}
+
 async function deliverAndRecord({ channels, client, data, password, values, actorId }) {
   const { delivered, problems } = await deliverWifiCredentials({
     channels,
     expiresAt: data.expiresAt,
+    meetingId: values.type === "meeting" ? values.id : null,
     password,
     recipients: Array.isArray(data.recipients) ? data.recipients : [],
+    referenceCode: channels.includes("sms") ? await readVisitReference(client, values) : null,
     tower: values.tower,
   });
   const recorded = [

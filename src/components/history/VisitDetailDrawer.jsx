@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { CardPill, PurposePill, StatusPill } from "./HistoryPills.jsx";
+import VisitMessages from "./VisitMessages.jsx";
 import { getTowerLabel } from "../../constants/visitorOptions.js";
 import {
   formatDuration,
@@ -122,7 +123,7 @@ const FOCUSABLE = "a[href], button:not([disabled])";
  * button, Tab stays inside, Escape or the backdrop closes it, and focus
  * goes back to whatever opened it (the page handles that in onClose).
  */
-export default function VisitDetailDrawer({ onClose, visit }) {
+export default function VisitDetailDrawer({ loadMessages, onClose, visit }) {
   const panelRef = useRef(null);
   const closeRef = useRef(null);
 
@@ -262,6 +263,8 @@ export default function VisitDetailDrawer({ onClose, visit }) {
               </span>
             </div>
           </section>
+
+          <VisitMessages loadMessages={loadMessages} reference={visit.reference} />
 
           <section
             aria-labelledby="visit-drawer-card"

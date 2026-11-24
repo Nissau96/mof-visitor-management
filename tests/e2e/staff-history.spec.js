@@ -125,6 +125,23 @@ async function installMockHistoryApi(page) {
     });
   });
 
+  await page.route("**/api/staff/history/messages", async (route) => {
+    const body = route.request().postDataJSON();
+    state.messageRequests = [...(state.messageRequests || []), body];
+
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        messages: [
+          { channel: "whatsapp", createdAt: at(7, 50), fallbackOf: null, id: "m1", purpose: "booking_confirmation", status: "read", updatedAt: at(7, 52) },
+          { channel: "whatsapp", createdAt: at(8, 5), fallbackOf: null, id: "m2", purpose: "wifi_details", status: "failed", updatedAt: at(8, 6) },
+          { channel: "sms", createdAt: at(8, 6), fallbackOf: "m2", id: "m3", purpose: "wifi_details", status: "accepted", updatedAt: at(8, 6) },
+        ],
+      },
+      status: 200,
+    });
+  });
+
   return state;
 }
 
@@ -294,7 +311,7 @@ test.describe("authenticated visit history", () => {
 
   test("opens a visit in the side panel and returns focus on close", async ({ page }) => {
     await installMockStaffAuthentication(page);
-    await installMockHistoryApi(page);
+    const history = await installMockHistoryApi(page);
 
     await signInAsStaff(page, { destination: "/staff/history" });
 
@@ -314,6 +331,9 @@ test.describe("authenticated visit history", () => {
     );
     await expect(panel.getByText("+233 24 000 1002")).toBeVisible();
     await expect(panel.getByText("Returned at check-out")).toBeVisible();
+    await expect(panel.getByText("Read on WhatsApp")).toBeVisible();
+    await expect(panel.getByText("WhatsApp failed, sent on SMS")).toBeVisible();
+    expect(history.messageRequests[0]).toMatchObject({ reference: "MTG-6C2EB0-2" });
 
     await expectNoWcagViolations(page);
 

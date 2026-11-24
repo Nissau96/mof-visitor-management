@@ -142,6 +142,18 @@ const VisitorKioskPage = lazy(() =>
   import("./pages/VisitorKioskPage.jsx"),
 );
 
+const StaffFeedbackPage = lazy(() =>
+  import("./pages/StaffFeedbackPage.jsx"),
+);
+
+const VisitorFeedbackPage = lazy(() =>
+  import("./pages/VisitorFeedbackPage.jsx"),
+);
+
+const PrivacyPage = lazy(() =>
+  import("./pages/PrivacyPage.jsx"),
+);
+
 const VisitorLandingPage = lazy(() =>
   import("./pages/VisitorLandingPage.jsx"),
 );
@@ -191,6 +203,12 @@ export default function App() {
           element={<StaffLoginPage />}
           path="staff/login"
         />
+
+        {/* Public privacy notice; also the policy URL given to Meta. */}
+        <Route element={<PrivacyPage />} path="privacy" />
+
+        {/* Public: the link visitors get on WhatsApp after check-out. */}
+        <Route element={<VisitorFeedbackPage />} path="feedback/:token" />
 
         <Route
           element={<MicrosoftSignInCallbackPage />}
@@ -295,6 +313,19 @@ export default function App() {
                   <StaffWeeklyQrPage />
                 }
                 path="weekly-qr"
+              />
+            </Route>
+
+            <Route
+              element={
+                <ProtectedRoute
+                  allowedRoles={["client_service_head", "admin"]}
+                />
+              }
+            >
+              <Route
+                element={<StaffFeedbackPage />}
+                path="feedback"
               />
             </Route>
 

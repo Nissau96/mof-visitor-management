@@ -47,7 +47,7 @@ async function fillVisitorDetails(page) {
     .fill("Visitor");
 
   await page
-    .getByLabel("Phone number")
+    .getByLabel("Phone/WhatsApp number")
     .fill("024 111 2233");
 
   await page
@@ -226,7 +226,7 @@ expect(
     await page.getByRole("button", { name: "Previous step" }).click();
 
     await expect(page.getByLabel("First name")).toHaveValue("Synthetic");
-    await expect(page.getByLabel("Phone number")).toHaveValue("024 111 2233");
+    await expect(page.getByLabel("Phone/WhatsApp number")).toHaveValue("024 111 2233");
   });
 
   test("registers a group with a card for each guest", async ({
@@ -276,7 +276,7 @@ expect(
 
     await page.getByLabel("First name").first().fill("Synthetic");
     await page.getByLabel("Last name").first().fill("Visitor");
-    await page.getByLabel("Phone number").first().fill("024 111 2233");
+    await page.getByLabel("Phone/WhatsApp number").first().fill("024 111 2233");
 
     // Guests are recorded under the lead's organisation.
     await expect(page.getByText("Guests are recorded under")).toHaveCount(0);
@@ -290,10 +290,10 @@ expect(
 
     await guestTwo.getByLabel("First name").fill("Ama");
     await guestTwo.getByLabel("Last name").fill("Mensah");
-    await guestTwo.getByLabel("Phone number").fill("0241112233");
+    await guestTwo.getByLabel("Phone/WhatsApp number").fill("0241112233");
     await guestThree.getByLabel("First name").fill("Kofi");
     await guestThree.getByLabel("Last name").fill("Owusu");
-    await guestThree.getByLabel("Phone number").fill("0244445566");
+    await guestThree.getByLabel("Phone/WhatsApp number").fill("0244445566");
 
     await expect(progress).toHaveAccessibleName("9 of 11 required details");
 
@@ -305,9 +305,9 @@ expect(
     await expect(page.locator("#guest-0-phone-error")).toHaveText(
       /different mobile number/,
     );
-    await expect(guestTwo.getByLabel("Phone number")).toBeFocused();
+    await expect(guestTwo.getByLabel("Phone/WhatsApp number")).toBeFocused();
 
-    await guestTwo.getByLabel("Phone number").fill("0247778899");
+    await guestTwo.getByLabel("Phone/WhatsApp number").fill("0247778899");
     await expectNoWcagViolations(page);
 
     await page

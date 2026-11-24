@@ -124,14 +124,14 @@ export function PrivacyNoticeSections({ className = "" }) {
       <section>
         <h3 className="font-bold text-slate-950">Who may access it</h3>
         <p className="mt-1">
-          Access is limited to authorised Ministry reception, security and administrative personnel and approved service providers that support the application’s hosting and database services under organisational controls. If you ask for Wi-Fi access, your name, organisation, mobile number and email address are shared with the Ministry’s IT network team so they can send you the Wi-Fi details.
+          Access is limited to authorised Ministry reception, security and administrative personnel and approved service providers that support the application’s hosting and database services under organisational controls. If you ask for Wi-Fi access, your name, organisation, mobile number and email address are shared with the Ministry’s IT network team so they can send you the Wi-Fi details. To send your booking confirmation and visit reminder, your mobile number is shared with Meta (WhatsApp) and, if WhatsApp cannot deliver, with the Ministry’s approved SMS provider. Wi-Fi details are sent by SMS only, through the approved SMS provider. After check-out you may receive one WhatsApp message asking you to rate your visit; any rating and comment you give are kept with your visit record for two years.
         </p>
       </section>
 
       <section>
         <h3 className="font-bold text-slate-950">Retention</h3>
         <p className="mt-1">
-          Completed visitor records and application audit events are retained for two years. Expired verification-token records and inactive rate-limit counters are retained for no more than 24 hours before cleanup. Open visits are retained until staff review and resolve them. An active legal, regulatory, security or investigation hold may suspend deletion for the affected records.
+          Completed visitor records and application audit events are retained for two years. Expired verification-token records and inactive rate-limit counters are retained for no more than 24 hours before cleanup. Message delivery records keep only the message type, delivery status and the last four digits of your number, never the message text, and are deleted after about 24 hours. Open visits are retained until staff review and resolve them. An active legal, regulatory, security or investigation hold may suspend deletion for the affected records.
         </p>
       </section>
 

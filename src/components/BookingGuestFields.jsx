@@ -128,7 +128,7 @@ export default function BookingGuestFields({
                   error={guestErrors.phone?.message}
                   id={`${id}-phone`}
                   inputMode="tel"
-                  label="Mobile number"
+                  label="Phone/WhatsApp number"
                   placeholder="024 000 0000"
                   registration={register(`guests.${index}.phone`)}
                   required

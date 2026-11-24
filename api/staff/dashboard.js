@@ -18,6 +18,7 @@ import {
 } from "../_lib/staffNotifications.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { addVisitorDetails } from "../_lib/visitDetails.js";
+import { handleFeedbackReport } from "../_lib/visitFeedbackReport.js";
 import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import { receptionDashboardSchema } from "../../src/validation/receptionDashboard.js";
 import { analyticsRequestSchema } from "../../src/validation/analytics.js";
@@ -448,6 +449,10 @@ const handler = {
 
     if (isNotificationsRequest(request)) {
       return handleNotifications(request);
+    }
+
+    if (new URL(request.url).searchParams.get("operation") === "feedback") {
+      return handleFeedbackReport(request);
     }
 
     if (isAnalyticsRequest(request)) {

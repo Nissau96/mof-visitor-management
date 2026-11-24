@@ -322,19 +322,40 @@ describe("booking notifications", () => {
     visitorPhone: "+233240000000",
   };
 
-  it("emails the host and visitor and texts the visitor", async () => {
-    const send = { email: vi.fn().mockResolvedValue(undefined), sms: vi.fn().mockResolvedValue(undefined) };
+  it("emails the host and visitor and messages the visitor", async () => {
+    const send = {
+      email: vi.fn().mockResolvedValue(undefined),
+      phone: vi.fn().mockResolvedValue({ channel: "whatsapp", status: "accepted" }),
+    };
 
     const result = await notifyInviteBooked(booking, { environment: {}, send, smsAvailable: true });
 
     expect(result).toEqual({ hostEmail: true, visitorEmail: true, visitorSms: true });
     expect(send.email).toHaveBeenCalledWith(expect.objectContaining({ to: "ama@mofep.gov.gh" }));
     expect(send.email.mock.calls[0][0].message.text).toContain("VIS-1A2B3C4D");
-    expect(send.sms.mock.calls[0][0].message).toContain("VIS-1A2B3C4D");
+    expect(send.phone).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parameters: [expect.any(String), "Ama Mensah", "VIS-1A2B3C4D"],
+        phone: "+233240000000",
+        purpose: "booking_confirmation",
+        referenceCode: "VIS-1A2B3C4D",
+      }),
+    );
+  });
+
+  it("reports the visitor message as not sent when WhatsApp and SMS both fail", async () => {
+    const send = {
+      email: vi.fn().mockResolvedValue(undefined),
+      phone: vi.fn().mockResolvedValue({ channel: null, status: "failed" }),
+    };
+
+    const result = await notifyInviteBooked(booking, { environment: {}, send, smsAvailable: true });
+
+    expect(result.visitorSms).toBe(false);
   });
 
   it("reports failures without throwing", async () => {
-    const send = { email: vi.fn().mockRejectedValue(new Error("SMTP down")), sms: vi.fn() };
+    const send = { email: vi.fn().mockRejectedValue(new Error("SMTP down")), phone: vi.fn() };
 
     const result = await notifyInviteBooked(
       { ...booking, visitorEmail: null },
@@ -342,6 +363,6 @@ describe("booking notifications", () => {
     );
 
     expect(result).toEqual({ hostEmail: false, visitorEmail: false, visitorSms: false });
-    expect(send.sms).not.toHaveBeenCalled();
+    expect(send.phone).not.toHaveBeenCalled();
   });
 });

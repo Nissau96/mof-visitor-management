@@ -62,6 +62,54 @@ function getHistoryDatabaseError(error) {
   );
 }
 
+// WhatsApp and SMS messages sent about one visit, for the visit drawer.
+// The visit must be in the staff member's tower; no message text exists.
+async function listVisitMessages(body, profile) {
+  const reference = String(body?.reference || "").trim().toUpperCase();
+
+  if (!/^[A-Z0-9-]{4,32}$/.test(reference)) {
+    throw new HttpError("The visit reference is invalid.", 400);
+  }
+
+  const towerScope = requireStaffTowerScope(profile, body?.tower);
+  const client = getAdminClient();
+  const { data: visit, error: visitError } = await client
+    .from("visits")
+    .select("tower")
+    .eq("reference_code", reference)
+    .maybeSingle();
+
+  if (visitError) {
+    throw new HttpError("Messages could not be loaded. Please try again.", 500);
+  }
+
+  if (!visit || (towerScope && visit.tower !== towerScope)) {
+    throw new HttpError("The visit could not be found.", 404);
+  }
+
+  const { data, error } = await client
+    .from("notification_log")
+    .select("id, purpose, channel, status, error, fallback_of, created_at, updated_at")
+    .eq("reference_code", reference)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
+  if (error) {
+    throw new HttpError("Messages could not be loaded. Please try again.", 500);
+  }
+
+  return (data || []).map((row) => ({
+    channel: row.channel,
+    createdAt: row.created_at,
+    error: row.error,
+    fallbackOf: row.fallback_of,
+    id: row.id,
+    purpose: row.purpose,
+    status: row.status,
+    updatedAt: row.updated_at,
+  }));
+}
+
 const handler = {
   async fetch(request) {
     if (request.method !== "POST") {
@@ -80,6 +128,12 @@ const handler = {
 
       const body =
         await readJsonBody(request);
+
+      if (
+        new URL(request.url).searchParams.get("operation") === "messages"
+      ) {
+        return json({ messages: await listVisitMessages(body, profile) }, 200);
+      }
 
       const parsed =
         visitHistorySchema.safeParse(body);

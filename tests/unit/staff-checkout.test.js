@@ -102,9 +102,12 @@ function createHandler({
         },
   );
 
+  const requestFeedback = vi.fn().mockResolvedValue({ sent: true });
+
   const handler =
     createCheckoutHandler({
       enforceRateLimitForRequest,
+      requestFeedback,
       getAdminClientForRequest() {
         return {
           from,
@@ -118,6 +121,7 @@ function createHandler({
     auditInsert,
     enforceRateLimitForRequest,
     handler,
+    requestFeedback,
     requireActiveStaffForRequest,
     rpc,
   };
@@ -953,6 +957,28 @@ describe(
             entity_id: VISIT_ID,
           }),
         );
+      });
+
+      it("asks for feedback only after a normal check-out", async () => {
+        const checkout = operationCases.find((item) => item.operation === "checkout");
+        const notReturned = operationCases.find((item) => item.operation === "report-not-returned");
+
+        const first = createHandler({
+          data: checkout.rpcData || checkout.expectedResponse,
+          profile: createProfile(checkout.role),
+        });
+        const response = await first.handler.fetch(createRequest(checkout.path, checkout.body));
+        expect(response.status).toBe(200);
+        expect(first.requestFeedback).toHaveBeenCalledWith(
+          expect.objectContaining({ visitId: (checkout.rpcData || checkout.expectedResponse).visitId }),
+        );
+
+        const second = createHandler({
+          data: notReturned.rpcData || notReturned.expectedResponse,
+          profile: createProfile(notReturned.role),
+        });
+        await second.handler.fetch(createRequest(notReturned.path, notReturned.body));
+        expect(second.requestFeedback).not.toHaveBeenCalled();
       });
 
       it("does not ask walk-in visitors for the confirmation", async () => {

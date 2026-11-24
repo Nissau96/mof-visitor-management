@@ -193,7 +193,7 @@ function GuestEditor({
         <Field
           error={errors.phone?.message}
           id="booking-guest-phone"
-          label="Mobile number"
+          label="Phone/WhatsApp number"
           required
         >
           <InputWithIcon
