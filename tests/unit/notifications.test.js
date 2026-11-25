@@ -347,6 +347,54 @@ describe("WhatsApp webhook", () => {
     );
     expect(sendFallback.mock.calls[0][0].message).toContain("VIS-7F31A2");
   });
+
+  it("re-sends a failed card message by SMS with the assigned card", async () => {
+    const rows = {
+      visitor_card_assignments: { card_id: "c1" },
+      visitor_cards: { card_number: "T1-014" },
+      visitor_profiles: { full_name: "Ama Mensah", phone: "+233241112233" },
+      visits: { id: "v1", reference_code: "VIS-7F31A2", visitor_id: "p1" },
+    };
+    const client = {
+      from: (table) => {
+        const chain = {
+          eq: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => ({ data: rows[table] }),
+          select: () => chain,
+        };
+
+        return chain;
+      },
+      rpc: vi.fn().mockResolvedValue({
+        data: {
+          changed: true,
+          channel: "whatsapp",
+          hasFallback: false,
+          id: "wa-card",
+          purpose: "card_issued",
+          referenceCode: "VIS-7F31A2",
+          status: "failed",
+        },
+        error: null,
+      }),
+    };
+    const sendFallback = vi.fn().mockResolvedValue({ channel: "sms", status: "accepted" });
+    const handler = createWebhooksHandler({
+      environment,
+      getAdminClientForRequest: () => client,
+      logger: { error: vi.fn() },
+      sendFallback,
+    });
+    const { raw, signature } = signed(statusEvent("failed"));
+
+    await handler.fetch(post(raw, signature));
+
+    expect(sendFallback).toHaveBeenCalledWith(
+      expect.objectContaining({ fallbackOf: "wa-card", phone: "+233241112233" }),
+    );
+    expect(sendFallback.mock.calls[0][0].message).toContain("Visitor Card: T1-014");
+  });
 });
 
 describe("visit drawer message lines", () => {

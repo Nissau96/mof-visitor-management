@@ -127,14 +127,11 @@ export async function requestVisitFeedback({
       buttonParameters: [token],
       environment,
       logger,
-      parameters: [visitReference],
+      parameters: [firstNameOf(profile.full_name, "visitor")],
       phone: profile.phone,
       purpose: "visit_feedback",
       referenceCode: visitReference,
-      smsContext: {
-        firstName: firstNameOf(profile.full_name),
-        shortUrl: feedbackShortUrl(code, environment),
-      },
+      smsContext: { shortUrl: feedbackShortUrl(code, environment) },
     });
 
     return { sent: result?.status === "accepted" };

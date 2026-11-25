@@ -27,11 +27,11 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
       `Ministry of Finance: reminder of your visit tomorrow, ${date} at ${time}. Show code ${code} at reception.`,
     template: "visit_reminder",
   },
-  // SMS only, after first-visit registration or a returning check-in.
+  // After first-visit registration or a returning check-in.
   registration_success: {
     sms: ([firstName, reference]) =>
       [
-        `Welcome to the Ministry of Finance${firstName ? `, ${firstName}` : ""}.`,
+        `Welcome to the Ministry of Finance, ${firstName}.`,
         "",
         "Your visitor registration is successful.",
         "",
@@ -39,9 +39,9 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
         "",
         "Kindly proceed to the reception desk for assistance.",
       ].join("\n"),
-    template: null,
+    template: "registration_success",
   },
-  // SMS only, when reception admits the visitor with a card.
+  // When reception admits the visitor with a card.
   card_issued: {
     sms: ([cardNumber, reference]) =>
       [
@@ -52,15 +52,15 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
         "",
         "Kindly keep your visitor card with you and return it to reception before leaving.",
       ].join("\n"),
-    template: null,
+    template: "card_issued",
   },
   // WhatsApp button carries the long token; the SMS carries the short
   // link (smsContext.shortUrl), which hides the full site address.
   visit_feedback: {
-    sms: (_parameters, context = {}) =>
+    sms: ([firstName], context = {}) =>
       context.shortUrl
         ? [
-            context.firstName ? `Dear ${context.firstName},` : "Dear visitor,",
+            `Dear ${firstName},`,
             "",
             "Thank you for visiting the Ministry of Finance.",
             "",

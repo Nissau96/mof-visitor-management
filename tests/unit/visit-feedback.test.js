@@ -81,12 +81,9 @@ describe("feedback request at check-out", () => {
     expect(saved.row.expires_at).toBe("2026-12-01T12:00:00.000Z");
     expect(isFeedbackCode(saved.row.short_code)).toBe(true);
     const call = notifyVisitor.mock.calls[0][0];
-    expect(call).toMatchObject({ parameters: ["VIS-7F31A2"], purpose: "visit_feedback", referenceCode: "VIS-7F31A2" });
+    expect(call).toMatchObject({ parameters: ["Ama"], purpose: "visit_feedback", referenceCode: "VIS-7F31A2" });
     expect(hashFeedbackToken(call.buttonParameters[0])).toBe(saved.row.token_hash);
-    expect(call.smsContext).toEqual({
-      firstName: "Ama",
-      shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}`,
-    });
+    expect(call.smsContext).toEqual({ shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}` });
   });
 
   it("skips visitors without a phone and visits already asked", async () => {
@@ -146,7 +143,7 @@ describe("feedback message", () => {
       buttonParameters: ["tok"],
       environment: { SMS_PROVIDER: "arkesel", WHATSAPP_PROVIDER: "off" },
       logger: { error: vi.fn() },
-      parameters: ["VIS-7F31A2"],
+      parameters: ["Ama"],
       phone: "+233241112233",
       purpose: "visit_feedback",
       recorder,
@@ -154,7 +151,7 @@ describe("feedback message", () => {
     };
 
     await expect(
-      notify({ ...options, smsContext: { firstName: "Ama", shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } }),
+      notify({ ...options, smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } }),
     ).resolves.toEqual({
       channel: "sms",
       status: "accepted",
@@ -188,7 +185,7 @@ describe("feedback message", () => {
         buttonParameters: ["tok"],
         environment: { VERCEL_ENV: "preview" },
         logger: { error: vi.fn() },
-        parameters: ["VIS-7F31A2"],
+        parameters: ["Ama"],
         phone: "+233241112233",
         purpose: "visit_feedback",
         recorder,

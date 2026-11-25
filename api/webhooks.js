@@ -5,6 +5,7 @@ import { withAuditContext } from "./_lib/auditContext.js";
 import { json, methodNotAllowed } from "./_lib/http.js";
 import { getAdminClient } from "./_lib/supabase.js";
 import { formatDate } from "../src/lib/meetingSchedule.js";
+import { firstNameOf } from "../src/server/visitorMessages.js";
 import {
   NOTIFICATION_PURPOSES,
   createSupabaseRecorder,
@@ -112,6 +113,68 @@ async function bookingFallback({ client, environment, logger, row, sendFallback 
   });
 }
 
+// Registration and card messages reported as failed are re-sent by SMS,
+// rebuilt from the visit, the visitor profile and the assigned card.
+async function visitFallback({ client, environment, logger, row, sendFallback }) {
+  const { data: visit } = await client
+    .from("visits")
+    .select("id, visitor_id, reference_code")
+    .eq("reference_code", row.referenceCode)
+    .maybeSingle();
+
+  if (!visit?.visitor_id) {
+    return;
+  }
+
+  const { data: profile } = await client
+    .from("visitor_profiles")
+    .select("phone, full_name")
+    .eq("id", visit.visitor_id)
+    .maybeSingle();
+
+  if (!profile?.phone) {
+    return;
+  }
+
+  let parameters = [firstNameOf(profile.full_name), visit.reference_code];
+
+  if (row.purpose === "card_issued") {
+    const { data: assignment } = await client
+      .from("visitor_card_assignments")
+      .select("card_id")
+      .eq("visit_id", visit.id)
+      .eq("status", "assigned")
+      .limit(1)
+      .maybeSingle();
+    const { data: card } = assignment?.card_id
+      ? await client.from("visitor_cards").select("card_number").eq("id", assignment.card_id).maybeSingle()
+      : { data: null };
+
+    if (!card?.card_number) {
+      return;
+    }
+
+    parameters = [card.card_number, visit.reference_code];
+  }
+
+  await sendFallback({
+    base: {
+      meeting_id: null,
+      phone_last4: phoneLast4(profile.phone),
+      purpose: row.purpose,
+      reference_code: visit.reference_code,
+    },
+    environment,
+    fallbackOf: row.id,
+    logger,
+    message: NOTIFICATION_PURPOSES[row.purpose].sms(parameters),
+    phone: profile.phone,
+    recorder: createSupabaseRecorder(() => client),
+  });
+}
+
+const VISIT_FALLBACK_PURPOSES = new Set(["registration_success", "card_issued"]);
+
 async function handleWhatsappEvents(request, { environment, getAdminClientForRequest, logger, sendFallback }) {
   const declared = Number(request.headers.get("content-length") || 0);
 
@@ -168,6 +231,15 @@ async function handleWhatsappEvents(request, { environment, getAdminClientForReq
         row.referenceCode
       ) {
         await bookingFallback({ client, environment, logger, row, sendFallback });
+      } else if (
+        row?.changed &&
+        row.status === "failed" &&
+        row.channel === "whatsapp" &&
+        !row.hasFallback &&
+        VISIT_FALLBACK_PURPOSES.has(row.purpose) &&
+        row.referenceCode
+      ) {
+        await visitFallback({ client, environment, logger, row, sendFallback });
       }
     } catch (error) {
       // Answer 200 anyway: Meta retries failed deliveries, and the

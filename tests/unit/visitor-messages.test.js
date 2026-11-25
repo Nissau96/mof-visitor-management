@@ -61,7 +61,8 @@ describe("visitor SMS wording", () => {
 
   it("uses the first word of the full name", () => {
     expect(firstNameOf("  Ama   Serwaa Mensah ")).toBe("Ama");
-    expect(firstNameOf("")).toBe("");
+    expect(firstNameOf("")).toBe("Visitor");
+    expect(firstNameOf(" ", "visitor")).toBe("visitor");
   });
 });
 
