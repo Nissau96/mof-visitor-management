@@ -1,5 +1,6 @@
 import { withAuditContext } from "../_lib/auditContext.js";
 import { requestVisitFeedback } from "../../src/server/visitFeedback.js";
+import { sendCardIssuedSms } from "../../src/server/visitorMessages.js";
 import {
   requireActiveStaff,
   requireStaffTowerScope,
@@ -973,6 +974,7 @@ export function createCheckoutHandler({
   enforceRateLimitForRequest = enforceRateLimit,
   getAdminClientForRequest = getAdminClient,
   requestFeedback = requestVisitFeedback,
+  sendCardIssued = sendCardIssuedSms,
   requireActiveStaffForRequest =
     requireActiveStaff,
 } = {}) {
@@ -1105,6 +1107,19 @@ export function createCheckoutHandler({
         // A normal check-out asks the visitor for feedback on WhatsApp.
         // Cards reported lost or closed by an incident do not. It never
         // fails the check-out.
+        // Admission texts the visitor their card number. It never fails
+        // the admission.
+        if (operation === "admission") {
+          await Promise.resolve(
+            sendCardIssued({
+              cardNumber: data.cardAssignment.cardNumber,
+              client,
+              reference: data.visit.referenceCode,
+              visitorId: data.visit.visitorId,
+            }),
+          ).catch(() => undefined);
+        }
+
         if (operation === "checkout") {
           await Promise.resolve(
             requestFeedback({

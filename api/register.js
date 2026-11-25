@@ -28,6 +28,7 @@ import {
 } from "../src/validation/visitorInvites.js";
 import { hashInviteToken } from "../src/server/visitorInviteToken.js";
 import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
+import { sendRegistrationSms } from "../src/server/visitorMessages.js";
 import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
 import { hashFeedbackToken, isFeedbackCode, isFeedbackToken } from "../src/server/visitFeedback.js";
 
@@ -404,6 +405,7 @@ async function exchangeWeeklyAccess(
 async function registerVisitor(
   request,
   enforceRateLimitForRequest,
+  sendRegistration,
 ) {
   await readWeeklyQrAccess(request);
 
@@ -537,6 +539,15 @@ async function registerVisitor(
     );
   }
 
+  // Never fails the registration.
+  await Promise.resolve(
+    sendRegistration({
+      fullName: input.fullName,
+      phone: input.phone,
+      reference: result.reference_code,
+    }),
+  ).catch(() => undefined);
+
   return json(
     {
       guestCount:
@@ -552,6 +563,7 @@ export function createRegisterHandler({
     enforceRateLimit,
   getAdminClientForRequest = getAdminClient,
   notifyBooked = notifyInviteBooked,
+  sendRegistration = sendRegistrationSms,
 } = {}) {
   return {
     async fetch(request) {
@@ -640,6 +652,7 @@ export function createRegisterHandler({
         return await registerVisitor(
           request,
           enforceRateLimitForRequest,
+          sendRegistration,
         );
       } catch (error) {
         if (

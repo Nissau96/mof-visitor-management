@@ -7,7 +7,7 @@ import {
 } from "node:crypto";
 import process from "node:process";
 import nodemailer from "nodemailer";
-import { notify } from "./notify.js";
+import { NOTIFICATION_PURPOSES, notify } from "./notify.js";
 import { resolveSmsProvider } from "./smsSender.js";
 import { isWhatsappAvailable } from "./whatsappSender.js";
 import { escapeHtml, readSmtpConfiguration } from "./staffInvitation.js";
@@ -134,9 +134,31 @@ export function formatWifiExpiry(expiresAt) {
   return `${expiryFormat.format(new Date(expiresAt))} (Accra time)`;
 }
 
+const smsDateFormat = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "Africa/Accra",
+  year: "numeric",
+});
+
+const smsTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  hour: "numeric",
+  hour12: true,
+  minute: "2-digit",
+  timeZone: "Africa/Accra",
+});
+
+// Accra keeps GMT all year, so the SMS says GMT: "25 Nov 2026", "5:30 pm".
+export function formatWifiSmsExpiry(expiresAt) {
+  const when = new Date(expiresAt);
+
+  return { date: smsDateFormat.format(when), time: smsTimeFormat.format(when) };
+}
+
 export function createWifiMessages({ expiresAt, networkName, password }) {
   const until = formatWifiExpiry(expiresAt);
-  const sms = `Ministry of Finance guest Wi-Fi. SSID: ${networkName}. Credentials: ${password}. Valid until ${until}.`;
+  const smsExpiry = formatWifiSmsExpiry(expiresAt);
+  const sms = NOTIFICATION_PURPOSES.wifi_details.sms([networkName, password, smsExpiry.date, smsExpiry.time]);
   const text = [
     "Your guest Wi-Fi access at the Ministry of Finance",
     "",
@@ -242,7 +264,12 @@ export async function deliverWifiCredentials({
         const result = await send.phone({
           environment,
           meetingId,
-          parameters: [networkName, password, formatWifiExpiry(expiresAt)],
+          parameters: [
+            networkName,
+            password,
+            formatWifiSmsExpiry(expiresAt).date,
+            formatWifiSmsExpiry(expiresAt).time,
+          ],
           phone: recipient.phone,
           purpose: "wifi_details",
           referenceCode,

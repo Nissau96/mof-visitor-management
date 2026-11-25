@@ -600,3 +600,17 @@ References:
 
 Recommendation: SasuSync for SMS, Meta direct for WhatsApp, Arkesel as
 the WhatsApp fallback route.
+
+## Visitor SMS wording (2026-11-25)
+
+The Ministry supplied the wording for five SMS messages. Two of them are new sends, both SMS only and logged in `notification_log`:
+
+| Purpose | Sent when | Text |
+|---|---|---|
+| `registration_success` | First-visit registration or returning check-in succeeds | Welcome, first name, visit reference, go to reception |
+| `card_issued` | Reception admits the visitor with a card | Card number, visit reference, return the card before leaving |
+| `visit_feedback` | Normal check-out | "Dear {first name}", thanks, short feedback link |
+| `wifi_details` | Wi-Fi is granted | Network, password, "Valid until: {date}, {time} GMT." |
+| OTP | Returning visitor asks for a code | Verification code, valid for 5 minutes |
+
+The texts live in `src/server/notify.js` (`NOTIFICATION_PURPOSES`) and `src/server/smsSender.js` (`createCodeMessage`). Messages use line breaks, so most are longer than one 160-character SMS part and use two Arkesel credits. Migration `20261125090000_visitor_sms_purposes.sql` allows the two new purposes in the log.

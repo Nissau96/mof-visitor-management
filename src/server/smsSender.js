@@ -18,8 +18,16 @@ export class SmsUnavailableError extends Error {
   }
 }
 
+export const SMS_CODE_VALID_MINUTES = 5;
+
 export function createCodeMessage(code) {
-  return `Your Ministry of Finance visitor code is ${code}. It expires in 5 minutes. Do not share this code.`;
+  return [
+    "Ministry of Finance",
+    "",
+    `Your visitor verification code is ${code}.`,
+    "",
+    `Valid for ${SMS_CODE_VALID_MINUTES} minutes. Do not share this code.`,
+  ].join("\n");
 }
 
 // +233241112233 → 233241112233, the form both providers expect.

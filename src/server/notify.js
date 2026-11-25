@@ -27,20 +27,64 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
       `Ministry of Finance: reminder of your visit tomorrow, ${date} at ${time}. Show code ${code} at reception.`,
     template: "visit_reminder",
   },
+  // SMS only, after first-visit registration or a returning check-in.
+  registration_success: {
+    sms: ([firstName, reference]) =>
+      [
+        `Welcome to the Ministry of Finance${firstName ? `, ${firstName}` : ""}.`,
+        "",
+        "Your visitor registration is successful.",
+        "",
+        `Visit Reference: ${reference}`,
+        "",
+        "Kindly proceed to the reception desk for assistance.",
+      ].join("\n"),
+    template: null,
+  },
+  // SMS only, when reception admits the visitor with a card.
+  card_issued: {
+    sms: ([cardNumber, reference]) =>
+      [
+        "Ministry of Finance",
+        "",
+        `Visitor Card: ${cardNumber}`,
+        `Visit Reference: ${reference}`,
+        "",
+        "Kindly keep your visitor card with you and return it to reception before leaving.",
+      ].join("\n"),
+    template: null,
+  },
   // WhatsApp button carries the long token; the SMS carries the short
   // link (smsContext.shortUrl), which hides the full site address.
   visit_feedback: {
-    sms: ([code], context = {}) =>
+    sms: (_parameters, context = {}) =>
       context.shortUrl
-        ? `Ministry of Finance: thank you for your visit today (${code}). Rate your visit experience: ${context.shortUrl}`
+        ? [
+            context.firstName ? `Dear ${context.firstName},` : "Dear visitor,",
+            "",
+            "Thank you for visiting the Ministry of Finance.",
+            "",
+            "We hope you had a pleasant experience. Kindly share your feedback to help us improve our services.",
+            "",
+            context.shortUrl,
+          ].join("\n")
         : null,
     template: "visit_feedback",
   },
   // SMS only: WhatsApp refuses a password in a Utility template (it is
   // Authentication content), and the password never passes through Meta.
   wifi_details: {
-    sms: ([network, password, until]) =>
-      `Ministry of Finance guest Wi-Fi. SSID: ${network}. Credentials: ${password}. Valid until ${until}.`,
+    sms: ([network, password, expiryDate, expiryTime]) =>
+      [
+        "Welcome to the Ministry of Finance.",
+        "",
+        "Guest Wi-Fi Access",
+        `Network: ${network}`,
+        `Password: ${password}`,
+        `Valid until: ${expiryDate}, ${expiryTime} GMT.`,
+        "",
+        "Enjoy your visit.",
+      ].join("\n"),
     template: null,
   },
 });

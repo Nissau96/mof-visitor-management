@@ -67,7 +67,7 @@ describe("feedback request at check-out", () => {
   it("saves the token hash with a 7-day expiry and sends the WhatsApp link", async () => {
     const client = fakeClient({
       rows: {
-        visitor_profiles: { phone: "+233241112233" },
+        visitor_profiles: { full_name: "Ama Mensah", phone: "+233241112233" },
         visits: { id: "v1", reference_code: "VIS-7F31A2", visitor_id: "p1" },
       },
     });
@@ -83,7 +83,10 @@ describe("feedback request at check-out", () => {
     const call = notifyVisitor.mock.calls[0][0];
     expect(call).toMatchObject({ parameters: ["VIS-7F31A2"], purpose: "visit_feedback", referenceCode: "VIS-7F31A2" });
     expect(hashFeedbackToken(call.buttonParameters[0])).toBe(saved.row.token_hash);
-    expect(call.smsContext).toEqual({ shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}` });
+    expect(call.smsContext).toEqual({
+      firstName: "Ama",
+      shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}`,
+    });
   });
 
   it("skips visitors without a phone and visits already asked", async () => {
@@ -150,12 +153,22 @@ describe("feedback message", () => {
       senders,
     };
 
-    await expect(notify({ ...options, smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } })).resolves.toEqual({
+    await expect(
+      notify({ ...options, smsContext: { firstName: "Ama", shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } }),
+    ).resolves.toEqual({
       channel: "sms",
       status: "accepted",
     });
     expect(senders.sms.mock.calls[0][0].message).toBe(
-      "Ministry of Finance: thank you for your visit today (VIS-7F31A2). Rate your visit experience: https://mofv.vercel.app/f/K7pQ2xZm",
+      [
+        "Dear Ama,",
+        "",
+        "Thank you for visiting the Ministry of Finance.",
+        "",
+        "We hope you had a pleasant experience. Kindly share your feedback to help us improve our services.",
+        "",
+        "https://mofv.vercel.app/f/K7pQ2xZm",
+      ].join("\n"),
     );
     expect(senders.whatsapp).not.toHaveBeenCalled();
 

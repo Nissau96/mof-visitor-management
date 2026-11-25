@@ -17,7 +17,7 @@ function okFetch(body = {}) {
 describe("SMS sender", () => {
   it("uses the approved message wording", () => {
     expect(createCodeMessage("012345")).toBe(
-      "Your Ministry of Finance visitor code is 012345. It expires in 5 minutes. Do not share this code.",
+      "Ministry of Finance\n\nYour visitor verification code is 012345.\n\nValid for 5 minutes. Do not share this code.",
     );
   });
 

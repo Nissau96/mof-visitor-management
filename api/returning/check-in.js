@@ -17,6 +17,7 @@ import {
 import { PRIVACY_NOTICE_VERSION } from "../../src/constants/privacy.js";
 import { CUSTOM_MEETING_OPTION } from "../../src/constants/visitorOptions.js";
 import { readWeeklyQrAccess } from "../../src/server/weeklyQrAccess.js";
+import { sendRegistrationSms } from "../../src/server/visitorMessages.js";
 import { returningVisitCheckInSchema } from "../../src/validation/returningVisit.js";
 import { VISITOR_WIFI_REQUIRED_MESSAGE } from "../../src/validation/wifiAccess.js";
 
@@ -40,6 +41,7 @@ export function createReturningCheckInHandler({
   enforceRateLimitForRequest = enforceRateLimit,
   getAdminClientForRequest = getAdminClient,
   readVisitorTokenForRequest = readVisitorToken,
+  sendRegistration = sendRegistrationSms,
 } = {}) {
   return {
     async fetch(request) {
@@ -201,6 +203,15 @@ export function createReturningCheckInHandler({
             500,
           );
         }
+
+        // Never fails the check-in.
+        await Promise.resolve(
+          sendRegistration({
+            client: getAdminClientForRequest(),
+            reference: result.reference_code,
+            visitorId: tokenData.visitorId,
+          }),
+        ).catch(() => undefined);
 
         return json(
           {

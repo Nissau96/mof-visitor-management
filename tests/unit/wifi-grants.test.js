@@ -82,7 +82,7 @@ describe("WiFi delivery", () => {
     expect(send.phone).toHaveBeenCalledTimes(2);
     expect(send.phone).toHaveBeenCalledWith(
       expect.objectContaining({
-        parameters: ["MoF-Guest", "Volta-Cedar-4821", expect.stringContaining("11:59")],
+        parameters: ["MoF-Guest", "Volta-Cedar-4821", "19 Nov 2026", "11:59 pm"],
         purpose: "wifi_details",
         referenceCode: "VIS-1A2B3C4D",
       }),

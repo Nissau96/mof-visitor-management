@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import process from "node:process";
 import { notify } from "./notify.js";
+import { firstNameOf } from "./visitorMessages.js";
 
 // After reception checks a visitor out, WhatsApp them a link to rate the
 // visit. The link carries a random token; only its SHA-256 hash is
@@ -87,7 +88,7 @@ export async function requestVisitFeedback({
 
     const { data: profile } = await client
       .from("visitor_profiles")
-      .select("phone")
+      .select("phone, full_name")
       .eq("id", visit.visitor_id)
       .maybeSingle();
 
@@ -130,7 +131,10 @@ export async function requestVisitFeedback({
       phone: profile.phone,
       purpose: "visit_feedback",
       referenceCode: visitReference,
-      smsContext: { shortUrl: feedbackShortUrl(code, environment) },
+      smsContext: {
+        firstName: firstNameOf(profile.full_name),
+        shortUrl: feedbackShortUrl(code, environment),
+      },
     });
 
     return { sent: result?.status === "accepted" };
