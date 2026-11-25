@@ -105,7 +105,7 @@ function encryptOrExplain(password) {
 
 // Sends by SMS and email, then records what actually went out. Print is
 // done by the browser, so it is recorded as chosen.
-// The visit's reference code ties the WhatsApp/SMS delivery log to the
+// The visit's reference code ties the SMS delivery log to the
 // visit; a missing code only leaves the log unlinked.
 async function readVisitReference(client, values) {
   if (values.type !== "visit") {

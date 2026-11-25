@@ -204,11 +204,10 @@ export default function App() {
           path="staff/login"
         />
 
-        {/* Public privacy notice; also the policy URL given to Meta. */}
+        {/* Public privacy notice. */}
         <Route element={<PrivacyPage />} path="privacy" />
 
-        {/* Public: the link visitors get on WhatsApp after check-out. */}
-        <Route element={<VisitorFeedbackPage />} path="feedback/:token" />
+        {/* Public: the feedback link visitors get by SMS after check-out. */}
         <Route element={<VisitorFeedbackPage />} path="f/:code" />
 
         <Route

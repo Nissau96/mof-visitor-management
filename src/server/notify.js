@@ -1,31 +1,20 @@
 import process from "node:process";
-import { resolveSmsProvider, sendSms } from "./smsSender.js";
-import {
-  WhatsappUnavailableError,
-  isWhatsappSwitchedOff,
-  resolveWhatsappProvider,
-  sendWhatsappTemplate,
-} from "./whatsappSender.js";
+import { SmsUnavailableError, resolveSmsProvider, sendSms } from "./smsSender.js";
 
-// Every visitor-facing WhatsApp or SMS message goes through notify():
-// WhatsApp first, SMS when WhatsApp refuses or is not set up. Each
-// attempt is recorded in notification_log without the message text.
-// notify() never throws: a message problem must not undo a booking or a
-// Wi-Fi grant.
+// Every visitor-facing text message goes through notify(), by SMS. Each
+// message is recorded in notification_log without its text. notify()
+// never throws: a message problem must not undo a booking, a check-in or
+// a Wi-Fi grant.
 
-// WhatsApp template name and the matching SMS text for each purpose.
-// The parameters are the same, in the same order, for both. A purpose
-// with no template goes by SMS only.
+// The SMS text for each purpose, built from its parameters in order.
 export const NOTIFICATION_PURPOSES = Object.freeze({
   booking_confirmation: {
     sms: ([date, host, code]) =>
       `Ministry of Finance: your visit on ${date} with ${host} is booked. Show code ${code} at reception.`,
-    template: "visit_booked",
   },
   visit_reminder: {
     sms: ([date, time, code]) =>
       `Ministry of Finance: reminder of your visit tomorrow, ${date} at ${time}. Show code ${code} at reception.`,
-    template: "visit_reminder",
   },
   // After first-visit registration or a returning check-in.
   registration_success: {
@@ -39,7 +28,6 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
         "",
         "Kindly proceed to the reception desk for assistance.",
       ].join("\n"),
-    template: "registration_success",
   },
   // When reception admits the visitor with a card.
   card_issued: {
@@ -52,10 +40,8 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
         "",
         "Kindly keep your visitor card with you and return it to reception before leaving.",
       ].join("\n"),
-    template: "card_issued",
   },
-  // WhatsApp button carries the long token; the SMS carries the short
-  // link (smsContext.shortUrl), which hides the full site address.
+  // The short link (smsContext.shortUrl) hides the full site address.
   visit_feedback: {
     sms: ([firstName], context = {}) =>
       context.shortUrl
@@ -69,10 +55,7 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
             context.shortUrl,
           ].join("\n")
         : null,
-    template: "visit_feedback",
   },
-  // SMS only: WhatsApp refuses a password in a Utility template (it is
-  // Authentication content), and the password never passes through Meta.
   wifi_details: {
     sms: ([network, password, expiryDate, expiryTime]) =>
       [
@@ -85,7 +68,6 @@ export const NOTIFICATION_PURPOSES = Object.freeze({
         "",
         "Enjoy your visit.",
       ].join("\n"),
-    template: null,
   },
 });
 
@@ -95,7 +77,7 @@ export function phoneLast4(phone) {
 
 // Short, text-free error for the log.
 function errorCode(error) {
-  if (error instanceof WhatsappUnavailableError) {
+  if (error instanceof SmsUnavailableError) {
     return "not_configured";
   }
 
@@ -154,20 +136,29 @@ async function safely(logger, label, work) {
   }
 }
 
-// Sends the SMS version, recorded as the fallback of `fallbackOf` when
-// given. The row is written first: the unique fallback_of index lets
-// only one caller claim the fallback, so a repeated webhook cannot send
-// a second SMS.
-export async function sendSmsFallback({
-  base,
+/**
+ * notify({ purpose, phone, parameters, smsContext?, referenceCode?, meetingId? })
+ * → { channel: "sms" | null, status: "accepted" | "failed" }
+ */
+export async function notify({
   environment = process.env,
-  fallbackOf = null,
   logger = console,
-  message,
+  meetingId = null,
+  parameters,
   phone,
-  recorder,
+  purpose,
+  recorder = createSupabaseRecorder(),
+  referenceCode = null,
   sms = sendSms,
+  smsContext = {},
 }) {
+  const definition = NOTIFICATION_PURPOSES[purpose];
+  const message = definition ? definition.sms(parameters, smsContext) : null;
+
+  if (!message || !phone) {
+    return { channel: null, status: "failed" };
+  }
+
   let provider;
 
   try {
@@ -177,14 +168,16 @@ export async function sendSmsFallback({
   }
 
   const rowId = await safely(logger, "record sms", () =>
-    recorder.insert({ ...base, channel: "sms", fallback_of: fallbackOf, provider, status: "accepted" }),
+    recorder.insert({
+      channel: "sms",
+      meeting_id: meetingId,
+      phone_last4: phoneLast4(phone),
+      provider,
+      purpose,
+      reference_code: referenceCode,
+      status: "accepted",
+    }),
   );
-
-  if (fallbackOf && !rowId) {
-    // Someone else already claimed this fallback, or the log is down.
-    // Sending anyway could text the visitor twice.
-    return { channel: null, status: "failed" };
-  }
 
   try {
     const result = await sms({ environment, message, phone });
@@ -205,112 +198,4 @@ export async function sendSmsFallback({
 
     return { channel: null, status: "failed" };
   }
-}
-
-/**
- * notify({ purpose, phone, parameters, buttonParameters?, smsContext?, referenceCode?, meetingId? })
- * → { channel: "whatsapp" | "sms" | null, status: "accepted" | "failed" }
- */
-export async function notify({
-  buttonParameters = [],
-  environment = process.env,
-  logger = console,
-  meetingId = null,
-  parameters,
-  phone,
-  purpose,
-  recorder = createSupabaseRecorder(),
-  referenceCode = null,
-  senders = { sms: sendSms, whatsapp: sendWhatsappTemplate },
-  smsContext = {},
-}) {
-  const definition = NOTIFICATION_PURPOSES[purpose];
-  const smsText = definition?.sms ? definition.sms(parameters, smsContext) : null;
-
-  if (!definition || !phone) {
-    return { channel: null, status: "failed" };
-  }
-
-  const base = {
-    meeting_id: meetingId,
-    phone_last4: phoneLast4(phone),
-    purpose,
-    reference_code: referenceCode,
-  };
-  let whatsappRowId;
-
-  // WhatsApp switched off: SMS-capable messages go straight to SMS with
-  // no failed WhatsApp row; WhatsApp-only messages are not sent.
-  if (!definition.template || isWhatsappSwitchedOff(environment)) {
-    if (!smsText) {
-      return { channel: null, status: "failed" };
-    }
-
-    return sendSmsFallback({
-      base,
-      environment,
-      logger,
-      message: smsText,
-      phone,
-      recorder,
-      sms: senders.sms,
-    });
-  }
-
-  try {
-    const result = await senders.whatsapp({
-      buttonParameters,
-      environment,
-      parameters,
-      phone,
-      template: definition.template,
-    });
-
-    await safely(logger, "record whatsapp", () =>
-      recorder.insert({
-        ...base,
-        channel: "whatsapp",
-        provider: result.provider,
-        provider_message_id: result.providerMessageId,
-        status: "accepted",
-        template: definition.template,
-      }),
-    );
-
-    return { channel: "whatsapp", status: "accepted" };
-  } catch (error) {
-    let provider = "meta";
-
-    try {
-      provider = resolveWhatsappProvider(environment);
-    } catch {
-      // Not configured: recorded against Meta, the intended provider.
-    }
-
-    whatsappRowId = await safely(logger, "record whatsapp failure", () =>
-      recorder.insert({
-        ...base,
-        channel: "whatsapp",
-        error: errorCode(error),
-        provider,
-        status: "failed",
-        template: definition.template,
-      }),
-    );
-  }
-
-  if (!smsText) {
-    return { channel: null, status: "failed" };
-  }
-
-  return sendSmsFallback({
-    base,
-    environment,
-    fallbackOf: whatsappRowId,
-    logger,
-    message: smsText,
-    phone,
-    recorder,
-    sms: senders.sms,
-  });
 }

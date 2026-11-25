@@ -4,8 +4,8 @@ import { useParams } from "react-router-dom";
 import SiteCredit from "../components/SiteCredit.jsx";
 import { apiRequest } from "../lib/api.js";
 
-// The link a visitor gets on WhatsApp after check-out. No sign-in: the
-// token in the address is the only key. One answer per visit.
+// The link a visitor gets by SMS after check-out. No sign-in: the short
+// code in the address is the only key. One answer per visit.
 
 const RATING_WORDS = ["", "Poor", "Fair", "Good", "Very good", "Excellent"];
 const COMMENT_LIMIT = 1000;
@@ -73,36 +73,33 @@ function StarRating({ onChange, value }) {
 }
 
 export default function VisitorFeedbackPage() {
-  // /feedback/<token> from WhatsApp, /f/<code> from SMS.
-  const { code = "", token: linkToken = "" } = useParams();
-  const token = linkToken || code;
-  const keyField = linkToken ? "token" : "code";
-  const [state, setState] = useState({ error: "", feedback: null, token: "" });
+  const { code = "" } = useParams();
+  const [state, setState] = useState({ code: "", error: "", feedback: null });
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [submit, setSubmit] = useState({ error: "", saving: false, saved: false });
-  const loading = state.token !== token;
+  const loading = state.code !== code;
 
   useEffect(() => {
     document.title = "Rate your visit · Ministry of Finance";
     let active = true;
 
-    apiRequest("/api/feedback/view", { body: JSON.stringify({ [keyField]: token }), method: "POST" })
+    apiRequest("/api/feedback/view", { body: JSON.stringify({ code }), method: "POST" })
       .then((response) => {
         if (active) {
-          setState({ error: "", feedback: response.feedback, token });
+          setState({ code, error: "", feedback: response.feedback });
         }
       })
       .catch((error) => {
         if (active) {
-          setState({ error: error.status === 404 ? "invalid" : "unavailable", feedback: null, token });
+          setState({ code, error: error.status === 404 ? "invalid" : "unavailable", feedback: null });
         }
       });
 
     return () => {
       active = false;
     };
-  }, [keyField, token]);
+  }, [code]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -116,7 +113,7 @@ export default function VisitorFeedbackPage() {
 
     try {
       await apiRequest("/api/feedback/submit", {
-        body: JSON.stringify({ comment, rating, [keyField]: token }),
+        body: JSON.stringify({ code, comment, rating }),
         method: "POST",
       });
       setSubmit({ error: "", saving: false, saved: true });

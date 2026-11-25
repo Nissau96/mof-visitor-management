@@ -62,7 +62,7 @@ function getHistoryDatabaseError(error) {
   );
 }
 
-// WhatsApp and SMS messages sent about one visit, for the visit drawer.
+// SMS messages sent about one visit, for the visit drawer.
 // The visit must be in the staff member's tower; no message text exists.
 async function listVisitMessages(body, profile) {
   const reference = String(body?.reference || "").trim().toUpperCase();

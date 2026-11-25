@@ -23,7 +23,7 @@ import {
 } from "../lib/visitHistory.js";
 
 // Visitor feedback for administrators and the client service head: what
-// visitors said after check-out, from the WhatsApp feedback link.
+// visitors said after check-out, from the feedback link sent by SMS.
 
 const CSV_COLUMNS = [
   { key: "date", label: "Date" },
@@ -130,7 +130,7 @@ export default function StaffFeedbackPage() {
         <div className="vh-titlecopy">
           <h1 className="vh-h1">Visitor feedback</h1>
           <p className="vh-lede">
-            Ratings and comments visitors sent from the WhatsApp link they get after check-out.
+            Ratings and comments visitors sent from the text message link they get after check-out.
           </p>
         </div>
         <div className="vh-actions">
@@ -195,7 +195,7 @@ export default function StaffFeedbackPage() {
               className="max-xl:col-span-2"
               count={data.requested}
               icon={Send}
-              note="Feedback links sent on WhatsApp"
+              note="Feedback links sent by SMS"
               shortTitle="Requests"
               title="Requests sent"
             />
@@ -222,7 +222,7 @@ export default function StaffFeedbackPage() {
                 <div className="vh-empty" role="status">
                   <MessageSquareHeart aria-hidden="true" className="vh-empty-icon" size={44} strokeWidth={1.6} />
                   <p className="vh-empty-title">No feedback in this period</p>
-                  <span>Visitors get the link on WhatsApp when reception checks them out.</span>
+                  <span>Visitors get the link by SMS when reception checks them out.</span>
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-200">

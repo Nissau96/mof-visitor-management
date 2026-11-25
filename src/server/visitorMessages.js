@@ -4,7 +4,7 @@ import { notify } from "./notify.js";
 // SMS sent to a visitor at registration and when reception issues a
 // visitor card. Neither can fail the registration or the admission.
 
-// WhatsApp refuses an empty parameter, so a missing name has a fallback.
+// A missing name reads "Visitor" rather than leaving a gap.
 export function firstNameOf(fullName, fallback = "Visitor") {
   return String(fullName || "").trim().split(/\s+/)[0] || fallback;
 }

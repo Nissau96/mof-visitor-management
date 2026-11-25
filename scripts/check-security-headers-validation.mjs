@@ -284,10 +284,6 @@ const EXPECTED_REWRITES = [
     destination: "/api/staff/history?operation=messages",
   },
   {
-    source: "/api/webhooks/whatsapp",
-    destination: "/api/webhooks?provider=whatsapp",
-  },
-  {
     source: "/api/returning/send-code",
     destination:
       "/api/returning/verify?operation=send-code",
@@ -322,10 +318,6 @@ const EXPECTED_REWRITES = [
   },
   {
     source: "/privacy",
-    destination: "/index.html",
-  },
-  {
-    source: "/feedback/:path*",
     destination: "/index.html",
   },
   {
@@ -600,7 +592,7 @@ const vercelFunctionCount =
 
 assert.equal(
   vercelFunctionCount,
-  11,
+  10,
   "The project must remain within the Vercel Hobby Function limit.",
 );
 

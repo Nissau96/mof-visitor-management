@@ -500,10 +500,10 @@ export default function NewVisitorPage() {
             </div>
 
             <Field
-              description="For example 024 000 0000. Ministry of Finance will send your booking details on WhatsApp, or by SMS if WhatsApp isn't available. Wi-Fi details come by SMS."
+              description="For example 024 000 0000. We'll text your booking details and any Wi-Fi details to this number."
               error={errors.phone?.message}
               id="phone"
-              label="Phone/WhatsApp number"
+              label="Mobile number"
               required
             >
               <IconInput icon={Phone}>
@@ -994,7 +994,7 @@ function GuestFields({ errors, index, onRemove, register }) {
         <Field
           error={errors?.phone?.message}
           id={fieldId("phone")}
-          label="Phone/WhatsApp number"
+          label="Mobile number"
           required
         >
           <IconInput icon={Phone}>

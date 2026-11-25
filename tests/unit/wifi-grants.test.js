@@ -66,7 +66,7 @@ describe("WiFi delivery", () => {
   it("texts everyone with a number and emails everyone with an address", async () => {
     const send = {
       email: vi.fn().mockResolvedValue(1),
-      phone: vi.fn().mockResolvedValue({ channel: "whatsapp", status: "accepted" }),
+      phone: vi.fn().mockResolvedValue({ channel: "sms", status: "accepted" }),
     };
 
     const result = await deliverWifiCredentials({

@@ -1,7 +1,9 @@
 # WhatsApp and SMS visitor notifications — design
 
 Date: 2026-11-22
-Status: approved in conversation, ready for planning
+Status: superseded by SMS only (see note)
+
+> **Superseded (2026-11-25): SMS only.** WhatsApp was dropped. Meta rejected the registration and card templates, and the Ministry chose to send every visitor message by SMS through Arkesel. The WhatsApp sender, the webhook endpoint, the `WHATSAPP_*` settings and the Meta templates were removed; the WhatsApp parts below are kept as a record only. The database keeps its `channel`, `provider` and `fallback_of` columns unchanged.
 
 ## Intent
 

@@ -1104,7 +1104,7 @@ export function createCheckoutHandler({
           );
         }
 
-        // A normal check-out asks the visitor for feedback on WhatsApp.
+        // A normal check-out asks the visitor for feedback by SMS.
         // Cards reported lost or closed by an incident do not. It never
         // fails the check-out.
         // Admission texts the visitor their card number. It never fails

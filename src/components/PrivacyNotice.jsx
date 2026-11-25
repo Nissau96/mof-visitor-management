@@ -124,7 +124,7 @@ export function PrivacyNoticeSections({ className = "" }) {
       <section>
         <h3 className="font-bold text-slate-950">Who may access it</h3>
         <p className="mt-1">
-          Access is limited to authorised Ministry reception, security and administrative personnel and approved service providers that support the application’s hosting and database services under organisational controls. If you ask for Wi-Fi access, your name, organisation, mobile number and email address are shared with the Ministry’s IT network team so they can send you the Wi-Fi details. To send your booking confirmation and visit reminder, your mobile number is shared with Meta (WhatsApp) and, if WhatsApp cannot deliver, with the Ministry’s approved SMS provider. Wi-Fi details are sent by SMS only, through the approved SMS provider. After check-out you may receive one WhatsApp message asking you to rate your visit; any rating and comment you give are kept with your visit record for two years.
+          Access is limited to authorised Ministry reception, security and administrative personnel and approved service providers that support the application’s hosting and database services under organisational controls. If you ask for Wi-Fi access, your name, organisation, mobile number and email address are shared with the Ministry’s IT network team so they can send you the Wi-Fi details. To text you about your visit (your registration, booking confirmation, visit reminder, visitor card and any Wi-Fi details), your mobile number is shared with our SMS provider. After check-out you may receive one text message asking you to rate your visit; any rating and comment you give are kept with your visit record for two years.
         </p>
       </section>
 

@@ -9,7 +9,6 @@ import process from "node:process";
 import nodemailer from "nodemailer";
 import { NOTIFICATION_PURPOSES, notify } from "./notify.js";
 import { resolveSmsProvider } from "./smsSender.js";
-import { isWhatsappAvailable } from "./whatsappSender.js";
 import { escapeHtml, readSmtpConfiguration } from "./staffInvitation.js";
 
 // Guest Wi-Fi credentials. IT creates the password in the Wi-Fi system
@@ -93,11 +92,6 @@ export function isSmsAvailable(environment = process.env) {
   } catch {
     return false;
   }
-}
-
-// Visitor messages go by WhatsApp first and SMS second; either is enough.
-export function isPhoneMessagingAvailable(environment = process.env) {
-  return isWhatsappAvailable(environment) || isSmsAvailable(environment);
 }
 
 export function isEmailAvailable() {
@@ -235,8 +229,7 @@ async function sendEmails(recipients, messages) {
 }
 
 // Sends by the chosen channels ("sms", "email"). Wi-Fi details go by SMS
-// only, through notify() so each one is logged (never by WhatsApp: the
-// password must not pass through Meta). Returns the channels that reached
+// through notify() so each one is logged. Returns the channels that reached
 // at least one person, and a note for any that failed. referenceCode or
 // meetingId ties the delivery log to the visit.
 export async function deliverWifiCredentials({

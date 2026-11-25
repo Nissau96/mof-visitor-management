@@ -30,7 +30,7 @@ import { hashInviteToken } from "../src/server/visitorInviteToken.js";
 import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
 import { sendRegistrationSms } from "../src/server/visitorMessages.js";
 import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
-import { hashFeedbackToken, isFeedbackCode, isFeedbackToken } from "../src/server/visitFeedback.js";
+import { isFeedbackCode } from "../src/server/visitFeedback.js";
 
 export const REGISTRATION_RATE_LIMIT =
   Object.freeze({
@@ -175,7 +175,7 @@ async function submitInvite(
   );
 }
 
-// Feedback links come by WhatsApp after check-out; the token in the link
+// Feedback links come by SMS after check-out; the short code in the link
 // is the only key, so both operations are rate-limited per address.
 export const FEEDBACK_RATE_LIMIT = Object.freeze({
   limit: 30,
@@ -185,13 +185,11 @@ export const FEEDBACK_RATE_LIMIT = Object.freeze({
 
 const FEEDBACK_INVALID = "This feedback link is not valid.";
 
-// The WhatsApp link carries the long token; the SMS link carries the
-// 8-character short code. Either finds the same row.
+// The SMS link carries the 8-character short code that finds the row.
 async function readFeedbackRow(request, getAdminClientForRequest) {
   const body = await readJsonBody(request);
-  const byToken = isFeedbackToken(body?.token);
 
-  if (!byToken && !isFeedbackCode(body?.code)) {
+  if (!isFeedbackCode(body?.code)) {
     throw new HttpError(FEEDBACK_INVALID, 404);
   }
 
@@ -199,7 +197,7 @@ async function readFeedbackRow(request, getAdminClientForRequest) {
   const { data, error } = await client
     .from("visit_feedback")
     .select("visit_id, expires_at, submitted_at, token_hash")
-    .eq(byToken ? "token_hash" : "short_code", byToken ? hashFeedbackToken(body.token) : body.code)
+    .eq("short_code", body.code)
     .maybeSingle();
 
   if (error) {

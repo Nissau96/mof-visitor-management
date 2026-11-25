@@ -3,9 +3,10 @@ import process from "node:process";
 import { notify } from "./notify.js";
 import { firstNameOf } from "./visitorMessages.js";
 
-// After reception checks a visitor out, WhatsApp them a link to rate the
-// visit. The link carries a random token; only its SHA-256 hash is
-// stored. Nothing here can fail the check-out.
+// After reception checks a visitor out, text them a short link to rate
+// the visit. Each request also gets a random token whose SHA-256 hash is
+// the key submit_visit_feedback uses; the token itself is never stored
+// or sent. Nothing here can fail the check-out.
 
 export const FEEDBACK_LINK_DAYS = 7;
 
@@ -13,8 +14,6 @@ export const FEEDBACK_LINK_DAYS = 7;
 // full site address out of the message; the Ministry's own short domain
 // replaces it later through FEEDBACK_SHORT_LINK_BASE.
 export const DEFAULT_FEEDBACK_SHORT_LINK_BASE = "https://mofv.vercel.app";
-
-const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 // No 0, O, 1, I or l: codes are read off a phone screen.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -58,10 +57,6 @@ export function hashFeedbackToken(token) {
   return createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
-export function isFeedbackToken(value) {
-  return TOKEN_PATTERN.test(String(value || ""));
-}
-
 /**
  * Creates the feedback link for a checked-out visit and sends it.
  * Resolves to { sent: boolean, reason? }.
@@ -96,7 +91,7 @@ export async function requestVisitFeedback({
       return { reason: "no_phone", sent: false };
     }
 
-    const { hash, token } = createFeedbackToken();
+    const { hash } = createFeedbackToken();
     const expiresAt = new Date(now().getTime() + FEEDBACK_LINK_DAYS * 86_400_000);
     let code = "";
 
@@ -124,7 +119,6 @@ export async function requestVisitFeedback({
 
     const visitReference = visit.reference_code || reference;
     const result = await notifyVisitor({
-      buttonParameters: [token],
       environment,
       logger,
       parameters: [firstNameOf(profile.full_name, "visitor")],

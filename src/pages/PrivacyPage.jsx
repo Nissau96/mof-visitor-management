@@ -9,8 +9,8 @@ import {
 } from "../constants/privacy.js";
 
 // The privacy notice as a public page, open without signing in. Its link
-// is what WhatsApp (Meta) and other providers are given as the privacy
-// policy. The text is the same one visitors acknowledge in the forms.
+// is what service providers are given as the privacy policy. The text is
+// the same one visitors acknowledge in the forms.
 export default function PrivacyPage() {
   useEffect(() => {
     document.title = "Privacy notice · Ministry of Finance visitor service";

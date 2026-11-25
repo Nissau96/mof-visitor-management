@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { describeMessages } from "../../lib/visitMessages.js";
 import { formatTime } from "../../lib/visitHistory.js";
 
-/** WhatsApp/SMS delivery lines for one visit. Read-only. */
+/** SMS delivery lines for one visit. Read-only. */
 export default function VisitMessages({ loadMessages, reference }) {
   const [state, setState] = useState({ error: "", key: "", lines: [] });
   const loading = state.key !== reference;
@@ -46,7 +46,7 @@ export default function VisitMessages({ loadMessages, reference }) {
       ) : state.error ? (
         <p className="vh-cardnote">{state.error}</p>
       ) : state.lines.length === 0 ? (
-        <p className="vh-cardnote">No WhatsApp or SMS messages were sent for this visit.</p>
+        <p className="vh-cardnote">No text messages were sent for this visit.</p>
       ) : (
         <ul className="vh-msglist">
           {state.lines.map((line) => (

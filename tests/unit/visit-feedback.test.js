@@ -8,10 +8,8 @@ import {
   feedbackShortUrl,
   hashFeedbackToken,
   isFeedbackCode,
-  isFeedbackToken,
   requestVisitFeedback,
 } from "../../src/server/visitFeedback.js";
-import { sendWhatsappTemplate } from "../../src/server/whatsappSender.js";
 
 // A tiny fake of the Supabase query builder: from(table) → rows by table.
 function fakeClient({ inserts = [], rows = {}, insertError = null, rpc } = {}) {
@@ -34,15 +32,13 @@ function fakeClient({ inserts = [], rows = {}, insertError = null, rpc } = {}) {
   };
 }
 
-describe("feedback tokens", () => {
-  it("are 43-character base64url values stored only as a SHA-256 hash", () => {
+describe("feedback keys", () => {
+  it("store only a SHA-256 hash of a random token", () => {
     const { hash, token } = createFeedbackToken();
 
-    expect(isFeedbackToken(token)).toBe(true);
     expect(hash).toBe(hashFeedbackToken(token));
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
-    expect(isFeedbackToken("short")).toBe(false);
-    expect(isFeedbackToken(`${token}/..`)).toBe(false);
+    expect(createFeedbackToken().hash).not.toBe(hash);
   });
 });
 
@@ -64,14 +60,14 @@ describe("short feedback codes", () => {
 describe("feedback request at check-out", () => {
   const now = () => new Date("2026-11-24T12:00:00Z");
 
-  it("saves the token hash with a 7-day expiry and sends the WhatsApp link", async () => {
+  it("saves the row with a 7-day expiry and texts the short link", async () => {
     const client = fakeClient({
       rows: {
         visitor_profiles: { full_name: "Ama Mensah", phone: "+233241112233" },
         visits: { id: "v1", reference_code: "VIS-7F31A2", visitor_id: "p1" },
       },
     });
-    const notifyVisitor = vi.fn().mockResolvedValue({ channel: "whatsapp", status: "accepted" });
+    const notifyVisitor = vi.fn().mockResolvedValue({ channel: "sms", status: "accepted" });
 
     const result = await requestVisitFeedback({ client, notifyVisitor, now, reference: "VIS-7F31A2", visitId: "v1" });
 
@@ -79,10 +75,10 @@ describe("feedback request at check-out", () => {
     const saved = client.inserts[0];
     expect(saved.table).toBe("visit_feedback");
     expect(saved.row.expires_at).toBe("2026-12-01T12:00:00.000Z");
+    expect(saved.row.token_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(isFeedbackCode(saved.row.short_code)).toBe(true);
     const call = notifyVisitor.mock.calls[0][0];
     expect(call).toMatchObject({ parameters: ["Ama"], purpose: "visit_feedback", referenceCode: "VIS-7F31A2" });
-    expect(hashFeedbackToken(call.buttonParameters[0])).toBe(saved.row.token_hash);
     expect(call.smsContext).toEqual({ shortUrl: `https://mofv.vercel.app/f/${saved.row.short_code}` });
   });
 
@@ -115,48 +111,23 @@ describe("feedback request at check-out", () => {
 });
 
 describe("feedback message", () => {
-  it("fills the URL button with the token", async () => {
-    const fetchImplementation = vi.fn().mockResolvedValue({ json: async () => ({ messages: [{ id: "wamid.F" }] }), ok: true, status: 200 });
-
-    await sendWhatsappTemplate({
-      buttonParameters: ["tok123"],
-      environment: { WHATSAPP_ACCESS_TOKEN: "t", WHATSAPP_PHONE_NUMBER_ID: "1485090471365109", WHATSAPP_PROVIDER: "meta" },
-      fetchImplementation,
-      parameters: ["VIS-7F31A2"],
-      phone: "+233241112233",
-      template: "visit_feedback",
-    });
-
-    const body = JSON.parse(fetchImplementation.mock.calls[0][1].body);
-    expect(body.template.components[1]).toEqual({
-      index: "0",
-      parameters: [{ text: "tok123", type: "text" }],
-      sub_type: "url",
-      type: "button",
-    });
-  });
-
-  it("goes by SMS with the short link when WhatsApp is off, and not at all without a link", async () => {
+  it("uses the approved wording with the short link", async () => {
     const recorder = { insert: vi.fn().mockResolvedValue("row-1"), update: vi.fn() };
-    const senders = { sms: vi.fn().mockResolvedValue({ provider: "arkesel", providerMessageId: "a1" }), whatsapp: vi.fn() };
-    const options = {
-      buttonParameters: ["tok"],
-      environment: { SMS_PROVIDER: "arkesel", WHATSAPP_PROVIDER: "off" },
-      logger: { error: vi.fn() },
-      parameters: ["Ama"],
-      phone: "+233241112233",
-      purpose: "visit_feedback",
-      recorder,
-      senders,
-    };
+    const sms = vi.fn().mockResolvedValue({ provider: "arkesel", providerMessageId: "a1" });
 
     await expect(
-      notify({ ...options, smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" } }),
-    ).resolves.toEqual({
-      channel: "sms",
-      status: "accepted",
-    });
-    expect(senders.sms.mock.calls[0][0].message).toBe(
+      notify({
+        environment: { SMS_PROVIDER: "arkesel" },
+        logger: { error: vi.fn() },
+        parameters: ["Ama"],
+        phone: "+233241112233",
+        purpose: "visit_feedback",
+        recorder,
+        sms,
+        smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" },
+      }),
+    ).resolves.toEqual({ channel: "sms", status: "accepted" });
+    expect(sms.mock.calls[0][0].message).toBe(
       [
         "Dear Ama,",
         "",
@@ -167,38 +138,12 @@ describe("feedback message", () => {
         "https://mofv.vercel.app/f/K7pQ2xZm",
       ].join("\n"),
     );
-    expect(senders.whatsapp).not.toHaveBeenCalled();
-
-    await expect(notify(options)).resolves.toEqual({ channel: null, status: "failed" });
-    expect(senders.sms).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to SMS when WhatsApp fails", async () => {
-    const recorder = { insert: vi.fn().mockResolvedValue("row-1"), update: vi.fn() };
-    const senders = {
-      sms: vi.fn().mockResolvedValue({ provider: "log", providerMessageId: null }),
-      whatsapp: vi.fn().mockRejectedValue(new Error("refused")),
-    };
-
-    await expect(
-      notify({
-        buttonParameters: ["tok"],
-        environment: { VERCEL_ENV: "preview" },
-        logger: { error: vi.fn() },
-        parameters: ["Ama"],
-        phone: "+233241112233",
-        purpose: "visit_feedback",
-        recorder,
-        senders,
-        smsContext: { shortUrl: "https://mofv.vercel.app/f/K7pQ2xZm" },
-      }),
-    ).resolves.toEqual({ channel: "sms", status: "accepted" });
-    expect(senders.sms.mock.calls[0][0].message).toContain("https://mofv.vercel.app/f/K7pQ2xZm");
   });
 });
 
 describe("public feedback endpoints", () => {
-  const token = createFeedbackToken().token;
+  const CODE = "K7pQ2xZm";
+  const hash = createFeedbackToken().hash;
   const post = (operation, body) =>
     new Request(`https://example.test/api/register?operation=${operation}`, {
       body: JSON.stringify(body),
@@ -224,45 +169,40 @@ describe("public feedback endpoints", () => {
     );
     const unknown = handlerWith(fakeClient());
 
-    const ok = await open.fetch(post("feedback-view", { token }));
+    const ok = await open.fetch(post("feedback-view", { code: CODE }));
     expect(ok.status).toBe(200);
     expect((await ok.json()).feedback).toMatchObject({ reference: "VIS-7F31A2", status: "open" });
 
-    expect((await unknown.fetch(post("feedback-view", { token }))).status).toBe(404);
-    expect((await unknown.fetch(post("feedback-view", { token: "bad" }))).status).toBe(404);
+    expect((await unknown.fetch(post("feedback-view", { code: CODE }))).status).toBe(404);
+    expect((await unknown.fetch(post("feedback-view", { code: "bad-code" }))).status).toBe(404);
+    expect((await open.fetch(post("feedback-view", { token: "a".repeat(43) }))).status).toBe(404);
   });
 
   it("saves one rating and reports a used link", async () => {
     const rpc = vi
       .fn()
       .mockResolvedValueOnce({ data: { reference: "VIS-7F31A2" }, error: null })
-      .mockResolvedValueOnce({ data: null, error: { code: "55000" } })
       .mockResolvedValueOnce({ data: null, error: { code: "55000" } });
     const handler = handlerWith(
       fakeClient({
         rows: {
-          visit_feedback: { expires_at: "2999-01-01T00:00:00Z", submitted_at: null, token_hash: hashFeedbackToken(token), visit_id: "v1" },
+          visit_feedback: { expires_at: "2999-01-01T00:00:00Z", submitted_at: null, token_hash: hash, visit_id: "v1" },
         },
         rpc,
       }),
     );
 
-    const saved = await handler.fetch(post("feedback-submit", { comment: "Quick and friendly", rating: 5, token }));
-    const again = await handler.fetch(post("feedback-submit", { rating: 4, token }));
-    const bad = await handler.fetch(post("feedback-submit", { rating: 9, token }));
+    const saved = await handler.fetch(post("feedback-submit", { code: CODE, comment: "Quick and friendly", rating: 5 }));
+    const again = await handler.fetch(post("feedback-submit", { code: CODE, rating: 4 }));
+    const bad = await handler.fetch(post("feedback-submit", { code: CODE, rating: 9 }));
 
     expect(saved.status).toBe(201);
     expect(rpc).toHaveBeenCalledWith("submit_visit_feedback", {
       p_comment: "Quick and friendly",
       p_rating: 5,
-      p_token_hash: hashFeedbackToken(token),
+      p_token_hash: hash,
     });
     expect(again.status).toBe(410);
-
-    const byCode = await handler.fetch(post("feedback-submit", { code: "K7pQ2xZm", rating: 3 }));
-    expect(byCode.status).toBe(410);
-    expect(rpc).toHaveBeenLastCalledWith("submit_visit_feedback", expect.objectContaining({ p_token_hash: hashFeedbackToken(token) }));
-    expect((await handler.fetch(post("feedback-view", { code: "bad-code" }))).status).toBe(404);
     expect(bad.status).toBe(400);
   });
 });

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectNoWcagViolations } from "./support/accessibility.js";
 import { installMockStaffAuthentication, signInAsStaff } from "./support/staff-authentication.js";
 
-const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde";
+const CODE = "K7pQ2xZm";
 
 test.describe("visitor feedback link", () => {
   test("rates a visit and thanks the visitor", async ({ page }) => {
@@ -16,7 +16,7 @@ test.describe("visitor feedback link", () => {
       await route.fulfill({ json: { saved: true }, status: 201 });
     });
 
-    await page.goto(`/feedback/${TOKEN}`);
+    await page.goto(`/f/${CODE}`);
 
     await expect(page.getByRole("heading", { level: 1, name: "How was your visit?" })).toBeVisible();
     await expect(page.getByText("VIS-7F31A2")).toBeVisible();
@@ -31,13 +31,13 @@ test.describe("visitor feedback link", () => {
     await page.getByRole("button", { name: "Send feedback" }).click();
 
     await expect(page.getByRole("heading", { name: "Thank you" })).toBeVisible();
-    expect(submitted[0]).toEqual({ comment: "Quick check-in, friendly staff.", rating: 4, token: TOKEN });
+    expect(submitted[0]).toEqual({ comment: "Quick check-in, friendly staff.", rating: 4, code: CODE });
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow).toBe(false);
   });
 
-  test("opens from the short SMS link and sends the code, not a token", async ({ page }) => {
+  test("sends the code from the short link", async ({ page }) => {
     const requests = [];
 
     await page.route("**/api/feedback/view", async (route) => {
@@ -62,7 +62,7 @@ test.describe("visitor feedback link", () => {
     await page.route("**/api/feedback/view", (route) =>
       route.fulfill({ json: { feedback: { reference: "VIS-7F31A2", status: "expired" } } }),
     );
-    await page.goto(`/feedback/${TOKEN}`);
+    await page.goto(`/f/${CODE}`);
     await expect(page.getByRole("heading", { name: "Link expired" })).toBeVisible();
 
     await page.unroute("**/api/feedback/view");

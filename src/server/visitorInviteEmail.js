@@ -7,7 +7,7 @@ import {
 } from "../constants/visitorOptions.js";
 import { formatDate } from "../lib/meetingSchedule.js";
 import { notify } from "./notify.js";
-import { isPhoneMessagingAvailable } from "./wifiCredentials.js";
+import { isSmsAvailable } from "./wifiCredentials.js";
 import {
   escapeHtml,
   getStaffLoginUrl,
@@ -182,15 +182,14 @@ export async function sendInviteEmail({ message, to }) {
 }
 
 // After a visitor books: email the visitor (when they gave an address)
-// and the host, and message the visitor on WhatsApp (SMS if WhatsApp
-// fails) once either is set up. Nothing here can fail the booking; the
-// result says what went out.
+// and the host, and text the visitor once SMS is set up. Nothing here can
+// fail the booking; the result says what went out.
 export async function notifyInviteBooked(
   booking,
   {
     environment = process.env,
     send = { email: sendInviteEmail, phone: notify },
-    smsAvailable = isPhoneMessagingAvailable(environment),
+    smsAvailable = isSmsAvailable(environment),
   } = {},
 ) {
   const tasks = {

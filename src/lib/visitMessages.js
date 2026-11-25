@@ -1,22 +1,23 @@
-// Turns notification_log rows into one line per message for the visit
-// drawer: "Booking confirmation · Delivered on WhatsApp", or, when
-// WhatsApp failed and SMS took over, "WhatsApp failed, SMS sent".
+// Turns notification_log rows into one line per text message for the
+// visit drawer: "Booking confirmation · Sent by SMS". Rows from any
+// other channel are not shown.
 
 export const MESSAGE_PURPOSE_LABELS = Object.freeze({
   booking_confirmation: "Booking confirmation",
+  card_issued: "Visitor card",
+  registration_success: "Registration",
+  visit_feedback: "Feedback request",
   visit_reminder: "Visit reminder",
   wifi_details: "Wi-Fi details",
 });
 
-const CHANNEL_LABELS = Object.freeze({ sms: "SMS", whatsapp: "WhatsApp" });
-
-const STATUS_WORDS = Object.freeze({
-  accepted: "sent",
-  delivered: "delivered",
-  expired: "expired",
-  failed: "failed",
-  read: "read",
-  sent: "sent",
+const STATUS_TEXT = Object.freeze({
+  accepted: "Sent by SMS",
+  delivered: "Delivered by SMS",
+  expired: "SMS expired",
+  failed: "SMS failed",
+  read: "Delivered by SMS",
+  sent: "Sent by SMS",
 });
 
 export function getMessageTone(status) {
@@ -27,39 +28,14 @@ export function getMessageTone(status) {
   return status === "delivered" || status === "read" ? "delivered" : "sent";
 }
 
-function phrase(row, { capital = true } = {}) {
-  const channel = CHANNEL_LABELS[row.channel] || row.channel;
-  const word = STATUS_WORDS[row.status] || row.status;
-  const text = row.status === "failed" || row.status === "expired" ? `${channel} ${word}` : `${word} on ${channel}`;
-
-  return capital ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-}
-
 export function describeMessages(rows = []) {
-  const fallbacks = new Map(rows.filter((row) => row.fallbackOf).map((row) => [row.fallbackOf, row]));
-  const shownAsFallback = new Set();
-
   return rows
-    .map((row) => {
-      if (shownAsFallback.has(row.id) || (row.fallbackOf && rows.some((other) => other.id === row.fallbackOf))) {
-        return null;
-      }
-
-      const fallback = fallbacks.get(row.id);
-
-      if (fallback) {
-        shownAsFallback.add(fallback.id);
-      }
-
-      const final = fallback || row;
-
-      return {
-        at: final.updatedAt || final.createdAt,
-        id: row.id,
-        label: MESSAGE_PURPOSE_LABELS[row.purpose] || row.purpose,
-        text: fallback ? `${phrase(row)}, ${phrase(fallback, { capital: false })}` : phrase(row),
-        tone: getMessageTone(final.status),
-      };
-    })
-    .filter(Boolean);
+    .filter((row) => row.channel === "sms")
+    .map((row) => ({
+      at: row.updatedAt || row.createdAt,
+      id: row.id,
+      label: MESSAGE_PURPOSE_LABELS[row.purpose] || row.purpose,
+      text: STATUS_TEXT[row.status] || `SMS ${row.status}`,
+      tone: getMessageTone(row.status),
+    }));
 }

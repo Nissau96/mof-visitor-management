@@ -325,7 +325,7 @@ describe("booking notifications", () => {
   it("emails the host and visitor and messages the visitor", async () => {
     const send = {
       email: vi.fn().mockResolvedValue(undefined),
-      phone: vi.fn().mockResolvedValue({ channel: "whatsapp", status: "accepted" }),
+      phone: vi.fn().mockResolvedValue({ channel: "sms", status: "accepted" }),
     };
 
     const result = await notifyInviteBooked(booking, { environment: {}, send, smsAvailable: true });
@@ -343,7 +343,7 @@ describe("booking notifications", () => {
     );
   });
 
-  it("reports the visitor message as not sent when WhatsApp and SMS both fail", async () => {
+  it("reports the visitor message as not sent when the SMS fails", async () => {
     const send = {
       email: vi.fn().mockResolvedValue(undefined),
       phone: vi.fn().mockResolvedValue({ channel: null, status: "failed" }),

@@ -301,7 +301,7 @@ test.describe("Visitor booking links", () => {
 
     await page.getByLabel(/^First name/).fill("Kofi");
     await page.getByLabel(/^Last name/).fill("Boateng");
-    await page.getByLabel(/^Phone\/WhatsApp number/).fill("024 000 0000");
+    await page.getByLabel(/^Mobile number/).fill("024 000 0000");
     await page.getByLabel(/^Date of visit/).fill(TODAY);
     await chooseOption(page, "Purpose of visit", "Official");
     await chooseOption(page, "Wi-Fi access", "No, I don't need Wi-Fi");
