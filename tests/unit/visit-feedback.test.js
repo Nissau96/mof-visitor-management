@@ -192,24 +192,83 @@ describe("public feedback endpoints", () => {
       }),
     );
 
-    const saved = await handler.fetch(post("feedback-submit", { code: CODE, comment: "Quick and friendly", rating: 5 }));
+    const saved = await handler.fetch(
+      post("feedback-submit", {
+        checkInOk: true,
+        code: CODE,
+        comment: "Quick and friendly",
+        contactOk: true,
+        courtesyOk: "yes",
+        highlights: ["quick_check_in", "clean", "clean"],
+        rating: 5,
+        wayfindingOk: false,
+      }),
+    );
     const again = await handler.fetch(post("feedback-submit", { code: CODE, rating: 4 }));
     const bad = await handler.fetch(post("feedback-submit", { code: CODE, rating: 9 }));
+    const badChoice = await handler.fetch(post("feedback-submit", { code: CODE, highlights: ["free_lunch"], rating: 4 }));
 
     expect(saved.status).toBe(201);
     expect(rpc).toHaveBeenCalledWith("submit_visit_feedback", {
+      p_check_in_ok: true,
       p_comment: "Quick and friendly",
+      p_contact_ok: true,
+      p_courtesy_ok: null,
+      p_highlights: ["quick_check_in", "clean"],
       p_rating: 5,
       p_token_hash: hash,
+      p_wayfinding_ok: false,
     });
     expect(again.status).toBe(410);
     expect(bad.status).toBe(400);
+    expect(badChoice.status).toBe(400);
+  });
+
+  it("shows the visit with masked contact details only", async () => {
+    const handler = handlerWith(
+      fakeClient({
+        rows: {
+          visit_feedback: { expires_at: "2999-01-01T00:00:00Z", submitted_at: null, visit_id: "v1" },
+          visitor_profiles: { email: "kofi@example.invalid", full_name: "Kofi Boateng", phone: "+233201231881" },
+          visits: {
+            checked_in_at: "2026-11-19T09:00:00Z",
+            destination_division: "Budget Office",
+            person_visiting: "Ama Mensah",
+            reference_code: "VIS-7F31A2",
+            visitor_id: "p1",
+          },
+        },
+      }),
+    );
+
+    const { feedback } = await (await handler.fetch(post("feedback-view", { code: CODE }))).json();
+
+    expect(feedback).toMatchObject({
+      contact: { email: "k•••••@example.invalid", phone: "020 ••• ••81" },
+      firstName: "Kofi",
+      hostName: "Ama Mensah",
+      office: "Budget Office",
+      visitedAt: "2026-11-19T09:00:00Z",
+    });
+    expect(JSON.stringify(feedback)).not.toContain("1231881");
+    expect(JSON.stringify(feedback)).not.toContain("Boateng");
   });
 });
 
 describe("feedback summary", () => {
   it("averages to one decimal and counts each star level", () => {
-    expect(summariseFeedback([{ rating: 5 }, { rating: 4 }, { rating: 4 }])).toEqual({
+    expect(
+      summariseFeedback([
+        { check_in_ok: true, rating: 5 },
+        { check_in_ok: false, rating: 4, wayfinding_ok: true },
+        { rating: 4 },
+      ]),
+    ).toEqual({
+      aspects: [
+        { down: 1, key: "check_in", label: "Check-in speed", up: 1 },
+        { down: 0, key: "courtesy", label: "Staff courtesy", up: 0 },
+        { down: 0, key: "wayfinding", label: "Finding your way", up: 1 },
+      ],
       average: 4.3,
       distribution: [
         { count: 0, stars: 1 },

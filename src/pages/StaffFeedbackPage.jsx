@@ -2,12 +2,13 @@ import "@fontsource/plus-jakarta-sans/latin-700.css";
 import "@fontsource/plus-jakarta-sans/latin-800.css";
 import "../styles/visit-history.css";
 
-import { Download, MessageSquareHeart, Send, Star } from "lucide-react";
+import { Download, MessageSquareHeart, Phone, Send, Star, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AppSelect from "../components/AppSelect.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
 import LoadingState from "../components/LoadingState.jsx";
 import StatCard from "../components/StatCard.jsx";
+import { FEEDBACK_ASPECTS, HIGHLIGHT_LABELS, PROBLEM_HIGHLIGHTS, RATING_WORDS } from "../constants/feedback.js";
 import { getTowerLabel } from "../constants/visitorOptions.js";
 import useAuth from "../hooks/useAuth.js";
 import { apiRequest } from "../lib/api.js";
@@ -31,8 +32,83 @@ const CSV_COLUMNS = [
   { key: "reference", label: "Reference" },
   { key: "tower", label: "Tower" },
   { key: "rating", label: "Rating" },
+  { key: "highlights", label: "Stood out / went wrong" },
+  ...FEEDBACK_ASPECTS.map(({ field, label }) => ({ key: field, label })),
+  { key: "contact", label: "May be contacted" },
   { key: "comment", label: "Comment" },
 ];
+
+const PROBLEM_KEYS = new Set(PROBLEM_HIGHLIGHTS.map(({ key }) => key));
+
+function thumbText(value) {
+  return value === true ? "Good" : value === false ? "Not good" : "";
+}
+
+// Thumbs up/down for check-in, courtesy and way-finding.
+function Aspects({ aspects }) {
+  return (
+    <ul aria-label="Parts of the visit" className="space-y-3">
+      {aspects.map((aspect) => {
+        const answered = aspect.up + aspect.down;
+        const share = answered ? Math.round((aspect.up / answered) * 100) : null;
+
+        return (
+          <li className="text-sm" key={aspect.key}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-semibold text-slate-800">{aspect.label}</span>
+              <span className="tabular-nums text-slate-600">
+                {share === null ? "No answers" : `${share}% good · ${answered} ${answered === 1 ? "answer" : "answers"}`}
+              </span>
+            </div>
+            <span aria-hidden="true" className="mt-1.5 block h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <span className="block h-full rounded-full bg-brand-700" style={{ width: `${share || 0}%` }} />
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ResponseDetails({ row }) {
+  const thumbs = FEEDBACK_ASPECTS.filter(({ field }) => row[field] === true || row[field] === false);
+
+  if (!row.highlights?.length && !thumbs.length && !row.contactOk) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {row.highlights?.map((key) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            PROBLEM_KEYS.has(key) ? "bg-rose-50 text-rose-800" : "bg-brand-50 text-brand-900"
+          }`}
+          key={key}
+        >
+          {HIGHLIGHT_LABELS[key] || key}
+        </span>
+      ))}
+      {thumbs.map(({ field, label }) => {
+        const Icon = row[field] ? ThumbsUp : ThumbsDown;
+
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700" key={field}>
+            <Icon aria-hidden="true" size={12} />
+            {label}
+            <span className="sr-only">: {thumbText(row[field])}</span>
+          </span>
+        );
+      })}
+      {row.contactOk ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
+          <Phone aria-hidden="true" size={12} />
+          May be contacted
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 function Stars({ rating }) {
   return (
@@ -57,7 +133,7 @@ function Distribution({ summary }) {
     <ul className="space-y-2" aria-label="Ratings by number of stars">
       {[...summary.distribution].reverse().map((row) => (
         <li className="flex items-center gap-3 text-sm" key={row.stars}>
-          <span className="w-14 shrink-0 font-semibold text-slate-700">{row.stars} star</span>
+          <span className="w-20 shrink-0 font-semibold text-slate-700">{RATING_WORDS[row.stars]}</span>
           <span aria-hidden="true" className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
             <span
               className="block h-full rounded-full bg-amber-400"
@@ -114,9 +190,12 @@ export default function StaffFeedbackPage() {
       `visitor-feedback-${range.from}-to-${range.to}.csv`,
       CSV_COLUMNS,
       feedback.map((row) => ({
+        ...Object.fromEntries(FEEDBACK_ASPECTS.map(({ field }) => [field, thumbText(row[field])])),
         comment: row.comment,
+        contact: row.contactOk ? "Yes" : "No",
         date: row.submittedAt.slice(0, 10),
-        rating: row.rating,
+        highlights: (row.highlights || []).map((key) => HIGHLIGHT_LABELS[key] || key).join("; "),
+        rating: `${row.rating} (${RATING_WORDS[row.rating]})`,
         reference: row.reference,
         time: formatTime(row.submittedAt),
         tower: getTowerLabel(row.tower) || "",
@@ -207,6 +286,14 @@ export default function StaffFeedbackPage() {
                 Ratings
               </h2>
               <Distribution summary={summary} />
+              {summary.aspects ? (
+                <>
+                  <h2 className="vh-h2 mb-4 mt-8" id="feedback-aspects">
+                    Parts of the visit
+                  </h2>
+                  <Aspects aspects={summary.aspects} />
+                </>
+              ) : null}
             </section>
 
             <section aria-labelledby="feedback-list" className="vh-panel">
@@ -241,6 +328,7 @@ export default function StaffFeedbackPage() {
                       ) : (
                         <p className="mt-1 text-sm italic text-slate-500">No comment</p>
                       )}
+                      <ResponseDetails row={row} />
                     </li>
                   ))}
                 </ul>

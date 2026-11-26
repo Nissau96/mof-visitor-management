@@ -4,13 +4,21 @@ import { installMockStaffAuthentication, signInAsStaff } from "./support/staff-a
 
 const CODE = "K7pQ2xZm";
 
+const VISIT = {
+  contact: { email: "k•••••@example.invalid", phone: "020 ••• ••81" },
+  firstName: "Kofi",
+  hostName: "Ama Mensah",
+  office: "Budget Office",
+  reference: "VIS-7F31A2",
+  status: "open",
+  visitedAt: "2026-11-19T09:00:00Z",
+};
+
 test.describe("visitor feedback link", () => {
-  test("rates a visit and thanks the visitor", async ({ page }) => {
+  test("walks through the four questions and thanks the visitor", async ({ page }) => {
     const submitted = [];
 
-    await page.route("**/api/feedback/view", (route) =>
-      route.fulfill({ json: { feedback: { checkedOutAt: null, reference: "VIS-7F31A2", status: "open" } } }),
-    );
+    await page.route("**/api/feedback/view", (route) => route.fulfill({ json: { feedback: VISIT } }));
     await page.route("**/api/feedback/submit", async (route) => {
       submitted.push(route.request().postDataJSON());
       await route.fulfill({ json: { saved: true }, status: 201 });
@@ -18,26 +26,54 @@ test.describe("visitor feedback link", () => {
 
     await page.goto(`/f/${CODE}`);
 
-    await expect(page.getByRole("heading", { level: 1, name: "How was your visit?" })).toBeVisible();
-    await expect(page.getByText("VIS-7F31A2")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "How was your visit to the Ministry today?" })).toBeVisible();
+    await expect(page.getByText("VIS-7F31A2").filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByText("Budget Office · Ama Mensah").filter({ visible: true }).first()).toBeVisible();
     await expectNoWcagViolations(page);
 
-    await page.getByRole("button", { name: "Send feedback" }).click();
-    await expect(page.getByRole("alert")).toHaveText("Choose a rating from 1 to 5 stars.");
+    await page.getByRole("button", { name: "Continue" }).click({ force: true });
+    await expect(page.getByRole("alert")).toHaveText("Choose a face to continue.");
 
-    await page.getByRole("radio", { name: "4 stars, Very good" }).locator("..").click();
-    await expect(page.getByRole("radio", { name: "4 stars, Very good" })).toBeChecked();
-    await page.getByLabel(/Anything we should know/).fill("Quick check-in, friendly staff.");
+    await page.getByText("Good", { exact: true }).click();
+    await expect(page.getByRole("radio", { exact: true, name: "Good" })).toBeChecked();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByRole("heading", { level: 1, name: "What stood out?" })).toBeFocused();
+    await page.getByText("Quick check-in").click();
+    await page.getByText("Friendly reception staff").click();
+    await expectNoWcagViolations(page);
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await page.getByRole("button", { name: "Check-in speed: good" }).click();
+    await page.getByRole("button", { name: "Finding your way: not good" }).click();
+    await expect(page.getByRole("button", { name: "Check-in speed: good" })).toHaveAttribute("aria-pressed", "true");
+    await expectNoWcagViolations(page);
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await page.getByLabel("Your comment (optional)").fill("Thank you to the front desk.");
+    await expect(page.getByText("We would use 020 ••• ••81 or k•••••@example.invalid")).toBeVisible();
+    await page.getByRole("switch", { name: "You may contact me about this feedback" }).click();
+    await expectNoWcagViolations(page);
     await page.getByRole("button", { name: "Send feedback" }).click();
 
-    await expect(page.getByRole("heading", { name: "Thank you" })).toBeVisible();
-    expect(submitted[0]).toEqual({ comment: "Quick check-in, friendly staff.", rating: 4, code: CODE });
+    await expect(page.getByRole("heading", { name: "Thank you, Kofi!" })).toBeVisible();
+    await expect(page.getByText("You rated: Good")).toBeVisible();
+    expect(submitted[0]).toEqual({
+      checkInOk: true,
+      code: CODE,
+      comment: "Thank you to the front desk.",
+      contactOk: true,
+      courtesyOk: null,
+      highlights: ["quick_check_in", "friendly_staff"],
+      rating: 4,
+      wayfindingOk: false,
+    });
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow).toBe(false);
   });
 
-  test("sends the code from the short link", async ({ page }) => {
+  test("asks what went wrong after a low rating and allows skipping", async ({ page }) => {
     const requests = [];
 
     await page.route("**/api/feedback/view", async (route) => {
@@ -50,12 +86,31 @@ test.describe("visitor feedback link", () => {
     });
 
     await page.goto("/f/K7pQ2xZm");
-    await expect(page.getByRole("heading", { level: 1, name: "How was your visit?" })).toBeVisible();
-    await page.getByRole("radio", { name: "5 stars, Excellent" }).locator("..").click();
-    await page.getByRole("button", { name: "Send feedback" }).click();
-    await expect(page.getByRole("heading", { name: "Thank you" })).toBeVisible();
+    await page.getByText("Very poor", { exact: true }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "What went wrong?" })).toBeVisible();
+    await page.getByText("Long wait at reception").click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Skip" }).click();
 
-    expect(requests).toEqual([{ code: "K7pQ2xZm" }, { code: "K7pQ2xZm", comment: "", rating: 5 }]);
+    // No contact details on file, so there is no contact switch.
+    await expect(page.getByRole("switch")).toHaveCount(0);
+    await page.getByRole("button", { name: "Send feedback" }).click();
+    await expect(page.getByRole("heading", { name: "Thank you!" })).toBeVisible();
+
+    expect(requests).toEqual([
+      { code: "K7pQ2xZm" },
+      {
+        checkInOk: null,
+        code: "K7pQ2xZm",
+        comment: "",
+        contactOk: false,
+        courtesyOk: null,
+        highlights: ["long_wait"],
+        rating: 1,
+        wayfindingOk: null,
+      },
+    ]);
   });
 
   test("explains an expired or unknown link", async ({ page }) => {
@@ -63,7 +118,7 @@ test.describe("visitor feedback link", () => {
       route.fulfill({ json: { feedback: { reference: "VIS-7F31A2", status: "expired" } } }),
     );
     await page.goto(`/f/${CODE}`);
-    await expect(page.getByRole("heading", { name: "Link expired" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "This link has expired" })).toBeVisible();
 
     await page.unroute("**/api/feedback/view");
     await page.route("**/api/feedback/view", (route) => route.fulfill({ json: { error: "This feedback link is not valid." }, status: 404 }));
@@ -75,11 +130,16 @@ test.describe("visitor feedback link", () => {
 test.describe("staff visitor feedback", () => {
   const response = {
     feedback: [
-      { comment: "Quick check-in, friendly staff.", id: "f1", rating: 5, reference: "VIS-7F31A2", submittedAt: "2026-11-24T11:05:00Z", tower: "tower_2" },
+      { checkInOk: true, comment: "Quick check-in, friendly staff.", contactOk: true, highlights: ["quick_check_in"], id: "f1", rating: 5, reference: "VIS-7F31A2", submittedAt: "2026-11-24T11:05:00Z", tower: "tower_2" },
       { comment: "", id: "f2", rating: 3, reference: "VIS-11AA22", submittedAt: "2026-11-23T15:40:00Z", tower: "tower_1" },
     ],
     requested: 4,
     summary: {
+      aspects: [
+        { down: 0, key: "check_in", label: "Check-in speed", up: 1 },
+        { down: 0, key: "courtesy", label: "Staff courtesy", up: 0 },
+        { down: 0, key: "wayfinding", label: "Finding your way", up: 0 },
+      ],
       average: 4,
       distribution: [
         { count: 0, stars: 1 },
@@ -102,6 +162,8 @@ test.describe("staff visitor feedback", () => {
     await expect(page.getByText("50% of requests answered")).toBeAttached();
     await expect(page.getByText("Quick check-in, friendly staff.")).toBeVisible();
     await expect(page.getByText("No comment")).toBeVisible();
+    await expect(page.getByText("May be contacted")).toBeVisible();
+    await expect(page.getByText("100% good · 1 answer")).toBeVisible();
     await expectNoWcagViolations(page);
   });
 

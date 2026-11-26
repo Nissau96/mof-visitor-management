@@ -31,6 +31,11 @@ import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
 import { sendRegistrationSms } from "../src/server/visitorMessages.js";
 import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
 import { isFeedbackCode } from "../src/server/visitFeedback.js";
+import { maskEmail, maskPhone } from "./_lib/visitorLookup.js";
+import {
+  FEEDBACK_COMMENT_LIMIT,
+  HIGHLIGHT_LABELS,
+} from "../src/constants/feedback.js";
 
 export const REGISTRATION_RATE_LIMIT =
   Object.freeze({
@@ -217,24 +222,45 @@ async function viewFeedback(request, { enforceRateLimitForRequest, getAdminClien
   const { client, row } = await readFeedbackRow(request, getAdminClientForRequest);
   const { data: visit } = await client
     .from("visits")
-    .select("reference_code, checked_out_at")
+    .select("reference_code, checked_in_at, checked_out_at, visitor_id, person_visiting, destination_agency, destination_division")
     .eq("id", row.visit_id)
     .maybeSingle();
+  const { data: profile } = visit?.visitor_id
+    ? await client
+        .from("visitor_profiles")
+        .select("full_name, phone, email")
+        .eq("id", visit.visitor_id)
+        .maybeSingle()
+    : { data: null };
 
+  // The link is the visitor's own, but anyone holding it sees this, so
+  // the contact details stay masked and only the first name is shown.
   return json(
     {
       feedback: {
         checkedOutAt: visit?.checked_out_at || null,
+        contact: {
+          email: maskEmail(profile?.email),
+          phone: maskPhone(profile?.phone),
+        },
+        firstName: String(profile?.full_name || "").trim().split(/\s+/)[0] || "",
+        hostName: visit?.person_visiting || "",
+        office: visit?.destination_division || visit?.destination_agency || "",
         reference: visit?.reference_code || null,
         status: row.submitted_at
           ? "submitted"
           : new Date(row.expires_at) < new Date()
             ? "expired"
             : "open",
+        visitedAt: visit?.checked_in_at || null,
       },
     },
     200,
   );
+}
+
+function readThumb(value) {
+  return value === true || value === false ? value : null;
 }
 
 async function submitFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
@@ -248,14 +274,25 @@ async function submitFeedback(request, { enforceRateLimitForRequest, getAdminCli
     throw new HttpError("Choose a rating from 1 to 5 stars.", 400);
   }
 
-  if (comment.length > 1000) {
+  if (comment.length > FEEDBACK_COMMENT_LIMIT) {
     throw new HttpError("Keep the comment under 1000 characters.", 400);
   }
 
+  const highlights = Array.isArray(body?.highlights) ? [...new Set(body.highlights)] : [];
+
+  if (highlights.length > 7 || highlights.some((key) => !Object.hasOwn(HIGHLIGHT_LABELS, key))) {
+    throw new HttpError("Choose from the listed options.", 400);
+  }
+
   const { error } = await client.rpc("submit_visit_feedback", {
+    p_check_in_ok: readThumb(body?.checkInOk),
     p_comment: comment,
+    p_contact_ok: body?.contactOk === true,
+    p_courtesy_ok: readThumb(body?.courtesyOk),
+    p_highlights: highlights,
     p_rating: rating,
     p_token_hash: row.token_hash,
+    p_wayfinding_ok: readThumb(body?.wayfindingOk),
   });
 
   if (error?.code === "55000") {
