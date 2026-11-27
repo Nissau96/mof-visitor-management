@@ -283,7 +283,7 @@ assert.deepEqual(
   },
 );
 
-assert.equal(PRIVACY_NOTICE_VERSION, "2.1");
+assert.equal(PRIVACY_NOTICE_VERSION, "2.2");
 
 console.log(
   "Returning visitor check-in validation checks passed.",
