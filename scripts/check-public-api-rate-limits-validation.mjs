@@ -338,11 +338,16 @@ const meetingsHandler =
 
     getAdminClientForRequest() {
       return {
-        async rpc(functionName) {
+        async rpc(functionName, parameters) {
           assert.equal(
             functionName,
-            "get_available_meetings",
+            "get_available_meeting_options",
           );
+
+          assert.deepEqual(parameters, {
+            p_agency: "IAA",
+            p_division: "",
+          });
 
           return {
             data: [
@@ -363,7 +368,7 @@ const meetingsHandler =
 const meetingsResponse =
   await meetingsHandler.fetch(
     createWeeklyAccessRequest(
-      "/api/meetings",
+      "/api/meetings?agency=IAA",
     ),
   );
 
@@ -389,10 +394,13 @@ assert.deepEqual(
   {
     meetings: [
       {
+        endsAt: null,
         id:
           "00000000-0000-4000-8000-000000000002",
+        startsAt: null,
         title:
           "Test Public Meeting",
+        venue: null,
       },
     ],
   },
@@ -457,7 +465,7 @@ const meetingRateLimitedHandler =
 const meetingRateLimitedResponse =
   await meetingRateLimitedHandler.fetch(
     createWeeklyAccessRequest(
-      "/api/meetings",
+      "/api/meetings?agency=IAA",
     ),
   );
 

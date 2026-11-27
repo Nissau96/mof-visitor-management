@@ -16,6 +16,8 @@ export const VISITOR_CARD_ENDPOINTS =
       "/api/staff/cards/cancel",
     checkedIn:
       "/api/staff/cards/checked-in",
+    checkedInCount:
+      "/api/staff/cards/checked-in-count",
     checkout:
       "/api/staff/checkout",
     incidentList:
@@ -98,6 +100,7 @@ export function getAvailableVisitorCards({
 export function admitVisitorWithCard({
   accessToken,
   cardId,
+  privacyConfirmed,
   signal,
   tower,
   visitId,
@@ -107,6 +110,9 @@ export function admitVisitorWithCard({
     accessToken,
     {
       cardId,
+      ...(privacyConfirmed === undefined
+        ? {}
+        : { privacyConfirmed }),
       tower,
       visitId,
     },
@@ -157,6 +163,19 @@ export function getCheckedInCardVisitors({
   );
 }
 
+export function getCheckedInVisitorCount({
+  accessToken,
+  signal,
+  tower = "",
+}) {
+  return authorizedPost(
+    VISITOR_CARD_ENDPOINTS.checkedInCount,
+    accessToken,
+    { tower },
+    signal,
+  );
+}
+
 export function checkoutCardVisitor({
   accessToken,
   signal,
@@ -187,6 +206,39 @@ export function reportVisitorCardNotReturned({
     {
       tower,
       visitId,
+    },
+    signal,
+  );
+}
+
+/**
+ * Visitors who checked out, newest check-out first, from the visit
+ * history API. `date` (YYYY-MM-DD, Ghana time) limits it to check-outs
+ * on that day; leave it empty to count every check-out.
+ */
+export function getCheckedOutVisitors({
+  accessToken,
+  date = "",
+  page = 1,
+  pageSize = 10,
+  search = "",
+  signal,
+  tower = "",
+}) {
+  return authorizedPost(
+    "/api/staff/history",
+    accessToken,
+    {
+      dateBasis: "check_out",
+      dateFrom: date || null,
+      dateTo: date || null,
+      direction: "desc",
+      page,
+      pageSize,
+      search,
+      sort: "date",
+      status: "checked_out",
+      tower,
     },
     signal,
   );

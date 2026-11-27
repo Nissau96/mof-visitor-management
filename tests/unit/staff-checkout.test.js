@@ -62,6 +62,7 @@ function createProfile(
 }
 
 function createHandler({
+  bookingGuestId = null,
   data,
   databaseError = null,
   profile = createProfile(),
@@ -81,11 +82,35 @@ function createHandler({
       profile,
     });
 
+  // Admission looks up whether the visit is a booked meeting guest and
+  // records the desk privacy confirmation for those guests.
+  const auditInsert = vi.fn().mockResolvedValue({ error: null });
+
+  const from = vi.fn((table) =>
+    table === "audit_events"
+      ? { insert: auditInsert }
+      : {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { booking_guest_id: bookingGuestId },
+                  error: null,
+                }),
+            }),
+          }),
+        },
+  );
+
+  const requestFeedback = vi.fn().mockResolvedValue({ sent: true });
+
   const handler =
     createCheckoutHandler({
       enforceRateLimitForRequest,
+      requestFeedback,
       getAdminClientForRequest() {
         return {
+          from,
           rpc,
         };
       },
@@ -93,8 +118,10 @@ function createHandler({
     });
 
   return {
+    auditInsert,
     enforceRateLimitForRequest,
     handler,
+    requestFeedback,
     requireActiveStaffForRequest,
     rpc,
   };
@@ -877,5 +904,95 @@ describe(
         );
       },
     );
+
+    describe("booked meeting guests", () => {
+      const admission = operationCases.find(
+        (operationCase) => operationCase.operation === "admission",
+      );
+
+      const BOOKING_GUEST_ID = "77777777-7777-4777-8777-777777777777";
+
+      it("refuses to admit a booked guest until the privacy notice is confirmed", async () => {
+        const { auditInsert, handler, rpc } = createHandler({
+          bookingGuestId: BOOKING_GUEST_ID,
+          data: admission.expectedResponse,
+        });
+
+        const result = await readResponse(
+          await handler.fetch(createRequest(admission.path, admission.body)),
+        );
+
+        expect(result.response.status).toBe(400);
+        expect(result.body.error).toBe(
+          "Confirm that the guest has been shown the privacy notice.",
+        );
+        expect(rpc).not.toHaveBeenCalled();
+        expect(auditInsert).not.toHaveBeenCalled();
+      });
+
+      it("admits a booked guest once confirmed and records the confirmation", async () => {
+        const { auditInsert, handler, rpc } = createHandler({
+          bookingGuestId: BOOKING_GUEST_ID,
+          data: admission.expectedResponse,
+        });
+
+        const result = await readResponse(
+          await handler.fetch(
+            createRequest(admission.path, {
+              ...admission.body,
+              privacyConfirmed: true,
+            }),
+          ),
+        );
+
+        expect(result.response.status).toBe(200);
+        expect(rpc).toHaveBeenCalledWith(
+          "admit_visitor_with_card",
+          admission.expectedArguments,
+        );
+        expect(auditInsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: "visit.booked_guest_privacy_confirmed",
+            actor_id: USER_ID,
+            entity_id: VISIT_ID,
+          }),
+        );
+      });
+
+      it("asks for feedback only after a normal check-out", async () => {
+        const checkout = operationCases.find((item) => item.operation === "checkout");
+        const notReturned = operationCases.find((item) => item.operation === "report-not-returned");
+
+        const first = createHandler({
+          data: checkout.rpcData || checkout.expectedResponse,
+          profile: createProfile(checkout.role),
+        });
+        const response = await first.handler.fetch(createRequest(checkout.path, checkout.body));
+        expect(response.status).toBe(200);
+        expect(first.requestFeedback).toHaveBeenCalledWith(
+          expect.objectContaining({ visitId: (checkout.rpcData || checkout.expectedResponse).visitId }),
+        );
+
+        const second = createHandler({
+          data: notReturned.rpcData || notReturned.expectedResponse,
+          profile: createProfile(notReturned.role),
+        });
+        await second.handler.fetch(createRequest(notReturned.path, notReturned.body));
+        expect(second.requestFeedback).not.toHaveBeenCalled();
+      });
+
+      it("does not ask walk-in visitors for the confirmation", async () => {
+        const { auditInsert, handler } = createHandler({
+          data: admission.expectedResponse,
+        });
+
+        const result = await readResponse(
+          await handler.fetch(createRequest(admission.path, admission.body)),
+        );
+
+        expect(result.response.status).toBe(200);
+        expect(auditInsert).not.toHaveBeenCalled();
+      });
+    });
   },
 );

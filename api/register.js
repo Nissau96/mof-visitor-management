@@ -1,3 +1,4 @@
+import { withAuditContext } from "./_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -13,11 +14,28 @@ import { PRIVACY_NOTICE_VERSION } from "../src/constants/privacy.js";
 import { CUSTOM_MEETING_OPTION } from "../src/constants/visitorOptions.js";
 import {
   clearWeeklyQrCookie,
+  createWeeklyQrAccessUrl,
   createWeeklyQrCookie,
+  getLocalVisitorApplicationUrl,
   readWeeklyQrAccess,
   validateWeeklyQrToken,
 } from "../src/server/weeklyQrAccess.js";
 import { visitorRegistrationSchema } from "../src/validation/visitorRegistration.js";
+import { VISITOR_WIFI_REQUIRED_MESSAGE } from "../src/validation/wifiAccess.js";
+import {
+  inviteSubmitSchema,
+  inviteTokenSchema,
+} from "../src/validation/visitorInvites.js";
+import { hashInviteToken } from "../src/server/visitorInviteToken.js";
+import { notifyInviteBooked } from "../src/server/visitorInviteEmail.js";
+import { sendRegistrationSms } from "../src/server/visitorMessages.js";
+import { wifiAccessToBoolean } from "../src/constants/visitorOptions.js";
+import { isFeedbackCode } from "../src/server/visitFeedback.js";
+import { maskEmail, maskPhone } from "./_lib/visitorLookup.js";
+import {
+  FEEDBACK_COMMENT_LIMIT,
+  HIGHLIGHT_LABELS,
+} from "../src/constants/feedback.js";
 
 export const REGISTRATION_RATE_LIMIT =
   Object.freeze({
@@ -34,6 +52,274 @@ export const WEEKLY_ACCESS_RATE_LIMIT =
     windowSeconds: 10 * 60,
   });
 
+// Visitor booking links are opened away from the building, so they
+// do not need the weekly QR access the kiosk forms need.
+export const INVITE_VIEW_RATE_LIMIT = Object.freeze({
+  limit: 60,
+  scope: "visitor-invite-view",
+  windowSeconds: 10 * 60,
+});
+
+export const INVITE_SUBMIT_RATE_LIMIT = Object.freeze({
+  limit: REGISTRATION_RATE_LIMIT.limit,
+  scope: "visitor-invite-submit",
+  windowSeconds: REGISTRATION_RATE_LIMIT.windowSeconds,
+});
+
+const INVITE_INVALID = "This booking link is not valid. Ask your host for a new one.";
+const INVITE_UNEXPECTED = "Your visit could not be booked. Please try again.";
+
+function readInviteToken(body) {
+  const parsed = inviteTokenSchema.safeParse(body?.token);
+
+  if (!parsed.success) {
+    throw new HttpError(INVITE_INVALID, 404);
+  }
+
+  return parsed.data;
+}
+
+async function viewInvite(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
+  await enforceRateLimitForRequest(request, INVITE_VIEW_RATE_LIMIT);
+
+  const token = readInviteToken(await readJsonBody(request));
+  const { data, error } = await getAdminClientForRequest().rpc(
+    "get_visitor_invite",
+    { p_token_hash: hashInviteToken(token) },
+  );
+
+  if (error?.code === "P0002") {
+    throw new HttpError(INVITE_INVALID, 404);
+  }
+
+  if (error || !data || typeof data !== "object") {
+    throw new HttpError("This booking link could not be opened. Please try again.", 500);
+  }
+
+  return json({ invite: data }, 200);
+}
+
+async function submitInvite(
+  request,
+  { enforceRateLimitForRequest, getAdminClientForRequest, notifyBooked },
+) {
+  await enforceRateLimitForRequest(request, INVITE_SUBMIT_RATE_LIMIT);
+
+  const parsed = inviteSubmitSchema.safeParse(await readJsonBody(request));
+
+  if (!parsed.success) {
+    const tokenIssue = parsed.error.issues.find((issue) => issue.path[0] === "token");
+
+    throw new HttpError(
+      tokenIssue
+        ? INVITE_INVALID
+        : parsed.error.issues[0]?.message || "Check the highlighted information and try again.",
+      tokenIssue ? 404 : 400,
+    );
+  }
+
+  const input = parsed.data;
+  const { data, error } = await getAdminClientForRequest().rpc(
+    "submit_visitor_invite",
+    {
+      p_consent_version: PRIVACY_NOTICE_VERSION,
+      p_email: input.email || "",
+      p_full_name: input.fullName,
+      p_organization: input.organization || "",
+      p_phone: input.phone,
+      p_purpose: input.purpose,
+      p_token_hash: hashInviteToken(input.token),
+      p_visit_date: input.visitDate,
+      p_wifi_requested: wifiAccessToBoolean(input.wifiAccess),
+    },
+  );
+
+  if (error) {
+    switch (error.code) {
+      case "P0002":
+        throw new HttpError(INVITE_INVALID, 404);
+      case "55000":
+        throw new HttpError(
+          "This link has expired or was already used. Ask your host for a new one.",
+          410,
+        );
+      case "22023":
+        throw new HttpError(error.message || "Check your details and try again.", 400);
+      default:
+        throw new HttpError(INVITE_UNEXPECTED, 500);
+    }
+  }
+
+  if (!data?.referenceCode) {
+    throw new HttpError(INVITE_UNEXPECTED, 500);
+  }
+
+  let sent = { hostEmail: false, visitorEmail: false, visitorSms: false };
+
+  try {
+    sent = await notifyBooked(data);
+  } catch {
+    // The booking stands; the code is on screen.
+  }
+
+  return json(
+    {
+      booking: {
+        agency: data.agency,
+        division: data.division,
+        floor: data.floor,
+        hostName: data.hostName,
+        referenceCode: data.referenceCode,
+        tower: data.tower,
+        visitDate: data.visitDate,
+      },
+      emailSent: sent.visitorEmail,
+      smsSent: sent.visitorSms,
+    },
+    201,
+  );
+}
+
+// Feedback links come by SMS after check-out; the short code in the link
+// is the only key, so both operations are rate-limited per address.
+export const FEEDBACK_RATE_LIMIT = Object.freeze({
+  limit: 30,
+  scope: "visit-feedback",
+  windowSeconds: 10 * 60,
+});
+
+const FEEDBACK_INVALID = "This feedback link is not valid.";
+
+// The SMS link carries the 8-character short code that finds the row.
+async function readFeedbackRow(request, getAdminClientForRequest) {
+  const body = await readJsonBody(request);
+
+  if (!isFeedbackCode(body?.code)) {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  const client = getAdminClientForRequest();
+  const { data, error } = await client
+    .from("visit_feedback")
+    .select("visit_id, expires_at, submitted_at, token_hash")
+    .eq("short_code", body.code)
+    .maybeSingle();
+
+  if (error) {
+    throw new HttpError("This feedback link could not be opened. Please try again.", 500);
+  }
+
+  if (!data) {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  return { body, client, row: data };
+}
+
+async function viewFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
+  await enforceRateLimitForRequest(request, FEEDBACK_RATE_LIMIT);
+
+  const { client, row } = await readFeedbackRow(request, getAdminClientForRequest);
+  const { data: visit } = await client
+    .from("visits")
+    .select("reference_code, checked_in_at, checked_out_at, visitor_id, person_visiting, destination_agency, destination_division")
+    .eq("id", row.visit_id)
+    .maybeSingle();
+  const { data: profile } = visit?.visitor_id
+    ? await client
+        .from("visitor_profiles")
+        .select("full_name, phone, email")
+        .eq("id", visit.visitor_id)
+        .maybeSingle()
+    : { data: null };
+
+  // The link is the visitor's own, but anyone holding it sees this, so
+  // the contact details stay masked and only the first name is shown.
+  return json(
+    {
+      feedback: {
+        checkedOutAt: visit?.checked_out_at || null,
+        contact: {
+          email: maskEmail(profile?.email),
+          phone: maskPhone(profile?.phone),
+        },
+        firstName: String(profile?.full_name || "").trim().split(/\s+/)[0] || "",
+        hostName: visit?.person_visiting || "",
+        office: visit?.destination_division || visit?.destination_agency || "",
+        reference: visit?.reference_code || null,
+        status: row.submitted_at
+          ? "submitted"
+          : new Date(row.expires_at) < new Date()
+            ? "expired"
+            : "open",
+        visitedAt: visit?.checked_in_at || null,
+      },
+    },
+    200,
+  );
+}
+
+function readThumb(value) {
+  return value === true || value === false ? value : null;
+}
+
+async function submitFeedback(request, { enforceRateLimitForRequest, getAdminClientForRequest }) {
+  await enforceRateLimitForRequest(request, FEEDBACK_RATE_LIMIT);
+
+  const { body, client, row } = await readFeedbackRow(request, getAdminClientForRequest);
+  const rating = Number(body?.rating);
+  const comment = typeof body?.comment === "string" ? body.comment : "";
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new HttpError("Choose a rating from 1 to 5 stars.", 400);
+  }
+
+  if (comment.length > FEEDBACK_COMMENT_LIMIT) {
+    throw new HttpError("Keep the comment under 1000 characters.", 400);
+  }
+
+  const highlights = Array.isArray(body?.highlights) ? [...new Set(body.highlights)] : [];
+
+  if (highlights.length > 7 || highlights.some((key) => !Object.hasOwn(HIGHLIGHT_LABELS, key))) {
+    throw new HttpError("Choose from the listed options.", 400);
+  }
+
+  const { error } = await client.rpc("submit_visit_feedback", {
+    p_check_in_ok: readThumb(body?.checkInOk),
+    p_comment: comment,
+    p_contact_ok: body?.contactOk === true,
+    p_courtesy_ok: readThumb(body?.courtesyOk),
+    p_highlights: highlights,
+    p_rating: rating,
+    p_token_hash: row.token_hash,
+    p_wayfinding_ok: readThumb(body?.wayfindingOk),
+  });
+
+  if (error?.code === "55000") {
+    throw new HttpError("This feedback link was already used or has expired.", 410);
+  }
+
+  if (error?.code === "P0002") {
+    throw new HttpError(FEEDBACK_INVALID, 404);
+  }
+
+  if (error) {
+    throw new HttpError(
+      error.code === "22023" ? error.message : "Your feedback could not be saved. Please try again.",
+      error.code === "22023" ? 400 : 500,
+    );
+  }
+
+  return json({ saved: true }, 201);
+}
+
+const INVITE_OPERATIONS = Object.freeze({
+  "feedback-submit": submitFeedback,
+  "feedback-view": viewFeedback,
+  "invite-submit": submitInvite,
+  "invite-view": viewInvite,
+});
+
 function invalidWeeklyAccess() {
   return json(
     {
@@ -44,14 +330,33 @@ function invalidWeeklyAccess() {
   );
 }
 
-function getWeeklyAccessStatus(request) {
+// A reception kiosk asks for ?kiosk=1 to show this week's QR code.
+// The device already holds the same token in its access cookie, so
+// returning the link grants nothing new.
+async function getWeeklyAccessStatus(request) {
   try {
     const access =
-      readWeeklyQrAccess(request);
+      await readWeeklyQrAccess(request);
+
+    const kiosk =
+      new URL(request.url).searchParams.get(
+        "kiosk",
+      ) === "1";
 
     return json(
       {
         access: {
+          ...(kiosk
+            ? {
+                accessUrl:
+                  createWeeklyQrAccessUrl(
+                    access.token,
+                    getLocalVisitorApplicationUrl(
+                      request,
+                    ),
+                  ),
+              }
+            : {}),
           valid: true,
           validThrough:
             access.validThrough,
@@ -135,8 +440,9 @@ async function exchangeWeeklyAccess(
 async function registerVisitor(
   request,
   enforceRateLimitForRequest,
+  sendRegistration,
 ) {
-  readWeeklyQrAccess(request);
+  await readWeeklyQrAccess(request);
 
   await enforceRateLimitForRequest(
     request,
@@ -165,7 +471,7 @@ async function registerVisitor(
 
   const { data, error } =
     await getAdminClient().rpc(
-      "register_first_visit",
+      "register_first_visit_with_wifi",
       {
         p_consent_version:
           PRIVACY_NOTICE_VERSION,
@@ -177,6 +483,12 @@ async function registerVisitor(
           input.division || "",
         p_email: input.email || "",
         p_full_name: input.fullName,
+        p_guests: input.guests.map(
+          (guest) => ({
+            fullName: guest.fullName,
+            phone: guest.phone,
+          }),
+        ),
         p_meeting_id:
           input.meetingId ===
           CUSTOM_MEETING_OPTION
@@ -188,8 +500,47 @@ async function registerVisitor(
           input.personVisiting || "",
         p_phone: input.phone,
         p_purpose: input.purpose,
+        p_wifi_requested:
+          input.wifiRequested ?? null,
       },
     );
+
+  const guestConflict =
+    /^GUEST_ALREADY_CHECKED_IN:(\d+)$/.exec(
+      error?.message || "",
+    );
+
+  if (guestConflict) {
+    return json(
+      {
+        error: `Guest ${guestConflict[1]} is already checked in. Remove them from this registration or ask reception for help.`,
+      },
+      409,
+    );
+  }
+
+  // The visitor skipped the question because they thought their
+  // meeting covered Wi-Fi, but it no longer does.
+  if (error?.message === VISITOR_WIFI_REQUIRED_MESSAGE) {
+    return json(
+      {
+        error:
+          "Choose whether you need Wi-Fi access, then submit again.",
+      },
+      400,
+    );
+  }
+
+  // The meeting is no longer on, or is hosted by another agency.
+  if (error?.message === "Meeting is unavailable") {
+    return json(
+      {
+        error:
+          "The selected meeting is not available for this agency. Choose the meeting again.",
+      },
+      400,
+    );
+  }
 
   if (error?.code === "23505") {
     return json(
@@ -223,8 +574,19 @@ async function registerVisitor(
     );
   }
 
+  // Never fails the registration.
+  await Promise.resolve(
+    sendRegistration({
+      fullName: input.fullName,
+      phone: input.phone,
+      reference: result.reference_code,
+    }),
+  ).catch(() => undefined);
+
   return json(
     {
+      guestCount:
+        result.guest_count ?? 0,
       reference: result.reference_code,
     },
     201,
@@ -234,9 +596,45 @@ async function registerVisitor(
 export function createRegisterHandler({
   enforceRateLimitForRequest =
     enforceRateLimit,
+  getAdminClientForRequest = getAdminClient,
+  notifyBooked = notifyInviteBooked,
+  sendRegistration = sendRegistrationSms,
 } = {}) {
   return {
     async fetch(request) {
+      const inviteOperation =
+        INVITE_OPERATIONS[
+          new URL(request.url).searchParams.get("operation") || ""
+        ];
+
+      if (inviteOperation) {
+        if (request.method !== "POST") {
+          return methodNotAllowed(["POST"]);
+        }
+
+        try {
+          return await inviteOperation(request, {
+            enforceRateLimitForRequest,
+            getAdminClientForRequest,
+            notifyBooked,
+          });
+        } catch (error) {
+          if (error instanceof RateLimitExceededError) {
+            return json(
+              { error: "Too many attempts. Please wait before trying again." },
+              429,
+              { "Retry-After": String(error.retryAfterSeconds) },
+            );
+          }
+
+          if (error instanceof HttpError) {
+            return json({ error: error.message }, error.status);
+          }
+
+          return json({ error: INVITE_UNEXPECTED }, 500);
+        }
+      }
+
       if (
         ![
           "GET",
@@ -255,7 +653,7 @@ export function createRegisterHandler({
 
       try {
         if (request.method === "GET") {
-          return getWeeklyAccessStatus(
+          return await getWeeklyAccessStatus(
             request,
           );
         }
@@ -289,6 +687,7 @@ export function createRegisterHandler({
         return await registerVisitor(
           request,
           enforceRateLimitForRequest,
+          sendRegistration,
         );
       } catch (error) {
         if (
@@ -337,4 +736,4 @@ export function createRegisterHandler({
   };
 }
 
-export default createRegisterHandler();
+export default withAuditContext(createRegisterHandler());

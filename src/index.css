@@ -7,15 +7,45 @@
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-primitive.css";
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-semantic.css";
 @import "../node_modules/@plexui/ui/dist/es/styles/variables-components.css";
+@import "./dark-theme.css";
 @source "../node_modules/@plexui/ui/dist/es/components/Select";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Plex UI selects show "no value" text (placeholders and "All …" filter
+   options) in a light grey that fails WCAG contrast; slate-600 passes and
+   follows the dark theme because slate is remapped there. */
+:root {
+  --input-placeholder-text-color: var(--color-slate-600);
+}
+
+/* The weekly QR reception poster prints on one A4 portrait sheet. */
+@page {
+  margin: 10mm;
+  size: A4 portrait;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff;
+  }
+}
+
 @theme {
-  --color-brand-50: #effcf3;
-  --color-brand-100: #d9f7e2;
-  --color-brand-600: #168548;
-  --color-brand-700: #116c3b;
-  --color-brand-800: #0d5731;
-  --color-brand-900: #093f25;
+  /* Teal brand scale; #0D9488 is the primary accent (brand-600). Solid
+     fills behind white text use brand-700 and darker for AA contrast. */
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+  --color-brand-950: #042f2e;
   --color-accent: #fcd116;
 }
 
@@ -72,6 +102,107 @@
   input::placeholder,
   textarea::placeholder {
     @apply text-slate-500;
+  }
+}
+
+/* Dialog bodies scroll on their own between a fixed header and footer,
+   with a thin rounded scrollbar that sits inside the rounded card. */
+@utility scroll-pane {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-slate-300) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+/* Toasts slide down into place. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Each feedback question settles into place from a short distance. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@utility step-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: step-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+/* Hover float for cards: lift (translate) then a gentle bob (transform),
+   so the two never fight. Only for mouse users who allow motion. */
+@keyframes card-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@utility card-float {
+  transition:
+    translate 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      translate: 0 -4px;
+      box-shadow: 0 18px 36px -16px rgb(15 23 42 / 0.28);
+      animation: card-bob 2.4s ease-in-out 220ms infinite;
+    }
+  }
+}
+
+/* Chart colours. Recharts reads them through var(), so charts follow
+   the light and dark theme without re-rendering. */
+:root {
+  --chart-primary: #0f766e;
+  --chart-primary-strong: #115e59;
+  --chart-secondary: #5eead4;
+  --chart-soft: #ccfbf1;
+  --chart-area: rgb(15 118 110 / 0.12);
+  --chart-previous: #94a3b8;
+  --chart-grid: #e2e8f0;
+  --chart-text: #475569;
+  --chart-heat-0: #f1f5f9;
+  --chart-heat-1: #ccfbf1;
+  --chart-heat-2: #5eead4;
+  --chart-heat-3: #14b8a6;
+  --chart-heat-4: #0f766e;
+  --chart-heat-5: #134e4a;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+}
+
+/* Printed reports: only the report rendered into #print-root shows. */
+@media print {
+  body:has(#print-root:not(:empty)) > *:not(#print-root) {
+    display: none !important;
   }
 }
 

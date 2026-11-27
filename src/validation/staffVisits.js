@@ -81,8 +81,34 @@ export const staffVisitCheckoutSchema = z
   })
   .strict();
 
+export const HISTORY_SORTS = Object.freeze(["date", "visitor"]);
+export const HISTORY_DIRECTIONS = Object.freeze(["asc", "desc"]);
+
+// Which time the date range and date sort use: check-in (Visit History)
+// or check-out (the Visitor Cards "Checked-out" tab).
+export const HISTORY_DATE_BASES = Object.freeze(["check_in", "check_out"]);
+
+// The CSV export reads every matching row in one request, up to this.
+export const HISTORY_EXPORT_LIMIT = 5000;
+
+const historyFilterFields = {
+  dateBasis: z.enum(HISTORY_DATE_BASES).default("check_in"),
+
+  direction: z.enum(HISTORY_DIRECTIONS).default("desc"),
+
+  purpose: z
+    .string()
+    .trim()
+    .max(60, "The purpose filter is too long.")
+    .default(""),
+
+  sort: z.enum(HISTORY_SORTS).default("date"),
+};
+
 export const visitHistorySchema = z
   .object({
+    ...historyFilterFields,
+
     agency: z
       .string()
       .trim()

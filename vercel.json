@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; base-uri 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'none'; img-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'; worker-src 'self' blob:; upgrade-insecure-requests"
+          "value": "default-src 'self'; base-uri 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://login.microsoftonline.com; font-src 'self' data:; form-action 'self'; frame-ancestors 'none'; frame-src 'none'; img-src 'self' data: blob:; manifest-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'; worker-src 'self' blob:; upgrade-insecure-requests"
         },
         {
           "key": "Strict-Transport-Security",
@@ -41,6 +41,66 @@
   ],
   "rewrites": [
     {
+      "source": "/api/staff/notifications",
+      "destination": "/api/staff/dashboard?operation=notifications"
+    },
+    {
+      "source": "/api/staff/invites/create",
+      "destination": "/api/meetings?operation=invite-create"
+    },
+    {
+      "source": "/api/staff/invites/list",
+      "destination": "/api/meetings?operation=invite-list"
+    },
+    {
+      "source": "/api/staff/invites/cancel",
+      "destination": "/api/meetings?operation=invite-cancel"
+    },
+    {
+      "source": "/api/staff/bookings/visitors",
+      "destination": "/api/meetings?operation=booked-list"
+    },
+    {
+      "source": "/api/staff/history/export",
+      "destination": "/api/staff/history?operation=export"
+    },
+    {
+      "source": "/api/staff/bookings/find",
+      "destination": "/api/meetings?operation=booking-find"
+    },
+    {
+      "source": "/api/bookings/invites/create",
+      "destination": "/api/meetings?operation=booker-invite-create"
+    },
+    {
+      "source": "/api/bookings/invites/list",
+      "destination": "/api/meetings?operation=booker-invite-list"
+    },
+    {
+      "source": "/api/bookings/invites/cancel",
+      "destination": "/api/meetings?operation=booker-invite-cancel"
+    },
+    {
+      "source": "/api/invites/view",
+      "destination": "/api/register?operation=invite-view"
+    },
+    {
+      "source": "/api/invites/submit",
+      "destination": "/api/register?operation=invite-submit"
+    },
+    {
+      "source": "/api/admin/activity/list",
+      "destination": "/api/admin?operation=activity-list"
+    },
+    {
+      "source": "/api/admin/activity/export",
+      "destination": "/api/admin?operation=activity-export"
+    },
+    {
+      "source": "/api/admin/email/test",
+      "destination": "/api/admin?operation=email-test"
+    },
+    {
       "source": "/api/admin/hosts/list",
       "destination": "/api/admin?operation=host-list"
     },
@@ -68,7 +128,7 @@
       "source": "/api/admin/staff/update",
       "destination": "/api/admin?operation=staff-update"
     },
-        {
+    {
       "source": "/api/admin/cards/inventory",
       "destination": "/api/admin?operation=card-inventory"
     },
@@ -101,6 +161,10 @@
       "destination": "/api/staff/checkout?operation=checked-in-list"
     },
     {
+      "source": "/api/staff/cards/checked-in-count",
+      "destination": "/api/staff/checkout?operation=checked-in-count"
+    },
+    {
       "source": "/api/staff/cards/report-not-returned",
       "destination": "/api/staff/checkout?operation=report-not-returned"
     },
@@ -119,6 +183,98 @@
     {
       "source": "/api/staff/cards/reprint",
       "destination": "/api/staff/checkout?operation=card-reprint"
+    },
+    {
+      "source": "/api/staff/meetings/list",
+      "destination": "/api/meetings?operation=staff-list"
+    },
+    {
+      "source": "/api/staff/meetings/save",
+      "destination": "/api/meetings?operation=staff-save"
+    },
+    {
+      "source": "/api/staff/meetings/status",
+      "destination": "/api/meetings?operation=staff-status"
+    },
+    {
+      "source": "/api/staff/meetings/delete",
+      "destination": "/api/meetings?operation=staff-delete"
+    },
+    {
+      "source": "/api/staff/meetings/visitors",
+      "destination": "/api/meetings?operation=staff-visitors"
+    },
+    {
+      "source": "/api/staff/meetings/bookings",
+      "destination": "/api/meetings?operation=booking-requests"
+    },
+    {
+      "source": "/api/staff/meetings/bookings/decide",
+      "destination": "/api/meetings?operation=booking-decide"
+    },
+    {
+      "source": "/api/bookings/mine",
+      "destination": "/api/meetings?operation=booker-list"
+    },
+    {
+      "source": "/api/bookings/submit",
+      "destination": "/api/meetings?operation=booker-submit"
+    },
+    {
+      "source": "/api/bookings/guests",
+      "destination": "/api/meetings?operation=booker-guests"
+    },
+    {
+      "source": "/api/bookings/cancel",
+      "destination": "/api/meetings?operation=booker-cancel"
+    },
+    {
+      "source": "/api/bookings/wifi",
+      "destination": "/api/meetings?operation=booker-wifi"
+    },
+    {
+      "source": "/api/staff/wifi/list",
+      "destination": "/api/meetings?operation=wifi-list"
+    },
+    {
+      "source": "/api/staff/wifi/update",
+      "destination": "/api/meetings?operation=wifi-update"
+    },
+    {
+      "source": "/api/staff/wifi/grant",
+      "destination": "/api/meetings?operation=wifi-grant"
+    },
+    {
+      "source": "/api/staff/wifi/secret",
+      "destination": "/api/meetings?operation=wifi-secret"
+    },
+    {
+      "source": "/api/staff/wifi/resend",
+      "destination": "/api/meetings?operation=wifi-resend"
+    },
+    {
+      "source": "/api/staff/wifi/count",
+      "destination": "/api/meetings?operation=wifi-count"
+    },
+    {
+      "source": "/api/feedback/view",
+      "destination": "/api/register?operation=feedback-view"
+    },
+    {
+      "source": "/api/feedback/submit",
+      "destination": "/api/register?operation=feedback-submit"
+    },
+    {
+      "source": "/api/staff/feedback",
+      "destination": "/api/staff/dashboard?operation=feedback"
+    },
+    {
+      "source": "/api/staff/history/messages",
+      "destination": "/api/staff/history?operation=messages"
+    },
+    {
+      "source": "/api/returning/send-code",
+      "destination": "/api/returning/verify?operation=send-code"
     },
     {
       "source": "/visit",
@@ -142,6 +298,22 @@
     },
     {
       "source": "/admin/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/book",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/f/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/book/:path*",
       "destination": "/index.html"
     }
   ]

@@ -1,3 +1,6 @@
+import { withAuditContext } from "../_lib/auditContext.js";
+import { requestVisitFeedback } from "../../src/server/visitFeedback.js";
+import { sendCardIssuedSms } from "../../src/server/visitorMessages.js";
 import {
   requireActiveStaff,
   requireStaffTowerScope,
@@ -12,6 +15,7 @@ import {
   RateLimitExceededError,
   enforceRateLimit,
 } from "../_lib/rateLimit.js";
+import { addVisitorDetails } from "../_lib/visitDetails.js";
 import { getAdminClient } from "../_lib/supabase.js";
 import { staffVisitCheckoutSchema } from "../../src/validation/staffVisits.js";
 import {
@@ -25,6 +29,7 @@ import {
   visitorCardInvestigationSchema,
   visitorCardNotReturnedSchema,
   visitorCardReprintSchema,
+  checkedInVisitorCountSchema,
 } from "../../src/validation/visitorCards.js";
 
 const RECEPTION_OPERATION_ROLES = Object.freeze([
@@ -63,6 +68,10 @@ const OPERATION_BY_PATH = new Map([
   [
     "/api/staff/cards/checked-in",
     "checked-in-list",
+  ],
+  [
+    "/api/staff/cards/checked-in-count",
+    "checked-in-count",
   ],
   [
     "/api/staff/checkout",
@@ -199,6 +208,13 @@ const OPERATION_MESSAGES = Object.freeze({
       "The checked-in visitor filters are invalid.",
     unexpected:
       "Checked-in visitors could not be loaded. Please try again.",
+  }),
+
+  "checked-in-count": Object.freeze({
+    invalid:
+      "The checked-in count request is invalid.",
+    unexpected:
+      "The checked-in count could not be loaded. Please try again.",
   }),
 
   checkout: Object.freeze({
@@ -390,6 +406,14 @@ function validateResult(
         data.status === "cancelled"
       );
 
+    case "checked-in-count":
+      return (
+        Number.isInteger(
+          Number(data.checkedIn),
+        ) &&
+        isObjectResult(data.scope)
+      );
+
     case "checked-in-list":
       return (
         Array.isArray(data.visitors) &&
@@ -495,6 +519,18 @@ function getOperationConfiguration(operation) {
           "cancel_pending_visitor_admission",
         schema:
           pendingAdmissionCancellationSchema,
+      };
+
+    // Count only: Client Service Heads may see how many visitors are in
+    // without access to the visitor list.
+    case "checked-in-count":
+      return {
+        allowedRoles:
+          INCIDENT_VIEW_ROLES,
+        rpcName:
+          "get_checked_in_visitor_count",
+        schema:
+          checkedInVisitorCountSchema,
       };
 
     case "checked-in-list":
@@ -612,6 +648,12 @@ function createRpcArguments(
         p_visit_id: values.visitId,
       };
 
+    case "checked-in-count":
+      return {
+        p_actor_id: actorId,
+        p_tower: towerScope,
+      };
+
     case "checked-in-list":
       return {
         p_actor_id: actorId,
@@ -684,6 +726,199 @@ function createRpcArguments(
   }
 }
 
+// Guests pre-registered through a meeting booking did not see the
+// privacy notice themselves, so reception confirms it with them before
+// admitting them. Returns whether the visit is such a guest.
+async function requireBookedGuestPrivacy(
+  client,
+  values,
+) {
+  const { data, error } = await client
+    .from("visits")
+    .select("booking_guest_id")
+    .eq("id", values.visitId)
+    .maybeSingle();
+
+  if (error) {
+    throw new HttpError(
+      "The visitor could not be admitted. Please try again.",
+      500,
+    );
+  }
+
+  const bookedGuest = Boolean(
+    data?.booking_guest_id,
+  );
+
+  if (
+    bookedGuest &&
+    values.privacyConfirmed !== true
+  ) {
+    throw new HttpError(
+      "Confirm that the guest has been shown the privacy notice.",
+      400,
+    );
+  }
+
+  return bookedGuest;
+}
+
+const LIST_RESULT_KEYS = Object.freeze({
+  "checked-in-list": "visitors",
+  "incident-list": "incidents",
+  "pending-list": "admissions",
+});
+
+// Adds visitorType ("vip" | "regular" | null) to list rows from the card
+// issued for each visit. The type is only a display hint, so a failed
+// lookup leaves the rows exactly as the RPC returned them.
+async function addVisitorTypes(
+  client,
+  operation,
+  data,
+) {
+  const key = LIST_RESULT_KEYS[operation];
+
+  if (!key || !Array.isArray(data?.[key])) {
+    return data;
+  }
+
+  try {
+    const detailed = await addVisitorDetails(
+      client,
+      data[key],
+      {
+        cardStatuses: [
+          "assigned",
+          "returned",
+          "not_returned",
+          "deactivated",
+        ],
+      },
+    );
+
+    return {
+      ...data,
+      [key]: data[key].map(
+        (row, index) => ({
+          ...row,
+          visitorType:
+            detailed[index]?.visitorType ||
+            null,
+          bookedGuest: Boolean(
+            detailed[index]?.bookedGuest,
+          ),
+          bookedVisit: Boolean(
+            detailed[index]?.bookedVisit,
+          ),
+        }),
+      ),
+    };
+  } catch {
+    return data;
+  }
+}
+
+// The checked-in list and card incidents show the same visit columns
+// as Visit History, so each row gets its visit's purpose, destination,
+// meeting title and times. Display only: a failed lookup leaves the rows
+// as the RPC returned them.
+const VISIT_COLUMN_LISTS = Object.freeze({
+  "checked-in-list": "visitors",
+  "incident-list": "incidents",
+});
+
+async function addVisitColumns(
+  client,
+  operation,
+  data,
+) {
+  const key = VISIT_COLUMN_LISTS[operation];
+
+  if (
+    !key ||
+    !Array.isArray(data?.[key]) ||
+    data[key].length === 0
+  ) {
+    return data;
+  }
+
+  try {
+    const visitIds = [
+      ...new Set(
+        data[key]
+          .map((row) => row.visitId)
+          .filter(Boolean),
+      ),
+    ];
+
+    const { data: visits, error } = await client
+      .from("visits")
+      .select(
+        "id, purpose, person_visiting, destination_agency, destination_division, checked_in_at, checked_out_at, custom_meeting_title, meeting_id",
+      )
+      .in("id", visitIds);
+
+    if (error || !Array.isArray(visits)) {
+      return data;
+    }
+
+    const meetingIds = [
+      ...new Set(
+        visits
+          .map((visit) => visit.meeting_id)
+          .filter(Boolean),
+      ),
+    ];
+
+    let meetingTitles = new Map();
+
+    if (meetingIds.length) {
+      const meetings = await client
+        .from("meetings")
+        .select("id, title")
+        .in("id", meetingIds);
+
+      if (!meetings.error && Array.isArray(meetings.data)) {
+        meetingTitles = new Map(
+          meetings.data.map((meeting) => [meeting.id, meeting.title]),
+        );
+      }
+    }
+
+    const visitsById = new Map(
+      visits.map((visit) => [visit.id, visit]),
+    );
+
+    return {
+      ...data,
+      [key]: data[key].map((row) => {
+        const visit = visitsById.get(row.visitId);
+
+        if (!visit) {
+          return row;
+        }
+
+        return {
+          ...row,
+          agency: visit.destination_agency || "",
+          checkedInAt: visit.checked_in_at || null,
+          checkedOutAt: visit.checked_out_at || null,
+          division: visit.destination_division || "",
+          meetingTitle:
+            meetingTitles.get(visit.meeting_id) ||
+            visit.custom_meeting_title ||
+            "",
+          personVisiting: visit.person_visiting || "",
+          purpose: visit.purpose || row.purpose || "",
+        };
+      }),
+    };
+  } catch {
+    return data;
+  }
+}
+
 function createSuccessResponse(
   operation,
   data,
@@ -738,6 +973,8 @@ async function enforceOperationRateLimit(
 export function createCheckoutHandler({
   enforceRateLimitForRequest = enforceRateLimit,
   getAdminClientForRequest = getAdminClient,
+  requestFeedback = requestVisitFeedback,
+  sendCardIssued = sendCardIssuedSms,
   requireActiveStaffForRequest =
     requireActiveStaff,
 } = {}) {
@@ -810,11 +1047,41 @@ export function createCheckoutHandler({
             towerScope,
           );
 
+        const client =
+          getAdminClientForRequest();
+
+        const bookedGuest =
+          operation === "admission"
+            ? await requireBookedGuestPrivacy(
+                client,
+                parsed.data,
+              )
+            : false;
+
         const { data, error } =
-          await getAdminClientForRequest().rpc(
+          await client.rpc(
             configuration.rpcName,
             rpcArguments,
           );
+
+        if (!error && bookedGuest) {
+          await client
+            .from("audit_events")
+            .insert({
+              action:
+                "visit.booked_guest_privacy_confirmed",
+              actor_id: profile.userId,
+              details: {
+                tower: towerScope,
+              },
+              entity_id: parsed.data.visitId,
+              entity_type: "visit",
+            })
+            .then(
+              () => undefined,
+              () => undefined,
+            );
+        }
 
         if (error) {
           throw getVisitorCardDatabaseError(
@@ -837,9 +1104,43 @@ export function createCheckoutHandler({
           );
         }
 
+        // A normal check-out asks the visitor for feedback by SMS.
+        // Cards reported lost or closed by an incident do not. It never
+        // fails the check-out.
+        // Admission texts the visitor their card number. It never fails
+        // the admission.
+        if (operation === "admission") {
+          await Promise.resolve(
+            sendCardIssued({
+              cardNumber: data.cardAssignment.cardNumber,
+              client,
+              reference: data.visit.referenceCode,
+              visitorId: data.visit.visitorId,
+            }),
+          ).catch(() => undefined);
+        }
+
+        if (operation === "checkout") {
+          await Promise.resolve(
+            requestFeedback({
+              client,
+              reference: data.reference,
+              visitId: data.visitId,
+            }),
+          ).catch(() => undefined);
+        }
+
         return createSuccessResponse(
           operation,
-          data,
+          await addVisitColumns(
+            client,
+            operation,
+            await addVisitorTypes(
+              client,
+              operation,
+              data,
+            ),
+          ),
         );
       } catch (error) {
         if (
@@ -889,4 +1190,4 @@ export function createCheckoutHandler({
   };
 }
 
-export default createCheckoutHandler();
+export default withAuditContext(createCheckoutHandler());

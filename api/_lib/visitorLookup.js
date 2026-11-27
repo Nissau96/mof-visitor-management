@@ -6,13 +6,9 @@ import {
 import { isIP } from "node:net";
 import process from "node:process";
 
-export const VISITOR_LOOKUP_AUDIENCE =
-  "returning-visitor-lookup";
-
 export const VERIFIED_VISITOR_AUDIENCE =
   "returning-visitor-verified";
 
-export const LOOKUP_TOKEN_TTL_SECONDS = 5 * 60;
 export const VERIFIED_TOKEN_TTL_SECONDS = 10 * 60;
 
 const TOKEN_ISSUER = "mof-visitor-management";
@@ -79,12 +75,12 @@ function createVisitorToken(
   return `${encodedPayload}.${signature}`;
 }
 
-export function createLookupToken(visitorId) {
-  return createVisitorToken(
-    visitorId,
-    VISITOR_LOOKUP_AUDIENCE,
-    LOOKUP_TOKEN_TTL_SECONDS,
-  );
+// Keyed hash for SMS-code records, so neither the phone number nor
+// the code is stored in plain text.
+export function createKeyedHash(purpose, value) {
+  return createHmac("sha256", getLookupSecret())
+    .update(`${purpose}:${value}`)
+    .digest("hex");
 }
 
 export function createVerifiedVisitorToken(visitorId) {
@@ -192,54 +188,34 @@ export function readVisitorToken(
   };
 }
 
-function maskWord(word) {
-  const characters = Array.from(word);
+// "patrick.mensah@example.com" -> "p•••••@example.com"
+export function maskEmail(email) {
+  const [local, domain] = String(email || "").split("@");
 
-  if (characters.length === 0) {
+  if (!local || !domain) {
     return "";
   }
 
-  if (characters.length === 1) {
-    return characters[0];
+  return `${Array.from(local)[0]}•••••@${domain}`;
+}
+
+// "+233241112233" -> "024 ••• ••33". Other numbers keep their first
+// four and last two digits.
+export function maskPhone(phone) {
+  const digits = String(phone || "").replace(/[^0-9]/g, "");
+
+  if (digits.length < 6) {
+    return "";
   }
 
-  return `${characters[0]}${"•".repeat(
-    Math.min(characters.length - 1, 8),
-  )}`;
-}
+  const local =
+    digits.startsWith("233") && digits.length === 12
+      ? `0${digits.slice(3)}`
+      : "";
 
-function maskWords(value) {
-  return String(value)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(maskWord)
-    .join(" ");
-}
-
-export function maskVisitorName(fullName) {
-  return maskWords(fullName);
-}
-
-export function maskVisitorOrganization(organization) {
-  if (!organization) {
-    return "Not provided";
-  }
-
-  return maskWords(organization);
-}
-
-export function maskPhoneSuffix(phoneSuffix) {
-  const suffix = String(phoneSuffix || "").replace(
-    /\D/g,
-    "",
-  );
-
-  if (suffix.length !== 2) {
-    return "•••• ••••";
-  }
-
-  return `•••• ••${suffix}`;
+  return local
+    ? `${local.slice(0, 3)} ••• ••${local.slice(-2)}`
+    : `+${digits.slice(0, 4)} ••• ••${digits.slice(-2)}`;
 }
 
 function getClientAddress(request) {

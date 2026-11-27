@@ -84,13 +84,7 @@ async function completeLoginForm(
   );
 
   await user.click(
-    screen.getByRole("button", {
-      name: /Assigned Tower/i,
-    }),
-  );
-
-  await user.click(
-    await screen.findByRole("option", {
+    screen.getByRole("radio", {
       name: TOWER_OPTIONS.find(
         (option) => option.value === tower,
       ).label,

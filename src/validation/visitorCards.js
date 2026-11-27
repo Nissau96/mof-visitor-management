@@ -18,6 +18,16 @@ const pageSizeSchema = z.coerce
   .max(PAGE_SIZE_MAXIMUM)
   .default(10);
 
+// The inventory shows cards as a grid of tiles, so it takes larger pages.
+const INVENTORY_PAGE_SIZE_MAXIMUM = 24;
+
+const inventoryPageSizeSchema = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(INVENTORY_PAGE_SIZE_MAXIMUM)
+  .default(INVENTORY_PAGE_SIZE_MAXIMUM);
+
 const searchSchema = z
   .string()
   .trim()
@@ -126,6 +136,10 @@ export const visitorAdmissionSchema = z
       "A valid visitor-card identifier is required.",
     ),
 
+    // Guests pre-registered through a meeting booking confirm the
+    // privacy notice at the desk; the API requires it for them.
+    privacyConfirmed: z.boolean().optional(),
+
     tower: requiredTowerSchema,
 
     visitId: uuidSchema(
@@ -160,6 +174,7 @@ export const checkedInCardVisitorListSchema =
           "all",
           "assigned",
           "not_returned",
+          "unassigned",
         ])
         .default("all"),
 
@@ -278,6 +293,13 @@ export const visitorCardReprintSchema = z
   })
   .strict();
 
+// Checked-in count for the stat card (all staff roles, tower-scoped).
+export const checkedInVisitorCountSchema = z
+  .object({
+    tower: optionalTowerSchema,
+  })
+  .strict();
+
 export const adminVisitorCardInventorySchema =
   z
     .object({
@@ -285,7 +307,7 @@ export const adminVisitorCardInventorySchema =
         cardTypeFilterSchema,
 
       page: pageSchema,
-      pageSize: pageSizeSchema,
+      pageSize: inventoryPageSizeSchema,
       search: searchSchema,
 
       status: z

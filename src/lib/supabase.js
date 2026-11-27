@@ -18,6 +18,9 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // Sign in with Microsoft returns a one-time code, not tokens in
+      // the URL; supabase-js exchanges it on the way back.
+      flowType: "pkce",
     },
   },
 );

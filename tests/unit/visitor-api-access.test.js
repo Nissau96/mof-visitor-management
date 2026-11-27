@@ -1,4 +1,5 @@
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -33,8 +34,8 @@ import hostsHandler from "../../api/hosts.js";
 import meetingsHandler from "../../api/meetings.js";
 import registerHandler from "../../api/register.js";
 import returningCheckInHandler from "../../api/returning/check-in.js";
-import returningSearchHandler from "../../api/returning/search.js";
 import returningVerifyHandler from "../../api/returning/verify.js";
+import { createWeeklyQrToken } from "../../src/server/weeklyQrAccess.js";
 
 const protectedHandlers = [
   {
@@ -54,13 +55,6 @@ const protectedHandlers = [
     method: "POST",
     name: "first-visit registration",
     url: "https://visitor.example/api/register",
-  },
-  {
-    handler: returningSearchHandler,
-    method: "POST",
-    name: "returning-visitor search",
-    url:
-      "https://visitor.example/api/returning/search",
   },
   {
     handler: returningVerifyHandler,
@@ -116,4 +110,79 @@ describe("visitor API weekly QR access", () => {
       ).not.toHaveBeenCalled();
     });
   }
+});
+
+describe("reception kiosk QR link", () => {
+  beforeEach(() => {
+    vi.stubEnv(
+      "WEEKLY_QR_SECRET",
+      "invented-weekly-qr-secret-for-unit-testing-only-2026",
+    );
+    vi.stubEnv(
+      "VISITOR_APP_URL",
+      "https://visitor.example/visit",
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function accessRequest(url, token) {
+    return new Request(url, {
+      headers: {
+        cookie: `mof_visitor_weekly_access=${encodeURIComponent(token)}`,
+      },
+    });
+  }
+
+  it("returns this week's link to a kiosk holding weekly access", async () => {
+    const { token } = createWeeklyQrToken();
+
+    const response = await registerHandler.fetch(
+      accessRequest(
+        "https://visitor.example/api/register?kiosk=1",
+        token,
+      ),
+    );
+
+    const { access } = await response.json();
+    const accessUrl = new URL(access.accessUrl);
+
+    expect(response.status).toBe(200);
+    expect(accessUrl.origin + accessUrl.pathname).toBe(
+      "https://visitor.example/visit",
+    );
+    expect(
+      new URLSearchParams(accessUrl.hash.slice(1)).get(
+        "weeklyAccess",
+      ),
+    ).toBe(token);
+  });
+
+  it("leaves the link out of a plain access check", async () => {
+    const { token } = createWeeklyQrToken();
+
+    const response = await registerHandler.fetch(
+      accessRequest(
+        "https://visitor.example/api/register",
+        token,
+      ),
+    );
+
+    const { access } = await response.json();
+
+    expect(access.valid).toBe(true);
+    expect(access).not.toHaveProperty("accessUrl");
+  });
+
+  it("refuses the link without weekly access", async () => {
+    const response = await registerHandler.fetch(
+      new Request(
+        "https://visitor.example/api/register?kiosk=1",
+      ),
+    );
+
+    expect(response.status).toBe(401);
+  });
 });

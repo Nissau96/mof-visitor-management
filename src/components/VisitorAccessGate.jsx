@@ -8,7 +8,12 @@ import {
   useEffect,
   useState,
 } from "react";
-import { Outlet } from "react-router-dom";
+import {
+  Link,
+  Outlet,
+  useLocation,
+} from "react-router-dom";
+import { KIOSK_PATH } from "../lib/kiosk.js";
 import {
   ApiError,
   apiRequest,
@@ -61,6 +66,8 @@ function getAccessErrorMessage(error) {
 }
 
 export default function VisitorAccessGate() {
+  const { pathname } = useLocation();
+
   const [status, setStatus] =
     useState("checking");
 
@@ -231,6 +238,19 @@ export default function VisitorAccessGate() {
           The reception QR code changes every Monday and
           remains valid through Sunday.
         </p>
+
+        {pathname === KIOSK_PATH ? (
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Reception staff:{" "}
+            <Link
+              className="font-bold text-brand-800 underline underline-offset-2"
+              to="/staff"
+            >
+              sign in
+            </Link>{" "}
+            and choose Set up kiosk in the menu.
+          </p>
+        ) : null}
       </section>
     </div>
   );

@@ -1,3 +1,4 @@
+import { withAuditContext } from "./_lib/auditContext.js";
 import {
   RateLimitExceededError,
   enforceRateLimit,
@@ -28,7 +29,7 @@ export function createHostsHandler({
       }
 
       try {
-        readWeeklyQrAccess(request);
+        await readWeeklyQrAccess(request);
 
         await enforceRateLimitForRequest(
           request,
@@ -107,4 +108,4 @@ export function createHostsHandler({
   };
 }
 
-export default createHostsHandler();
+export default withAuditContext(createHostsHandler());

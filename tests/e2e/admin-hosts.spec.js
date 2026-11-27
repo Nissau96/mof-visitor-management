@@ -161,6 +161,27 @@ async function installMockHostAdministration(
                 body.pageSize,
             ),
           },
+          summary: {
+            activeCount: state.hosts.filter(
+              (host) => host.active,
+            ).length,
+            departmentCount: new Set(
+              state.hosts.map(
+                (host) => host.department,
+              ),
+            ).size,
+            departments: [
+              ...new Set(
+                state.hosts.map(
+                  (host) => host.department,
+                ),
+              ),
+            ].sort(),
+            inactiveCount: state.hosts.filter(
+              (host) => !host.active,
+            ).length,
+            totalCount: state.hosts.length,
+          },
         },
         status: 200,
       });
@@ -308,14 +329,26 @@ test.describe(
             status: "all",
           });
 
+        const menuButton = page.getByRole("button", {
+          name: "Open navigation menu",
+        });
+
+        if (await menuButton.isVisible()) {
+          await menuButton.click();
+        }
+
         await expect(
           page.getByRole("link", {
-            name: "Hosts",
+            name: "Hosts & Divisions",
           }),
         ).toHaveAttribute(
           "aria-current",
           "page",
         );
+
+        if (await menuButton.isVisible()) {
+          await page.keyboard.press("Escape");
+        }
 
         await expectNoWcagViolations(
           page,
@@ -372,12 +405,11 @@ test.describe(
           .fill("Host 12");
 
         await page
-          .getByLabel("Status")
-          .selectOption("inactive");
-
-        await page
+          .getByRole("group", {
+            name: "Host status",
+          })
           .getByRole("button", {
-            name: "Apply",
+            name: "Inactive",
           })
           .click();
 
@@ -436,6 +468,28 @@ test.describe(
 
         await expect(dialog).toBeVisible();
 
+        // Adding stays disabled until both fields have text.
+        await expect(
+          dialog.getByRole("button", {
+            name: "Add host",
+          }),
+        ).toBeDisabled();
+
+        // Existing departments are offered as suggestions.
+        await expect(
+          dialog.locator(
+            "#host-department-options option",
+          ),
+        ).toHaveCount(13);
+
+        await dialog
+          .getByLabel(/^Host name/i)
+          .fill("A");
+
+        await dialog
+          .getByLabel(/^Department/i)
+          .fill("B");
+
         await dialog
           .getByRole("button", {
             name: "Add host",
@@ -459,17 +513,13 @@ test.describe(
         ).toHaveLength(0);
 
         await dialog
-          .getByLabel(
-            /Host full name/i,
-          )
+          .getByLabel(/^Host name/i)
           .fill(
             "Synthetic Added Host",
           );
 
         await dialog
-          .getByLabel(
-            /Department or office/i,
-          )
+          .getByLabel(/^Department/i)
           .fill(
             "Digital Services Unit",
           );
@@ -531,7 +581,7 @@ test.describe(
 
         await hostRecord
           .getByRole("button", {
-            name: "Edit",
+            name: /^Edit/,
           })
           .click();
 
@@ -543,18 +593,21 @@ test.describe(
         await expect(dialog).toBeVisible();
 
         await dialog
-          .getByLabel(
-            /Host full name/i,
-          )
+          .getByLabel(/^Host name/i)
           .fill(
             "Synthetic Host 01 Updated",
           );
 
         await dialog
-          .getByRole("checkbox", {
-            name: /Active host/i,
-          })
-          .uncheck();
+          .locator("label")
+          .filter({ hasText: /^Inactive$/ })
+          .click();
+
+        await expect(
+          dialog.getByRole("radio", {
+            name: "Inactive",
+          }),
+        ).toBeChecked();
 
         await dialog
           .getByRole("button", {

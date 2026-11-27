@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T12:00:00Z",
+  "title": "Design System: MOF Visitor Management",
+  "extensions": {
+    "colorMeta": {
+      "teal-primary": { "role": "primary", "displayName": "Teal Primary", "canonical": "#0d9488", "tonalRamp": ["#042f2e", "#134e4a", "#115e59", "#0f766e", "#0d9488", "#14b8a6", "#5eead4", "#ccfbf1"] },
+      "teal-action": { "role": "primary", "displayName": "Teal Action", "canonical": "#115e59" },
+      "teal-ink": { "role": "primary", "displayName": "Teal Ink", "canonical": "#134e4a" },
+      "teal-deep": { "role": "primary", "displayName": "Teal Deep", "canonical": "#0f766e" },
+      "teal-mist": { "role": "primary", "displayName": "Teal Mist", "canonical": "#f0fdfa" },
+      "teal-wash": { "role": "primary", "displayName": "Teal Wash", "canonical": "#ccfbf1" },
+      "teal-glow": { "role": "primary", "displayName": "Teal Glow", "canonical": "#5eead4" },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#f8fafc", "tonalRamp": ["#020617", "#1e293b", "#334155", "#475569", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f8fafc"] },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#ffffff" },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e2e8f0" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#020617" },
+      "night-paper": { "role": "neutral", "displayName": "Night Paper", "canonical": "#0b1220", "tonalRamp": ["#0b1220", "#111a2b", "#1a2436", "#263247", "#364359", "#7f8da4", "#c3cbd7", "#f5f7fa"] },
+      "night-surface": { "role": "neutral", "displayName": "Night Surface", "canonical": "#111a2b" },
+      "danger-text": { "role": "status", "displayName": "Danger", "canonical": "#b91c1c" },
+      "caution-text": { "role": "status", "displayName": "Caution", "canonical": "#92400e" },
+      "success-text": { "role": "status", "displayName": "Success", "canonical": "#065f46" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Visitor landing headings in Teal Ink; 2.25rem on phones." },
+      "headline": { "displayName": "Headline", "purpose": "Staff page titles and dashboard hero figures." },
+      "title": { "displayName": "Title", "purpose": "Card and section titles." },
+      "body": { "displayName": "Body", "purpose": "Forms, paragraphs, table cells; never below 16px in controls." },
+      "label": { "displayName": "Label", "purpose": "Form labels, buttons, navigation." },
+      "caption": { "displayName": "Caption", "purpose": "Metadata, percentages, helper lines." }
+    },
+    "shadows": [
+      { "name": "resting-card", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "Every card and input at rest." },
+      { "name": "hover-lift", "value": "0 18px 36px -16px rgb(15 23 42 / 0.28)", "purpose": "Interactive cards on hover, with translate 0 -4px and a 2.4s bob." },
+      { "name": "teal-action-glow", "value": "0 10px 15px -3px rgb(15 118 110 / 0.25)", "purpose": "Primary buttons and key selected actions." },
+      { "name": "dialog", "value": "0 24px 80px -30px rgba(0,0,0,0.4)", "purpose": "Modals and floating panels." }
+    ],
+    "motion": [
+      { "name": "card-lift", "value": "220ms ease", "purpose": "Hover lift of interactive cards; only with prefers-reduced-motion: no-preference." },
+      { "name": "card-bob", "value": "2.4s ease-in-out infinite", "purpose": "Gentle 4px bob after a hover lift." },
+      { "name": "toast-in", "value": "translateY(-8px) to 0 with fade", "purpose": "Toasts slide down into place." },
+      { "name": "chart-enter", "value": "500ms", "purpose": "ECharts series animation." }
+    ],
+    "breakpoints": [
+      { "name": "min", "value": "320px" },
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action on a form or dialog: Teal Action fill, white bold text, teal glow.",
+      "html": "<button class=\"ds-btn-primary\">Check in visitor</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px; border: none; border-radius: 12px; background: #115e59; color: #ffffff; font: 700 0.875rem/1.25 Inter, ui-sans-serif, system-ui, sans-serif; box-shadow: 0 10px 15px -3px rgb(15 118 110 / 0.25); cursor: pointer; transition: background-color 150ms ease; } .ds-btn-primary:hover { background: #134e4a; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 4px rgb(13 148 136 / 0.3); } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting action: white surface, hairline field border.",
+      "html": "<button class=\"ds-btn-secondary\">Refresh</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #1e293b; font: 700 0.875rem/1.25 Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; transition: background-color 150ms ease; } .ds-btn-secondary:hover { background: #f8fafc; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 4px rgb(13 148 136 / 0.3); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Form field with visible label above; 16px text, 48px minimum height.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Mobile number</span><input class=\"ds-input\" placeholder=\"024 000 0000\" /></label>",
+      "css": ".ds-field { display: grid; gap: 6px; } .ds-field-label { font: 600 0.875rem/1.25 Inter, ui-sans-serif, system-ui, sans-serif; color: #1e293b; } .ds-input { min-height: 48px; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #020617; font: 400 1rem/1.5 Inter, ui-sans-serif, system-ui, sans-serif; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); } .ds-input::placeholder { color: #475569; } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 4px rgb(13 148 136 / 0.3); }"
+    },
+    {
+      "name": "Report Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White card on paper with title, subtitle and a Teal Mist figure panel.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-card-title\">Tower 1 visitors</h2><p class=\"ds-card-sub\">Visits in this tower for the period.</p><div class=\"ds-figure\"><strong>317</strong><span>visits in this period · busiest 3 Nov</span></div></section>",
+      "css": ".ds-card { padding: 24px; border: 1px solid #e2e8f0; border-radius: 24px; background: #ffffff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); font-family: Inter, ui-sans-serif, system-ui, sans-serif; transition: translate 220ms ease, box-shadow 220ms ease; } .ds-card:hover { translate: 0 -4px; box-shadow: 0 18px 36px -16px rgb(15 23 42 / 0.28); } .ds-card-title { margin: 0; font-size: 1rem; font-weight: 900; letter-spacing: -0.025em; color: #020617; } .ds-card-sub { margin: 2px 0 0; font-size: 0.875rem; line-height: 1.25rem; color: #475569; } .ds-figure { display: grid; gap: 4px; margin-top: 16px; padding: 16px; border-radius: 16px; background: #f0fdfa; } .ds-figure strong { font-size: 1.875rem; font-weight: 900; font-variant-numeric: tabular-nums; color: #020617; } .ds-figure span { font-size: 0.75rem; font-weight: 600; color: #475569; }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Staff sidebar items; active item has Teal Mist fill and a 4px teal marker.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\" href=\"#\">Dashboard</a><a class=\"ds-nav-item\" href=\"#\">Visit History</a><a class=\"ds-nav-item\" href=\"#\">Analytics &amp; Reports</a></nav>",
+      "css": ".ds-nav { display: grid; gap: 4px; padding-left: 12px; width: 240px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-nav-item { position: relative; display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 12px; font-size: 0.875rem; font-weight: 600; color: #475569; text-decoration: none; transition: background-color 150ms ease, color 150ms ease; } .ds-nav-item:hover { background: #f1f5f9; color: #0f172a; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 4px rgb(13 148 136 / 0.3); } .ds-nav-active { background: #f0fdfa; color: #115e59; font-weight: 700; } .ds-nav-active::before { content: \"\"; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 9999px 9999px 0; background: #0d9488; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip-filter",
+      "description": "Round period/filter pill; selected state fills with Teal Action.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\">Today</button><button class=\"ds-chip\">This week</button><button class=\"ds-chip ds-chip-selected\" aria-pressed=\"true\">This month</button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; } .ds-chip { min-height: 44px; padding: 0 16px; border: 1px solid #e2e8f0; border-radius: 9999px; background: #ffffff; color: #1e293b; font: 700 0.875rem/1 Inter, ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; } .ds-chip:hover { background: #f8fafc; } .ds-chip:focus-visible { outline: none; box-shadow: 0 0 0 4px rgb(13 148 136 / 0.3); } .ds-chip-selected { background: #115e59; border-color: #115e59; color: #ffffff; } .ds-chip-selected:hover { background: #134e4a; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Front Desk",
+    "overview": "The interface is the Ministry's reception desk. It welcomes you, it is composed and it is unhurried. It reads as official without being cold. A visitor standing in the lobby, phone in hand, and a receptionist working through a morning rush should both feel that the desk has things in hand. Every screen answers \"what do I do next?\" before it says anything else.\n\nThe look is built from four things: one teal family carries identity and action; cool slate neutrals sit on a pale paper background; confident, heavy headings sit over plain, readable body text; and corners are generously rounded. Depth is layered and lifted. White cards sit on the paper background, rise on hover, and dialogs float well above everything else. The Ministry of Finance logo and seal are the identity marks. Real building and reception photography carries the visitor-facing welcome, and the staff tools stay quiet and dense.\n\nDark mode is a full sibling, not an afterthought. Slate is inverted at the token level, and teal shifts to its brighter steps so it still reads on navy.",
+    "keyCharacteristics": [
+      "Colour: a single teal family for identity, action and data. Status hues (red, amber, emerald) are used only for state.",
+      "Type: headings and figures in the heaviest weight (900) with slightly tightened letter spacing; body text stays regular.",
+      "Shape: soft, generous corners. Cards are 24px, controls 12px, chips and avatars fully round.",
+      "Depth: layered, lifting surfaces. Cards lift and gently bob on hover; dialogs and hero panels cast deep, soft shadows.",
+      "Touch: large targets of at least 44px and 16px form text, built for phones first."
+    ],
+    "rules": [
+      { "name": "The One Teal Rule", "body": "Teal is the only brand colour. The former yellow-gold accent (#fcd116) has been removed from the system. Do not reintroduce gold, a second brand hue or a gradient between colours.", "section": "colors" },
+      { "name": "The Fill-Behind-White Rule", "body": "Any solid teal fill that carries white text uses Teal Action (#115e59) or darker. Lighter teals are only for tints, borders, charts and text on dark surfaces.", "section": "colors" },
+      { "name": "The Status-Is-Not-Brand Rule", "body": "Red, amber and emerald appear only to report state. Every status colour comes with a text label or an icon, never colour alone.", "section": "colors" },
+      { "name": "The Heavy Figures Rule", "body": "Counts, KPIs and visit references are set at weight 900 with tabular numerals, so columns of figures line up and read at a glance.", "section": "typography" },
+      { "name": "The Sixteen Floor Rule", "body": "No input, select or textarea text is smaller than 16px. This stops iOS from zooming in and keeps the form readable in a lobby.", "section": "typography" },
+      { "name": "The Lift-Means-Touchable Rule", "body": "A surface lifts on hover only when clicking it does something. Static information cards keep the resting shadow.", "section": "elevation" },
+      { "name": "The Motion-Consent Rule", "body": "Lifts, bobs and slide-ins run only under prefers-reduced-motion: no-preference. Without motion, depth is shown by shadow alone.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Teal Action (#115e59) or darker for any solid fill behind white text.",
+      "Do keep every touch target at least 44px and every form control's text at least 16px.",
+      "Do set counts and figures at weight 900 with tabular numerals.",
+      "Do give interactive cards the hover lift, gated behind prefers-reduced-motion: no-preference.",
+      "Do add a dark-theme counterpart in src/dark-theme.css whenever a new light-only colour utility appears.",
+      "Do pair every status colour with a label or an icon.",
+      "Do use the Ministry of Finance logo and seal as the only identity marks."
+    ],
+    "donts": [
+      "Don't reintroduce the yellow-gold accent (#fcd116) or any second brand hue.",
+      "Don't put white text on Teal Primary (#0d9488) or any lighter teal.",
+      "Don't use colour alone to show a status.",
+      "Don't add a bottom mobile navigation bar.",
+      "Don't use inline HTML styles in chart tooltips or injected markup; the Content-Security-Policy blocks them.",
+      "Don't add thick or coloured side borders to cards, list items or alerts.",
+      "Don't show real visitor data in screenshots, fixtures or design examples."
+    ]
+  }
+}

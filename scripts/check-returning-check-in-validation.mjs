@@ -76,6 +76,7 @@ const validNonMeetingInput = {
   personVisiting: "Test Officer",
   privacyAcknowledged: true,
   purpose: "Official",
+  wifiAccess: "no",
   verificationToken: firstToken,
 };
 
@@ -104,6 +105,7 @@ const validCustomMeeting =
     personVisiting: "",
     privacyAcknowledged: true,
     purpose: "Meeting",
+    wifiAccess: "no",
     verificationToken: firstToken,
   });
 
@@ -126,6 +128,7 @@ const invalidNonMeeting =
     personVisiting: "",
     privacyAcknowledged: true,
     purpose: "Official",
+    wifiAccess: "no",
     verificationToken: firstToken,
   });
 
@@ -206,7 +209,7 @@ const validationHandler =
         async rpc(functionName, parameters) {
           assert.equal(
             functionName,
-            "register_return_visit",
+            "register_return_visit_with_wifi",
           );
 
           assert.deepEqual(parameters, {
@@ -215,7 +218,9 @@ const validationHandler =
             p_custom_meeting_title: "",
             p_destination_agency: "IAA",
             p_destination_division: "",
+            p_email: "",
             p_meeting_id: null,
+            p_organization: "",
             p_person_visiting: "Test Officer",
             p_purpose: "Official",
             p_token_expires_at: new Date(
@@ -224,6 +229,7 @@ const validationHandler =
             p_verification_token_id:
               firstTokenData.tokenId,
             p_visitor_id: visitorId,
+            p_wifi_requested: false,
           });
 
           return {
@@ -277,7 +283,7 @@ assert.deepEqual(
   },
 );
 
-assert.equal(PRIVACY_NOTICE_VERSION, "2.0");
+assert.equal(PRIVACY_NOTICE_VERSION, "2.2");
 
 console.log(
   "Returning visitor check-in validation checks passed.",

@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Visit History</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@700;800&amp;display=swap">
+<style>
+body{margin:0;background:#F1F5F4}
+a{color:#0F766E}a:hover{color:#115E59}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.h1{margin:0;font-family:'Plus Jakarta Sans',Inter,sans-serif;font-size:34px;line-height:1.15;font-weight:800;letter-spacing:-0.8px;color:#111827}
+.h2{margin:0;font-family:'Plus Jakarta Sans',Inter,sans-serif;font-size:18px;line-height:1.3;font-weight:800;color:#111827}
+.lede{margin:0;font-size:15px;line-height:24px;color:#4B5563;max-width:640px}
+.titlerow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;padding:12px 8px 4px 8px}
+.tact{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.upd{font-size:13px;color:#4B5563;margin-right:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background-color .15s ease-out}
+.btn-o{border:1px solid #0F766E;background:#FFFFFF;color:#0F766E}.btn-o:hover{background:#F0FDFA}
+.btn-p{border:1px solid #0F766E;background:#0F766E;color:#FFFFFF}.btn-p:hover{background:#115E59}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #0D9488;outline-offset:2px}
+.panel{background:#FFFFFF;border-radius:22px;display:flex;flex-direction:column;overflow:hidden}
+.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:18px 20px 14px 20px;background:#F7FAF9;border-bottom:1px solid #E3EEEB}
+.srch{flex:1 1 280px;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;background:#FFFFFF;border:1px solid #D7E3E0}
+.srch:focus-within{border-color:#0D9488;box-shadow:0 0 0 1px #0D9488}
+.srch input{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-size:14px;color:#111827;outline:none}
+.srch input::placeholder{color:#6B7280}
+.sel{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 34px 0 12px;border-radius:12px;background:#FFFFFF;border:1px solid #D7E3E0;color:#0F766E;cursor:pointer}
+.sel:focus-within{border-color:#0D9488;box-shadow:0 0 0 1px #0D9488}
+.sel::after{content:'';position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:2px solid #4B5563;border-bottom:2px solid #4B5563;transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.slbl{font-size:12px;font-weight:600;color:#4B5563}
+.sel select{appearance:none;-webkit-appearance:none;border:none;background:transparent;font:inherit;font-size:14px;font-weight:700;color:#111827;cursor:pointer;outline:none;padding:0}
+.sel-date select{min-width:128px}
+.custom{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 20px;background:#F7FAF9;border-bottom:1px solid #E3EEEB}
+.dfield{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;background:#FFFFFF;border:1px solid #D7E3E0;font-size:12px;font-weight:600;color:#4B5563}
+.dfield input{border:none;font:inherit;font-size:14px;font-weight:700;color:#111827;background:transparent;outline:none}
+.derr{font-size:13px;font-weight:600;color:#B91C1C}
+.sumrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:16px 20px 14px 20px}
+.cpill{font-size:12px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:999px;padding:4px 10px;font-variant-numeric:tabular-nums}
+.rangetxt{font-size:13px;color:#4B5563}
+.fchip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px 0 12px;border-radius:999px;border:1px solid #99F6E4;background:#F0FDFA;color:#0F766E;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.fchip:hover{background:#CCFBF1}
+.clr{min-height:32px;padding:0 6px;border:none;background:none;font:inherit;font-size:13px;font-weight:700;color:#374151;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.twrap{overflow-x:auto;border-top:1px solid #E3EEEB}
+.vt{width:100%;min-width:1000px;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:13.5px}
+.vt th{position:sticky;top:0;z-index:1;text-align:left;padding:0 8px;height:44px;font-size:12px;font-weight:700;color:#374151;background:#F1F5F4;box-shadow:inset 0 -1px 0 #DDE7E4;white-space:nowrap}
+.vt th:first-child,.vt td:first-child{padding-left:16px}.vt th:last-child,.vt td:last-child{padding-right:16px}
+.vt th.r,.vt td.r{text-align:right}
+.sth{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0;border:none;background:none;font:inherit;font-weight:700;color:inherit;cursor:pointer}
+.sth:hover{color:#0F766E}
+.sarr{font-size:11px;color:#0F766E;min-width:10px}
+.vt td{height:52px;overflow:hidden;padding:0 8px;border-bottom:1px solid #EEF2F1;color:#111827;vertical-align:middle;background:#FFFFFF;transition:background-color .12s ease-out}
+.vt tbody tr{cursor:pointer}
+.vt tbody tr:nth-child(even) td{background:#FBFCFC}
+.vt tbody tr:hover td{background:#F0FDFA}
+.vt tbody tr.sel td{background:#E6F7F3}
+.vname{width:100%;display:flex;align-items:center;gap:10px;padding:0;border:none;background:none;font:inherit;text-align:left;cursor:pointer;min-width:0}
+.av{width:30px;height:30px;border-radius:999px;background:linear-gradient(135deg,#CCFBF1,#99F6E4);color:#115E59;font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.vtx{display:flex;flex-direction:column;min-width:0;width:100%}
+.vn{font-weight:700;color:#111827;white-space:nowrap;line-height:1.25;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vname:hover .vn{color:#0F766E;text-decoration:underline;text-underline-offset:3px}
+.vref{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#4B5563;line-height:1.3}
+.clip{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.pp{display:inline-flex;align-items:center;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.nw{white-space:nowrap}.tn{font-variant-numeric:tabular-nums}
+.onsite{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:999px;padding:3px 9px}
+.osd{width:6px;height:6px;border-radius:999px;background:#0D9488;box-shadow:0 0 0 3px #CCFBF1}
+.card{display:inline-flex;white-space:nowrap;flex-shrink:0;align-items:center;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;color:#FFFFFF;background:#0F766E;border-radius:999px;padding:4px 10px;letter-spacing:0.2px}
+.card.vip{background:#7A1F3D}
+.stp{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px 3px 8px;white-space:nowrap;border:1px solid}
+.sdot{width:7px;height:7px;border-radius:999px;flex-shrink:0}
+.st-in{color:#047857;background:#ECFDF5;border-color:#A7F3D0}.st-in .sdot{background:#10B981;box-shadow:0 0 0 3px #D1FAE5}
+.st-kept{color:#9F1239;background:#FFF1F2;border-color:#FECDD3}.st-kept .sdot{background:#E11D48;box-shadow:0 0 0 3px #FFE4E6}
+.st-out{color:#374151;background:#F3F4F6;border-color:#E5E7EB}.st-out .sdot{background:#9CA3AF}
+.outc{display:flex;flex-direction:column;line-height:1.25}.outd{font-size:11px;color:#4B5563}
+.muted{color:#9CA3AF}
+.nocard{font-size:13px;color:#6B7280}
+.empty{padding:48px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;font-size:14px;color:#4B5563}
+.empty b{font-size:16px;color:#111827}
+.tfoot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 20px 16px 20px;border-top:1px solid #EEF2F1}
+.pginfo{font-size:13px;color:#4B5563;font-variant-numeric:tabular-nums}
+.pgr{display:flex;align-items:center;gap:6px}
+.pgn{min-width:40px;height:40px;padding:0 12px;border-radius:999px;border:1px solid #E3EEEB;background:#FFFFFF;color:#374151;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.pgn:hover:not(:disabled):not(.cur){background:#F0FDFA;border-color:#99F6E4}
+.pgn.cur{background:#0F766E;border-color:#0F766E;color:#FFFFFF}
+.pgn:disabled{color:#9CA3AF;background:#F9FAFB;cursor:not-allowed}
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,0.32);z-index:40}
+.drawer{--c:#0F766E;--c-d:#115E59;--c-l:#F0FDFA;--c-ln:#CCFBF1;--c-acc:#5EEAD4;--c-rgb:240,253,250;font-family:Inter,system-ui,sans-serif;color:#1F2937;position:fixed;top:12px;right:12px;bottom:12px;z-index:41;width:min(460px,calc(100vw - 24px));background:#FFFFFF;border-radius:24px;box-shadow:0 24px 64px rgba(15,23,42,0.24);overflow:auto;display:flex;flex-direction:column;animation:din .22s cubic-bezier(.16,1,.3,1)}
+.drawer .vstar{display:none}.drawer.th-vip .vstar{display:inline}
+.drawer.th-vip{--c:#7A1F3D;--c-d:#5E1530;--c-l:#FDF2F5;--c-ln:#F5D0DC;--c-acc:#F4A7BE;--c-rgb:253,242,245}
+@keyframes din{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+.dhead{position:relative;overflow:hidden;padding:24px 170px 22px 24px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;background-color:var(--c-l);background-image:radial-gradient(var(--c-ln) 1.2px,transparent 1.4px);background-size:16px 16px;border-bottom:1px solid var(--c-ln)}
+.dhead::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgb(var(--c-rgb)) 0%,rgb(var(--c-rgb)) 50%,rgba(var(--c-rgb),0.3) 100%)}
+.dhead>*{position:relative}
+.dhead>.dgeo{position:absolute;right:-70px;top:-24px}
+.dhead>.dart{position:absolute;right:22px;bottom:8px}
+.dhead>.dx{position:absolute;top:16px;right:16px;z-index:2}
+.dx{width:44px;height:44px;border-radius:999px;border:1px solid #DDE7E4;background:#FFFFFF;color:#374151;display:flex;align-items:center;justify-content:center;cursor:pointer}.dx:hover{background:#F4F8F7}
+.dav{flex-shrink:0;width:54px;height:54px;min-width:54px;min-height:54px;border-radius:999px;background:var(--c);color:#FFFFFF;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;box-shadow:0 0 0 4px #FFFFFF,0 0 0 5px var(--c-ln)}
+.dname{margin:0;font-family:'Plus Jakarta Sans',Inter,sans-serif;font-size:22px;line-height:1.25;font-weight:800;color:#111827}
+.dorg{font-size:14px;color:#374151}
+.dtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{font-size:12px;font-weight:800;border-radius:999px;padding:4px 10px;background:var(--c);color:#FFFFFF}
+.dref{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;color:var(--c);background:#FFFFFF;border:1px solid var(--c-ln);border-radius:999px;padding:3px 9px}
+.dbody{padding:18px 20px 22px 20px;display:flex;flex-direction:column;gap:14px}
+.vcard{position:relative;overflow:hidden;display:flex;flex-direction:column;padding:16px 16px 14px 16px;border-radius:20px;border:1.5px solid var(--c);background:linear-gradient(160deg,#FFFFFF 50%,var(--c-l) 100%)}
+.vcard>*{position:relative;z-index:1}
+.vcard::after{content:'';position:absolute;right:-56px;top:-56px;z-index:0;width:120px;height:120px;border-radius:999px;border:12px solid var(--c-l);pointer-events:none}
+.vchead{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.vct{margin:0;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--c)}
+.vlbl{font-size:12px;font-weight:600;color:#4B5563}
+.vmain{margin:2px 0 0 0;font-family:'Plus Jakarta Sans',Inter,sans-serif;font-size:19px;line-height:1.3;font-weight:800;color:#111827;text-wrap:balance}
+.vdiv{margin:4px 0 14px 0;font-size:14px;font-weight:600;color:var(--c)}
+.vtiles{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.vt1{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:#FFFFFF;border:1px solid #EEF2F1}
+.vtw{grid-column:1 / -1}
+.vti{grid-row:span 2;width:32px;height:32px;border-radius:10px;background:var(--c-l);color:var(--c);display:flex;align-items:center;justify-content:center}
+.vtl{font-size:11px;font-weight:600;color:#4B5563}
+.vtv{font-size:14px;font-weight:700;color:#111827;line-height:1.35;overflow-wrap:anywhere}
+.dtime{position:relative;overflow:hidden;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:var(--c-d);color:#FFFFFF}
+.dtime::after{content:'';position:absolute;right:-40px;top:-60px;width:130px;height:130px;border-radius:999px;border:12px solid rgba(255,255,255,0.08)}
+.dtp{position:relative;z-index:1;display:flex;flex-direction:column}.dtr{text-align:right}
+.dtl{font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--c-acc)}
+.dtv{font-family:'Plus Jakarta Sans',Inter,sans-serif;font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.dtd{font-size:11px;color:rgba(255,255,255,0.8)}
+.dline{position:relative;z-index:1;height:2px;background:repeating-linear-gradient(90deg,var(--c-acc) 0 6px,transparent 6px 11px);display:flex;align-items:center;justify-content:center}
+.dline span{background:var(--c-d);padding:0 8px;font-size:12px;font-weight:700;white-space:nowrap}
+.mlink{position:relative;z-index:1;margin-top:10px;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:12px;background:#FFFFFF;border:1px solid var(--c-ln);color:var(--c);font-size:13px;text-decoration:none}
+.mlink b{font-family:ui-monospace,Menlo,monospace}.mlink:hover{background:var(--c-l)}
+.mla{margin-left:auto;font-weight:800}
+.dsh{margin:0 0 4px 0;font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#4B5563}
+.ccard,.kcard{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:18px;background:#F7FAF9;border:1px solid #EEF2F1}
+.crow{display:flex;align-items:center;gap:12px;padding:4px 0}
+.cico{width:32px;height:32px;border-radius:10px;background:#FFFFFF;color:var(--c);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 2px rgba(15,23,42,0.06)}
+.ctx{display:flex;flex-direction:column;min-width:0}
+.cl{font-size:11px;font-weight:600;color:#4B5563}
+.cv{font-size:14px;font-weight:700;color:#111827;overflow-wrap:anywhere}
+.kcrow{display:flex;align-items:center;gap:10px}
+.dcn{font-size:13px;line-height:1.45;color:#4B5563}
+.kalert{background:#FFF1F2;border-color:#FECDD3}.kalert .dcn{color:#9F1239;font-weight:600}
+@media (prefers-reduced-motion:reduce){.drawer{animation:none}}
+.em{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#4B5563;line-height:1.3}
+.ph{display:block;line-height:1.25;font-size:13.5px;font-weight:600;letter-spacing:-0.2px;color:#111827;font-variant-numeric:tabular-nums}.ph svg{color:#0F766E;flex-shrink:0}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #1F2937; background: #F1F5F4; min-height: 100vh; box-sizing: border-box; padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+
+<!-- SIDEBAR -->
+<nav aria-label="Main" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; background: #FFFFFF; border-radius: 24px; overflow: hidden; padding: 4px 0 20px 0; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 76px; box-sizing: border-box; padding: 14px 20px; border-bottom: 1px solid #EEF2F1">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: #0F766E; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg>
+</div>
+<div style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+<span style="font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #0F766E">MINISTRY OF FINANCE</span>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 18px; font-weight: 800; color: #111827">Staff Portal</span>
+</div>
+<button aria-label="Collapse sidebar" style="width: 32px; height: 32px; border: none; background: transparent; color: #6B7280; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+</button>
+</div>
+
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 1.2px; color: #6B7280; padding: 18px 24px 6px 24px">WORKSPACE</span>
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+Dashboard</a>
+<a href="#" aria-current="page" style="position: relative; display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; background: #F0FDFA; color: #0F766E; font-weight: 700; font-size: 15px; text-decoration: none">
+<span style="position: absolute; left: -14px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: #0D9488"></span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>
+Visit History</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"></rect><rect x="16" y="3" width="5" height="5" rx="1"></rect><rect x="3" y="16" width="5" height="5" rx="1"></rect><path d="M21 16h-3a2 2 0 0 0-2 2v3"></path><path d="M21 21v.01"></path><path d="M12 7v3a2 2 0 0 1-2 2H7"></path><path d="M3 12h.01"></path><path d="M12 3h.01"></path><path d="M12 16v.01"></path><path d="M16 12h1"></path><path d="M21 12v.01"></path><path d="M12 21v-1"></path></svg>
+Weekly QR Passes</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+Visitor Cards</a>
+<a href="Analytics.dc.html" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15v2"></path><path d="M11 11v6"></path><path d="M15 7v10"></path><path d="M19 12v5"></path></svg>
+Analytics &amp; Reports</a>
+<a href="ReceptionMeetings.dc.html" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"></path></svg>
+Meetings</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+Visitor Links</a>
+<a href="WifiAccess.dc.html" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"></path><path d="M2 8.82a15 15 0 0 1 20 0"></path><path d="M5 12.86a10 10 0 0 1 14 0"></path><path d="M8.5 16.43a5 5 0 0 1 7 0"></path></svg>
+WiFi Access</a>
+
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 1.2px; color: #6B7280; padding: 18px 24px 6px 24px">MANAGEMENT</span>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="5" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg>
+Card Inventory</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="22" x2="21" y2="22"></line><line x1="6" y1="18" x2="6" y2="11"></line><line x1="10" y1="18" x2="10" y2="11"></line><line x1="14" y1="18" x2="14" y2="11"></line><line x1="18" y1="18" x2="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg>
+Hosts &amp; Divisions</a>
+<a href="#" style="display: flex; align-items: center; gap: 12px; margin: 0 14px; padding: 12px 14px; border-radius: 12px; color: #4B5563; font-weight: 500; font-size: 15px; text-decoration: none">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+Staff Directory</a>
+
+<div style="flex: 1; min-height: 24px"></div>
+<div style="margin: 0 16px; padding: 20px; border-radius: 20px; background: #134E4A; color: #FFFFFF; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden">
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" aria-hidden="true" style="position: absolute; right: -50px; top: -40px; opacity: 0.18"><circle cx="80" cy="80" r="30" stroke="#5EEAD4" stroke-width="2"></circle><circle cx="80" cy="80" r="50" stroke="#5EEAD4" stroke-width="2"></circle><circle cx="80" cy="80" r="70" stroke="#5EEAD4" stroke-width="2"></circle></svg>
+<div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.14); display: flex; align-items: center; justify-content: center">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"></rect><path d="M12 18h.01"></path></svg>
+</div>
+<span style="font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 17px; font-weight: 800; line-height: 1.25">Self-Check-In Kiosk</span>
+<span style="font-size: 13px; line-height: 1.45; color: #CCFBF1">Let visitors register on the lobby tablet while reception handles cards.</span>
+<a href="#" style="margin-top: 4px; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 999px; background: #FFFFFF; color: #134E4A; font-weight: 700; font-size: 14px; text-decoration: none">Set up kiosk</a>
+</div>
+</nav>
+
+<!-- MAIN -->
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+
+<header style="background: #FFFFFF; border-radius: 24px; padding: 14px 16px 14px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<div style="flex: 1 1 280px; margin-right: 8px; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 8px 0 18px; border-radius: 999px; background: #F4F7F6; border: 1px solid #E5ECEA">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<label for="global-search" class="sr">Search visitors</label>
+<input id="global-search" type="search" placeholder="Search visitor or VIS reference" style="flex: 1; min-width: 0; border: none; background: transparent; font: inherit; font-size: 14px; color: #111827; outline: none">
+<kbd style="font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; color: #4B5563; background: #FFFFFF; border: 1px solid #E5ECEA; border-radius: 8px; padding: 5px 8px">Ctrl K</kbd>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<button aria-label="Switch theme" style="width: 48px; height: 48px; border-radius: 999px; border: 1px solid #E5ECEA; background: #FFFFFF; color: #D97706; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+</button>
+<button aria-label="Notifications, 1 unread" style="position: relative; width: 48px; height: 48px; border-radius: 999px; border: 1px solid #E5ECEA; background: #FFFFFF; color: #374151; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+<span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; border-radius: 999px; background: #DC2626; border: 2px solid #FFFFFF; color: #FFFFFF; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span>
+</button>
+<button aria-label="Account menu" style="display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 14px 4px 4px; border-radius: 999px; border: 1px solid #E5ECEA; background: #FFFFFF; cursor: pointer; font: inherit; text-align: left">
+<span style="width: 40px; height: 40px; border-radius: 999px; background: #0F766E; color: #FFFFFF; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center">IH</span>
+<span style="display: flex; flex-direction: column">
+<span style="font-size: 14px; font-weight: 700; color: #111827">Ibrahim Halidu</span>
+<span style="font-size: 12px; color: #6B7280">Super Administrator</span>
+</span>
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+</button>
+</div>
+</header>
+
+
+<!-- TITLE ROW -->
+<div class="titlerow">
+<div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 8px">
+<h1 class="h1">Visit history</h1>
+<p class="lede">Every authorised visit, newest first. Pick a row to see contact details, tags and the full visit record.</p>
+</div>
+<div class="tact">
+<span class="upd">Updated 20 Nov 2026, 8:39 am</span>
+<button type="button" class="btn btn-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Refresh</button>
+<button type="button" class="btn btn-p" onClick="{{exportCsv}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>Export CSV</button>
+</div>
+</div>
+
+<section class="panel" aria-labelledby="vr-h">
+<div class="fbar">
+<div class="srch"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><label for="vq" class="sr">Search visits</label><input id="vq" type="search" placeholder="Search name, organisation or reference" value="{{q}}" onChange="{{onQ}}"></div>
+<label class="sel sel-date"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg><span class="sr">Date range</span><select value="{{range}}" onChange="{{onRange}}"><sc-for list="{{ranges}}" as="o" hint-placeholder-count="6"><option value="{{o.v}}" selected="{{o.sel}}">{{o.l}}</option></sc-for></select></label>
+<label class="sel"><span class="slbl">Tower</span><select value="{{tower}}" onChange="{{onTower}}"><sc-for list="{{towers}}" as="o" hint-placeholder-count="3"><option value="{{o.v}}" selected="{{o.sel}}">{{o.l}}</option></sc-for></select></label>
+<label class="sel"><span class="slbl">Agency</span><select value="{{agency}}" onChange="{{onAgency}}"><sc-for list="{{agencies}}" as="o" hint-placeholder-count="3"><option value="{{o.v}}" selected="{{o.sel}}">{{o.l}}</option></sc-for></select></label>
+<label class="sel"><span class="slbl">Purpose</span><select value="{{purpose}}" onChange="{{onPurpose}}"><sc-for list="{{purposes}}" as="o" hint-placeholder-count="4"><option value="{{o.v}}" selected="{{o.sel}}">{{o.l}}</option></sc-for></select></label>
+</div>
+<sc-if value="{{isCustom}}" hint-placeholder-val="{{ false }}">
+<div class="custom"><label class="dfield"><span>From</span><input type="date" value="{{from}}" onChange="{{onFrom}}"></label><label class="dfield"><span>To</span><input type="date" value="{{to}}" onChange="{{onTo}}"></label><sc-if value="{{badRange}}" hint-placeholder-val="{{ false }}"><span class="derr" role="alert">The end date is before the start date.</span></sc-if></div>
+</sc-if>
+<div class="sumrow">
+<h2 id="vr-h" class="h2">Visit records</h2>
+<span class="cpill">{{countText}}</span>
+<span class="rangetxt">{{rangeText}}</span>
+<span style="flex: 1"></span>
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="0"><button type="button" class="fchip" onClick="{{c.clear}}" aria-label="{{c.aria}}">{{c.label}}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></sc-for>
+<sc-if value="{{hasChips}}" hint-placeholder-val="{{ false }}"><button type="button" class="clr" onClick="{{clearAll}}">Reset filters</button></sc-if>
+</div>
+<div class="twrap">
+<table class="vt">
+<colgroup><col style="width: 11%"><col style="width: 9%"><col style="width: 11.5%"><col style="width: 7.5%"><col style="width: 8.5%"><col style="width: 8%"><col style="width: 8%"><col style="width: 6.5%"><col style="width: 7.5%"><col style="width: 9%"><col style="width: 13.5%"></colgroup>
+<thead><tr>
+<th scope="col" aria-sort="{{sortVisitor}}"><button type="button" class="sth" onClick="{{byVisitor}}">Visitor<span class="sarr" aria-hidden="true">{{arrVisitor}}</span></button></th>
+<th scope="col">Organisation</th>
+<th scope="col">Contact</th>
+<th scope="col">Purpose</th>
+<th scope="col">Visiting</th>
+<th scope="col">Division</th>
+<th scope="col" aria-sort="{{sortDate}}"><button type="button" class="sth" onClick="{{byDate}}">Date<span class="sarr" aria-hidden="true">{{arrDate}}</span></button></th>
+<th scope="col">Check-in</th>
+<th scope="col">Check-out</th>
+<th scope="col">Card</th>
+<th scope="col">Status</th>
+</tr></thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="6"><tr class="{{r.cls}}" onClick="{{r.open}}">
+<td><button type="button" class="vname" onClick="{{r.open}}" aria-label="{{r.aria}}"><span class="vtx"><span class="vn">{{r.name}}</span><span class="vref">{{r.ref}}</span></span></button></td>
+<td><span class="clip" style="{{r.orgStyle}}" title="{{r.org}}">{{r.org}}</span></td>
+<td><span class="ph">{{r.phone}}</span><span class="em" style="{{r.emStyle}}" title="{{r.email}}">{{r.email}}</span></td>
+<td><span class="pp" style="{{r.ppStyle}}">{{r.purpose}}</span></td>
+<td><span class="clip clipw" title="{{r.visiting}}">{{r.visiting}}</span></td>
+<td><span class="clip" title="{{r.division}}">{{r.division}}</span></td>
+<td class="nw">{{r.date}}</td>
+<td class="nw tn">{{r.inT}}</td>
+<td class="nw tn"><sc-if value="{{r.onSite}}" hint-placeholder-val="{{ false }}"><span class="muted" aria-label="Not checked out yet">—</span></sc-if><sc-if value="{{r.out}}" hint-placeholder-val="{{ true }}"><span class="outc"><span>{{r.outT}}</span><sc-if value="{{r.outLater}}" hint-placeholder-val="{{ false }}"><span class="outd">{{r.outD}}</span></sc-if></span></sc-if></td>
+<td class="nw"><span class="{{r.cardCls}}">{{r.card}}</span></td>
+<td class="nw"><span class="{{r.stCls}}"><span class="sdot" aria-hidden="true"></span>{{r.st}}</span></td>
+</tr></sc-for>
+</tbody>
+</table>
+<sc-if value="{{noRows}}" hint-placeholder-val="{{ false }}"><div class="empty" role="status"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="m9.5 14.5 5 5M14.5 14.5l-5 5"></path></svg><b>No visits match these filters</b><span>Try a wider date range or reset the filters.</span><button type="button" class="btn btn-o" onClick="{{clearAll}}">Reset filters</button></div></sc-if>
+</div>
+<div class="tfoot">
+<span class="pginfo">{{showText}}</span>
+<sc-if value="{{paged}}" hint-placeholder-val="{{ false }}"><div class="pgr"><button type="button" class="pgn" onClick="{{prev}}" disabled="{{prevDis}}" aria-label="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button><sc-for list="{{pages}}" as="p" hint-placeholder-count="2"><button type="button" class="{{p.cls}}" onClick="{{p.go}}" aria-label="{{p.aria}}" aria-current="{{p.cur}}">{{p.n}}</button></sc-for><button type="button" class="pgn" onClick="{{next}}" disabled="{{nextDis}}" aria-label="Next page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button></div></sc-if>
+</div>
+</section>
+
+<!-- DETAIL PANEL -->
+<sc-if value="{{dOpen}}" hint-placeholder-val="{{ false }}">
+<div class="scrim" onClick="{{dClose}}"></div>
+<aside class="{{d.cls}}" role="dialog" aria-modal="true" aria-labelledby="dr-name" onKeyDown="{{dKey}}">
+<div class="dhead">
+<svg class="dgeo" width="300" height="220" viewBox="0 0 300 220" fill="none" aria-hidden="true"><circle cx="250" cy="40" r="58" stroke="var(--c-ln)" stroke-width="1.5"></circle><circle cx="250" cy="40" r="96" stroke="var(--c-ln)" stroke-width="1.5"></circle><circle cx="250" cy="40" r="134" stroke="var(--c-ln)" stroke-width="1.5" stroke-dasharray="3 7"></circle><rect x="276" y="176" width="14" height="14" rx="3" transform="rotate(20 283 183)" fill="#FDE68A"></rect></svg>
+<svg class="dart" width="138" height="132" viewBox="0 0 138 132" fill="none" aria-hidden="true">
+<ellipse cx="72" cy="124" rx="54" ry="6" fill="var(--c-ln)"></ellipse>
+<path d="M58 4 72 30 86 4" stroke="var(--c)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+<rect x="64" y="26" width="16" height="10" rx="3" fill="var(--c-d)"></rect>
+<rect x="34" y="34" width="76" height="86" rx="12" fill="#FFFFFF" stroke="var(--c)" stroke-width="2.5"></rect>
+<rect x="34" y="34" width="76" height="22" rx="12" fill="var(--c)"></rect><rect x="34" y="46" width="76" height="10" fill="var(--c)"></rect>
+<rect x="62" y="41" width="20" height="5" rx="2.5" fill="#FFFFFF" opacity="0.7"></rect>
+<circle cx="72" cy="76" r="12" fill="var(--c-l)" stroke="var(--c)" stroke-width="2"></circle><circle cx="72" cy="73" r="4.5" fill="var(--c)"></circle><path d="M64 83a8 8 0 0 1 16 0" fill="var(--c)"></path>
+<rect x="50" y="96" width="44" height="5" rx="2.5" fill="var(--c-ln)"></rect><rect x="56" y="106" width="32" height="5" rx="2.5" fill="var(--c-ln)"></rect>
+<g class="vstar"><circle cx="106" cy="40" r="14" fill="#F59E0B" stroke="#FFFFFF" stroke-width="3"></circle><path d="m106 32 2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8Z" fill="#FFFFFF"></path></g>
+<path d="M14 64l3 6 6 3-6 3-3 6-3-6-6-3 6-3Z" fill="#F59E0B"></path><circle cx="124" cy="96" r="4" fill="var(--c-acc)"></circle>
+</svg>
+<button type="button" id="dr-x" class="dx" onClick="{{dClose}}" aria-label="Close visit details"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+<span class="dav" aria-hidden="true">{{d.ini}}</span>
+<h2 id="dr-name" class="dname">{{d.name}}</h2>
+<span class="dorg">{{d.org}}</span>
+<div class="dtags"><span class="tag">{{d.tag}}</span><span class="dref">{{d.ref}}</span><span class="{{d.stCls}}"><span class="sdot" aria-hidden="true"></span>{{d.st}}</span></div>
+</div>
+<div class="dbody">
+<section class="vcard" aria-labelledby="vc-h">
+<div class="vchead"><h3 id="vc-h" class="vct"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>Visit details</h3><span class="pp" style="{{d.ppStyle}}">{{d.purpose}}</span></div>
+<span class="vlbl">Visiting</span>
+<p class="vmain">{{d.visiting}}</p>
+<p class="vdiv">{{d.division}}</p>
+<div class="vtiles">
+<div class="vt1"><span class="vti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span><span class="vtl">Date</span><span class="vtv">{{d.inD}}</span></div>
+<div class="vt1"><span class="vti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"></path></svg></span><span class="vtl">Reception</span><span class="vtv">{{d.tower}}</span></div>
+<div class="vt1 vtw"><span class="vti"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="22" x2="21" y2="22"></line><line x1="6" y1="18" x2="6" y2="11"></line><line x1="10" y1="18" x2="10" y2="11"></line><line x1="14" y1="18" x2="14" y2="11"></line><line x1="18" y1="18" x2="18" y2="11"></line><polygon points="12 2 20 7 4 7"></polygon></svg></span><span class="vtl">Agency</span><span class="vtv">{{d.agency}}</span></div>
+</div>
+<div class="dtime">
+<div class="dtp"><span class="dtl">Check-in</span><span class="dtv">{{d.inT}}</span></div>
+<div class="dline" aria-hidden="true"><span>{{d.dur}}</span></div>
+<div class="dtp dtr"><span class="dtl">Check-out</span><span class="dtv">{{d.outT}}</span><span class="dtd">{{d.outD}}</span></div>
+</div>
+<sc-if value="{{d.hasMeeting}}" hint-placeholder-val="{{ false }}"><a href="ReceptionMeetings.dc.html" class="mlink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="m9 16 2 2 4-4"></path></svg><span>Booked meeting <b>{{d.meeting}}</b></span><span class="mla" aria-hidden="true">→</span></a></sc-if>
+</section>
+<section class="ccard" aria-labelledby="ct-h">
+<h3 id="ct-h" class="dsh">Contact</h3>
+<div class="crow"><span class="cico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span><span class="ctx"><span class="cl">Phone</span><span class="cv tn">{{d.phone}}</span></span></div>
+<div class="crow"><span class="cico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg></span><span class="ctx"><span class="cl">Email</span><span class="cv" style="{{d.emStyle}}">{{d.email}}</span></span></div>
+</section>
+<section class="{{d.cardBox}}" aria-labelledby="cd-h">
+<h3 id="cd-h" class="dsh">Visitor card</h3>
+<div class="kcrow"><span class="{{d.cardCls}}">{{d.card}}</span><span class="dcn">{{d.cardNote}}</span></div>
+</section>
+</div>
+</aside>
+</sc-if>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { q: '', range: 'month', tower: 't2', agency: 'all', purpose: 'all', from: '2026-11-01', to: '2026-11-20', sort: 'date', dir: 'desc', page: 1, open: '' };
+  }
+  renderVals() {
+    const st = this.state;
+    const TODAY = '2026-11-20';
+    const V = [
+      ['v1', 'Esi Owusu', 'Ghana Audit Service', 'VIS-7F31A2', 't2', 'MoF', 'Follow up', 'Isaac Sam', 'Budget Office', '2026-11-20 08:20', '', 'MOF-V140', 'Regular', '+233551112233', ''],
+      ['v2', 'Jack Halidu', 'JABCOM LTD', 'VIS-D657EC14', 't2', 'MoF', 'Follow up', 'Isaac Sam', 'Budget Office', '2026-11-19 18:14', '2026-11-19 19:24', 'MOF-V135', 'Regular', '+233208151881', 'jack@jacbcom.com'],
+      ['v3', 'Selasi Kumah', 'Self', 'VIS-91C0D2', 't2', 'MoF', 'Follow up', 'Efua Owusu', 'Records Unit', '2026-11-19 09:40', '2026-11-19 10:15', '', 'Regular', '+233551238890', 'selasi.kumah@example.com'],
+      ['v4', 'Elias Rantapuska', 'Aalto University', 'MTG-6C2EB0-2', 't2', 'MoF', 'Meeting', 'Brown Bag Seminar on Sensitization on the 2027 Budget Statement', 'Research Division', '2026-11-18 12:21', '2026-11-18 15:56', 'MOF-VIP015', 'VIP', '+233205553737', 'elias.rantapuska@example.com'],
+      ['v5', 'David McLean', 'Georgetown University', 'MTG-6C2EB0-1', 't2', 'MoF', 'Meeting', 'Brown Bag Seminar on Sensitization on the 2027 Budget Statement', 'Research Division', '2026-11-18 12:21', '2026-11-18 15:57', 'MOF-VIP025', 'VIP', '+233575558582', 'dmclean@georgetown.edu'],
+      ['v6', 'Jack Halidu', 'JABCOM LTD', 'VIS-C403B3FC', 't2', 'MoF', 'Meeting', 'Brown Bag Meeting', 'Budget Office', '2026-11-13 10:25', '2026-11-13 10:26', 'MOF-V124', 'Regular', '+233208151881', 'jack@jacbcom.com'],
+      ['v7', 'Derrick Rose', 'Chicago Bulls', 'VIS-C2EC41', 't2', 'MoF', 'Official', 'Director Finance Division', 'Finance Division', '2026-08-16 14:27', '2026-11-11 18:17', '', 'Regular', '+233304419283', ''],
+      ['v8', 'John Cena', '', 'VIS-D07CDF7C', 't2', 'MoF', 'Official', 'Director Legal', 'Legal Directorate', '2026-08-16 11:50', '2026-08-21 12:14', '', 'Regular', '+233208151889', ''],
+      ['v9', 'John Cena', '', 'VIS-54295BFC', 't2', 'MoF', 'Follow up', 'Lana Osei', 'Budget Office', '2026-07-27 11:42', '2026-08-04 14:35', '', 'Regular', '+233208151889', ''],
+      ['v10', 'Paul Watson', '', 'VIS-2AE7D8', 't2', 'MoF', 'Meeting', 'Multi-Day Budget Consultation', 'Budget Office', '2026-07-23 10:47', '2026-08-14 09:54', '', 'Regular', '+233547420500', ''],
+      ['v11', 'Kofi Adjei', 'Ghana Revenue Authority', 'VIS-3B88E0', 't1', 'MoF', 'Official', 'Yaw Darko', 'Tax Policy Unit', '2026-11-19 11:05', '2026-11-19 12:40', 'MOF-V088', 'Regular', '+233209874411', 'kofi.adjei@example.com', 'kept'],
+      ['v12', 'Ama Konadu', 'Self', 'VIS-5A21C7', 't1', 'PPA', 'Follow up', 'Abena Mensah', 'Client Service Unit', '2026-11-19 14:10', '2026-11-19 15:02', '', 'Regular', '+233244118802', ''],
+      ['v13', 'Jack Halidu', 'JABCOM LTD', 'VIS-28D05DCF', 't1', 'PPA', 'Follow up', 'Lana Osei', 'Procurement Unit', '2026-11-12 10:43', '2026-11-12 11:30', 'PPA-C012', 'Regular', '+233208151881', 'jack@jacbcom.com']
+    ].map((a) => ({ id: a[0], name: a[1], org: a[2], ref: a[3], t: a[4], agency: a[5], purpose: a[6], visiting: a[7], division: a[8], inA: a[9], outA: a[10], card: a[11], tag: a[12], phone: a[13], email: a[14], kept: a[15] === 'kept' }));
+    const AG = { MoF: 'Ministry of Finance (MoF)', PPA: 'Public Procurement Authority (PPA)' };
+    const TN = { t1: 'Tower 1', t2: 'Tower 2' };
+    const PC = { 'Meeting': 'color: #1D4ED8; background: #EFF6FF', 'Official': 'color: #6D28D9; background: #F5F3FF', 'Follow up': 'color: #0F766E; background: #F0FDFA' };
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const pd = (s) => { const [d, t] = s.split(' '); const p = d.split('-').map(Number); const h = (t || '00:00').split(':').map(Number); return new Date(p[0], p[1] - 1, p[2], h[0], h[1]); };
+    const t12 = (d) => { let h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0'); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; return h + ':' + m + ' ' + ap; };
+    const dShort = (d) => DOW[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()];
+    const dLong = (d) => d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear();
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const now = pd(TODAY + ' 08:55');
+    const mins = (v) => Math.max(0, Math.round(((v.outA ? pd(v.outA) : now) - pd(v.inA)) / 60000));
+    const durTxt = (m) => { const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + String(mm).padStart(2, '0') + 'm' : mm + 'm'; };
+    const fmtPh = (p) => /^\+233\d{9}$/.test(p) ? p.slice(0, 4) + ' ' + p.slice(4, 6) + ' ' + p.slice(6, 9) + ' ' + p.slice(9) : p;
+    const ini = (n) => n.split(' ').map((w) => w[0]).slice(0, 2).join('');
+    // date range
+    const td = pd(TODAY);
+    const add = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    const RANGES = {
+      today: ['Today', TODAY, TODAY],
+      yesterday: ['Yesterday', iso(add(td, -1)), iso(add(td, -1))],
+      week: ['This week', iso(add(td, -((td.getDay() + 6) % 7))), TODAY],
+      month: ['Current month', TODAY.slice(0, 8) + '01', TODAY],
+      last: ['Last month', '2026-10-01', '2026-10-31'],
+      custom: ['Custom range', st.from, st.to]
+    };
+    const rg = RANGES[st.range];
+    const badRange = st.range === 'custom' && st.from && st.to && st.from > st.to;
+    const fmtR = (a, b) => { const A = pd(a), B = pd(b); return a === b ? dLong(A) : (A.getMonth() === B.getMonth() ? A.getDate() : A.getDate() + ' ' + MON[A.getMonth()]) + ' – ' + dLong(B); };
+    const q = st.q.trim().toLowerCase();
+    const hit = V.filter((v) => {
+      const d = v.inA.slice(0, 10);
+      if (!badRange && (d < rg[1] || d > rg[2])) return false;
+      if (badRange) return false;
+      if (st.tower !== 'all' && v.t !== st.tower) return false;
+      if (st.agency !== 'all' && v.agency !== st.agency) return false;
+      if (st.purpose !== 'all' && v.purpose !== st.purpose) return false;
+      if (q && (v.name + ' ' + v.org + ' ' + v.ref + ' ' + v.visiting).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    const dirN = st.dir === 'asc' ? 1 : -1;
+    const sorted = hit.slice().sort((a, b) => {
+      if (st.sort === 'visitor') return dirN * a.name.localeCompare(b.name) || b.inA.localeCompare(a.inA);
+      if (st.sort === 'dur') return dirN * (mins(a) - mins(b));
+      return dirN * a.inA.localeCompare(b.inA);
+    });
+    const PER = 10; const pages = Math.max(1, Math.ceil(sorted.length / PER)); const page = Math.min(st.page, pages);
+    const slice = sorted.slice((page - 1) * PER, page * PER);
+    const openD = (id) => () => { if (this.state.open === id) return; this._ret = document.activeElement; this.setState({ open: id }); setTimeout(() => { const el = document.getElementById('dr-x'); if (el) el.focus(); }, 0); };
+    const rows = slice.map((v) => {
+      const i = pd(v.inA), o = v.outA ? pd(v.outA) : null; const m = mins(v);
+      const sameDay = o && iso(o) === iso(i);
+      return {
+        cls: st.open === v.id ? 'sel' : '', open: openD(v.id), aria: 'View visit details for ' + v.name + ', ' + v.ref,
+        name: v.name, ini: ini(v.name), ref: v.ref,
+        org: v.org || 'Not given', orgStyle: v.org ? '' : 'color: #6B7280; font-style: italic',
+        purpose: v.purpose, ppStyle: PC[v.purpose] || PC['Follow up'],
+        visiting: v.visiting, division: v.division, date: dShort(i), inT: t12(i),
+        onSite: !o, out: !!o, outT: o ? t12(o) : '', outLater: !!(o && !sameDay), outD: o ? o.getDate() + ' ' + MON[o.getMonth()] : '',
+        st: !o ? 'Checked in' : v.kept ? 'Card not returned' : 'Checked out', stCls: 'stp ' + (!o ? 'st-in' : v.kept ? 'st-kept' : 'st-out'),
+        phone: v.phone, email: v.email || 'No email', emStyle: v.email ? '' : 'font-style: italic; color: #6B7280',
+        card: v.card || 'None', cardCls: v.card ? 'card' + (v.tag === 'VIP' ? ' vip' : '') : 'nocard'
+      };
+    });
+    const set = (k) => (e) => this.setState({ [k]: e.target.value, page: 1 });
+    const chips = [];
+    const DEF = { range: 'month', tower: 't2', agency: 'all', purpose: 'all', q: '' };
+    if (st.q) chips.push({ label: '“' + st.q + '”', k: 'q' });
+    if (st.agency !== 'all') chips.push({ label: st.agency, k: 'agency' });
+    if (st.purpose !== 'all') chips.push({ label: st.purpose, k: 'purpose' });
+    const sortHead = (k) => st.sort === k ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+    const arr = (k) => st.sort === k ? (st.dir === 'asc' ? '▲' : '▼') : '';
+    const bySort = (k) => () => this.setState({ sort: k, dir: st.sort === k && st.dir === 'desc' ? 'asc' : (st.sort === k ? 'desc' : (k === 'visitor' ? 'asc' : 'desc')), page: 1 });
+    // drawer
+    const dv = V.find((v) => v.id === st.open);
+    const dClose = () => { this.setState({ open: '' }); const r = this._ret; setTimeout(() => { if (r && r.focus) r.focus(); }, 0); };
+    let d = {};
+    if (dv) {
+      const i = pd(dv.inA), o = dv.outA ? pd(dv.outA) : null;
+      const vip = dv.tag === 'VIP';
+      d = {
+        vip: vip, cls: 'drawer ' + (vip ? 'th-vip' : 'th-reg'), cardBox: 'kcard' + (dv.kept && o ? ' kalert' : ''),
+        name: dv.name, ini: ini(dv.name), org: dv.org || 'Organisation not given', ref: dv.ref,
+        tag: dv.tag, tagStyle: vip ? 'color: #FFFFFF; background: #7A1F3D; border: 1px solid #7A1F3D' : 'color: #374151; background: #FFFFFF; border: 1px solid #E5E7EB',
+        purpose: dv.purpose, ppStyle: PC[dv.purpose],
+        inT: t12(i), inD: dShort(i) + ' ' + i.getFullYear(), outT: o ? t12(o) : 'On site', outD: o && iso(o) !== iso(i) ? dShort(o) : '',
+        dur: durTxt(mins(dv)) + (o ? '' : ' so far'),
+        visiting: dv.visiting, division: dv.division, agency: AG[dv.agency], tower: TN[dv.t],
+        hasMeeting: dv.ref.indexOf('MTG-') === 0, meeting: dv.ref.split('-').slice(0, 2).join('-'),
+        phone: fmtPh(dv.phone), email: dv.email || 'Not given', emStyle: dv.email ? '' : 'color: #6B7280; font-style: italic; font-weight: 500',
+        st: !o ? 'Checked in' : dv.kept ? 'Card not returned' : 'Checked out', stCls: 'stp ' + (!o ? 'st-in' : dv.kept ? 'st-kept' : 'st-out'),
+        card: dv.card || 'No card', cardCls: dv.card ? 'card' + (vip ? ' vip' : '') : 'nocard',
+        cardNote: dv.card ? (!o ? 'With the visitor now' : dv.kept ? 'Not returned at check-out. Follow up with the visitor or host.' : 'Returned at check-out') : 'No card was assigned for this visit'
+      };
+    }
+    const csv = () => {
+      const H = ['Visitor', 'Reference', 'Organisation', 'Purpose', 'Visiting', 'Division', 'Agency', 'Tower', 'Check-in', 'Check-out', 'Duration (min)', 'Card', 'Card returned', 'Phone', 'Email'];
+      const esc = (x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
+      const lines = [H.map(esc).join(',')].concat(sorted.map((v) => [v.name, v.ref, v.org, v.purpose, v.visiting, v.division, AG[v.agency], TN[v.t], v.inA, v.outA, v.outA ? mins(v) : '', v.card, v.card ? (v.outA ? (v.kept ? 'No' : 'Yes') : 'With visitor') : '', v.phone, v.email].map(esc).join(',')));
+      try { const b = new Blob([lines.join('\r\n')], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'visit-history-' + rg[1] + '-to-' + rg[2] + '.csv'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
+    };
+    const n = sorted.length;
+    return {
+      q: st.q, onQ: set('q'),
+      range: st.range, onRange: set('range'), ranges: Object.keys(RANGES).map((k) => ({ v: k, l: RANGES[k][0], sel: st.range === k })),
+      isCustom: st.range === 'custom', from: st.from, to: st.to, onFrom: set('from'), onTo: set('to'), badRange: !!badRange,
+      tower: st.tower, onTower: set('tower'), towers: [{ v: 'all', l: 'All towers', sel: st.tower === 'all' }, { v: 't1', l: 'Tower 1', sel: st.tower === 't1' }, { v: 't2', l: 'Tower 2', sel: st.tower === 't2' }],
+      agency: st.agency, onAgency: set('agency'), agencies: [{ v: 'all', l: 'All', sel: st.agency === 'all' }, { v: 'MoF', l: 'MoF', sel: st.agency === 'MoF' }, { v: 'PPA', l: 'PPA', sel: st.agency === 'PPA' }],
+      purpose: st.purpose, onPurpose: set('purpose'), purposes: [{ v: 'all', l: 'All', sel: st.purpose === 'all' }, { v: 'Meeting', l: 'Meeting', sel: st.purpose === 'Meeting' }, { v: 'Official', l: 'Official', sel: st.purpose === 'Official' }, { v: 'Follow up', l: 'Follow up', sel: st.purpose === 'Follow up' }],
+      countText: n + (n === 1 ? ' visit' : ' visits'),
+      rangeText: (st.tower === 'all' ? 'All towers' : TN[st.tower]) + ' · ' + (badRange ? 'Check the dates' : rg[0] + ', ' + fmtR(rg[1], rg[2])),
+      chips: chips.map((c) => ({ label: c.label, aria: 'Remove filter ' + c.label, clear: () => this.setState({ [c.k]: DEF[c.k], page: 1 }) })),
+      hasChips: chips.length > 0 || st.range !== 'month' || st.tower !== 't2',
+      clearAll: () => this.setState(Object.assign({ page: 1 }, DEF)),
+      sortVisitor: sortHead('visitor'), sortDate: sortHead('date'),
+      arrVisitor: arr('visitor'), arrDate: arr('date'),
+      byVisitor: bySort('visitor'), byDate: bySort('date'),
+      rows: rows, noRows: rows.length === 0,
+      showText: n ? 'Showing ' + ((page - 1) * PER + 1) + '–' + Math.min(page * PER, n) + ' of ' + n + ' visits' : 'No visits',
+      paged: pages > 1, pages: Array.from({ length: pages }, (_, k) => ({ n: k + 1, cls: 'pgn' + (k + 1 === page ? ' cur' : ''), cur: k + 1 === page ? 'page' : 'false', aria: 'Page ' + (k + 1) + ' of ' + pages, go: () => this.setState({ page: k + 1 }) })),
+      prevDis: page <= 1, nextDis: page >= pages, prev: () => this.setState({ page: Math.max(1, page - 1) }), next: () => this.setState({ page: Math.min(pages, page + 1) }),
+      exportCsv: csv,
+      dOpen: !!dv, d: d, dClose: dClose,
+      dKey: (e) => { if (e.key === 'Escape') { e.preventDefault(); dClose(); } else if (e.key === 'Tab') { const f = Array.from(e.currentTarget.querySelectorAll('button,a[href]')); const a = f[0], z = f[f.length - 1]; if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } } }
+    };
+  }
+}
+</script>
+</body>
+</html>

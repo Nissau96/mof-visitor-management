@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import process from "node:process";
+import { auditFetch } from "./auditContext.js";
 
 let adminClient;
 
@@ -28,6 +29,9 @@ export function getAdminClient() {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+    // Adds the request's audit headers (IP, device, actor) to every call,
+    // so audit_events rows record them.
+    global: { fetch: auditFetch },
   });
 
   return adminClient;

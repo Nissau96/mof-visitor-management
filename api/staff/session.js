@@ -1,4 +1,4 @@
-import process from "node:process";
+import { withAuditContext } from "../_lib/auditContext.js";
 import {
   HttpError,
   json,
@@ -6,56 +6,28 @@ import {
   readJsonBody,
 } from "../_lib/http.js";
 import {
+  readSessionAuthentication,
+  recordAuditEvent,
+  recordStaffAuditEvent,
   requireActiveStaff,
 } from "../_lib/staffAuth.js";
+import {
+  RateLimitExceededError,
+  enforceRateLimit,
+} from "../_lib/rateLimit.js";
+import { VISIT_TOWER_VALUES } from "../../src/constants/visitorOptions.js";
 import {
   getAdminClient,
 } from "../_lib/supabase.js";
 import {
+  createKioskDeviceCookie,
   createWeeklyQrAccessUrl,
   createWeeklyQrToken,
+  getLocalVisitorApplicationUrl,
 } from "../../src/server/weeklyQrAccess.js";
 import {
   staffPasswordSetupSchema,
 } from "../../src/validation/adminManagement.js";
-
-function getLocalVisitorApplicationUrl(
-  request,
-) {
-  const vercelEnvironment =
-    process.env.VERCEL_ENV || "";
-
-  if (
-    vercelEnvironment &&
-    vercelEnvironment !== "development"
-  ) {
-    return undefined;
-  }
-
-  let requestUrl;
-
-  try {
-    requestUrl = new URL(request.url);
-  } catch {
-    return undefined;
-  }
-
-  const localHostname =
-    requestUrl.hostname === "localhost" ||
-    requestUrl.hostname === "127.0.0.1";
-
-  if (
-    requestUrl.protocol !== "http:" ||
-    !localHostname
-  ) {
-    return undefined;
-  }
-
-  return new URL(
-    "/visit",
-    requestUrl.origin,
-  ).toString();
-}
 
 function getPasswordCompletionError(
   error,
@@ -98,20 +70,306 @@ function getPasswordCompletionError(
   );
 }
 
+const FRESH_SIGN_IN_SECONDS = 10 * 60;
+
+async function recordFreshSignIn(
+  request,
+  { getAdminClientForRequest, profile, tower },
+) {
+  let authentication;
+
+  try {
+    authentication = readSessionAuthentication(
+      readBearerAccessToken(request),
+    );
+  } catch {
+    return;
+  }
+
+  const ageSeconds =
+    Math.floor(Date.now() / 1_000) - authentication.timestamp;
+
+  if (ageSeconds < 0 || ageSeconds > FRESH_SIGN_IN_SECONDS) {
+    return;
+  }
+
+  await recordStaffAuditEvent(getAdminClientForRequest(), {
+    action: "staff_signed_in",
+    actorId: profile.userId,
+    details: {
+      method: profile.signInMethod ?? "password",
+      tower: VISIT_TOWER_VALUES.includes(tower) ? tower : null,
+    },
+  });
+}
+
+function readBearerAccessToken(request) {
+  const match = (request.headers.get("authorization") || "").match(
+    /^Bearer\s+([^\s]+)$/i,
+  );
+
+  return match?.[1] || "";
+}
+
+const KIOSK_DEVICE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Reception kiosk tablets, for receptionists and administrators:
+//   GET    ?kiosks=1      list the tablets that still work
+//   POST   ?kiosk=1       set up this browser as a tablet named {label}
+//   DELETE ?kiosk=<id>    remove a lost or stolen tablet
+async function handleKioskDevices(
+  request,
+  kioskParameter,
+  {
+    getAdminClientForRequest,
+    requireActiveStaffForRequest,
+  },
+) {
+  const { profile } =
+    await requireActiveStaffForRequest(
+      request,
+      ["receptionist", "admin"],
+      { getAdminClientForRequest },
+    );
+
+  const adminClient =
+    getAdminClientForRequest();
+
+  if (request.method === "GET") {
+    const { data, error } =
+      await adminClient.rpc(
+        "list_kiosk_devices",
+      );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablets could not be loaded.",
+      );
+    }
+
+    return json(
+      {
+        kiosks: (data || []).map(
+          (device) => ({
+            createdAt: device.created_at,
+            createdByName:
+              device.created_by_name || "",
+            expiresAt: device.expires_at,
+            id: device.id,
+            label: device.label,
+            lastSeenAt:
+              device.last_seen_at,
+          }),
+        ),
+      },
+      200,
+    );
+  }
+
+  if (request.method === "POST") {
+    if (kioskParameter !== "1") {
+      throw new HttpError(
+        "The kiosk request is invalid.",
+        400,
+      );
+    }
+
+    const body = await readJsonBody(request);
+    const label =
+      typeof body?.label === "string"
+        ? body.label.trim()
+        : "";
+
+    if (label.length < 2 || label.length > 60) {
+      throw new HttpError(
+        "Name the tablet in 2 to 60 characters.",
+        400,
+      );
+    }
+
+    const kioskDevice =
+      createKioskDeviceCookie(request);
+
+    const { error } = await adminClient.rpc(
+      "register_kiosk_device",
+      {
+        p_actor_id: profile.userId,
+        p_device_id: kioskDevice.deviceId,
+        p_expires_at: kioskDevice.expiresAt,
+        p_label: label,
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablet could not be saved.",
+      );
+    }
+
+    return json(
+      {
+        kiosk: {
+          expiresAt: kioskDevice.expiresAt,
+          id: kioskDevice.deviceId,
+          label,
+        },
+      },
+      201,
+      {
+        "Set-Cookie": kioskDevice.cookie,
+      },
+    );
+  }
+
+  if (
+    request.method === "DELETE" &&
+    KIOSK_DEVICE_ID.test(kioskParameter)
+  ) {
+    const { data, error } =
+      await adminClient.rpc(
+        "revoke_kiosk_device",
+        {
+          p_actor_id: profile.userId,
+          p_device_id: kioskParameter,
+        },
+      );
+
+    if (error) {
+      throw new Error(
+        "The kiosk tablet could not be removed.",
+      );
+    }
+
+    if (data !== true) {
+      throw new HttpError(
+        "That kiosk tablet was not found or has already been removed.",
+        404,
+      );
+    }
+
+    return json({ removed: true }, 200);
+  }
+
+  throw new HttpError(
+    "The kiosk request is invalid.",
+    400,
+  );
+}
+
+// Failed sign-ins are reported by the browser (Supabase checks the
+// password there). Unauthenticated, so rate-limited per client.
+export const SIGN_IN_FAILED_RATE_LIMIT = Object.freeze({
+  limit: 20,
+  scope: "staff-sign-in-failed",
+  windowSeconds: 10 * 60,
+});
+
+const REPORT_NAME = /^[\w .,&()'/-]{1,80}$/;
+
+// POST /api/staff/session?event=… : events the browser reports for the
+// activity log. sign-in-failed is public; the rest need a staff session.
+async function handleClientEvent(
+  request,
+  event,
+  {
+    enforceRateLimitForRequest,
+    getAdminClientForRequest,
+    requireActiveStaffForRequest,
+  },
+) {
+  if (request.method !== "POST") {
+    return methodNotAllowed(["POST"]);
+  }
+
+  const body = (await readJsonBody(request).catch(() => null)) || {};
+
+  if (event === "sign-in-failed") {
+    await enforceRateLimitForRequest(request, SIGN_IN_FAILED_RATE_LIMIT);
+
+    const email = String(body.email || "").trim().toLowerCase().slice(0, 254);
+
+    if (!/^[^\s@]+@[^\s@]+$/.test(email)) {
+      throw new HttpError("The sign-in report is invalid.", 400);
+    }
+
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "staff_sign_in_failed",
+      actorName: email,
+      actorRole: "staff",
+      details: {
+        email,
+        reportedBy: "browser",
+        tower: VISIT_TOWER_VALUES.includes(body.tower) ? body.tower : undefined,
+      },
+      entityType: "staff_session",
+      result: "failed",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  const { profile } = await requireActiveStaffForRequest(request, [], {
+    allowPasswordChangeRequired: true,
+    getAdminClientForRequest,
+  });
+
+  if (event === "signed-out") {
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "staff_signed_out",
+      actorId: profile.userId,
+      details: { reason: body.reason === "idle" ? "idle" : "manual" },
+      entityId: profile.userId,
+      entityType: "staff_session",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  if (event === "report-exported") {
+    const report = String(body.report || "").trim();
+    const format = body.format === "pdf" ? "pdf" : "csv";
+
+    if (!REPORT_NAME.test(report)) {
+      throw new HttpError("The export report is invalid.", 400);
+    }
+
+    await recordAuditEvent(getAdminClientForRequest(), {
+      action: "report.exported",
+      actorId: profile.userId,
+      details: {
+        format,
+        period: typeof body.period === "string" ? body.period.slice(0, 60) : undefined,
+        report,
+        rows: Number.isInteger(body.rows) && body.rows >= 0 ? body.rows : undefined,
+      },
+      entityType: "export",
+    });
+
+    return json({ recorded: true }, 202);
+  }
+
+  throw new HttpError("Unknown session event.", 400);
+}
+
 export function createStaffSessionHandler({
   getAdminClientForRequest =
     getAdminClient,
   requireActiveStaffForRequest =
     requireActiveStaff,
+  enforceRateLimitForRequest =
+    enforceRateLimit,
 } = {}) {
   return {
     async fetch(request) {
       if (
         request.method !== "GET" &&
         request.method !== "POST" &&
-        request.method !== "PUT"
+        request.method !== "PUT" &&
+        request.method !== "DELETE"
       ) {
         return methodNotAllowed([
+          "DELETE",
           "GET",
           "POST",
           "PUT",
@@ -119,6 +377,44 @@ export function createStaffSessionHandler({
       }
 
       try {
+        const searchParams =
+          new URL(request.url).searchParams;
+
+        const kioskParameter =
+          searchParams.get("kiosk") ??
+          (searchParams.get("kiosks") === "1"
+            ? "list"
+            : null);
+
+        const clientEvent = searchParams.get("event");
+
+        if (clientEvent !== null) {
+          return await handleClientEvent(request, clientEvent, {
+            enforceRateLimitForRequest,
+            getAdminClientForRequest,
+            requireActiveStaffForRequest,
+          });
+        }
+
+        if (kioskParameter !== null) {
+          return await handleKioskDevices(
+            request,
+            kioskParameter,
+            {
+              getAdminClientForRequest,
+              requireActiveStaffForRequest,
+            },
+          );
+        }
+
+        if (request.method === "DELETE") {
+          return methodNotAllowed([
+            "GET",
+            "POST",
+            "PUT",
+          ]);
+        }
+
         if (request.method === "GET") {
           const { profile } =
             await requireActiveStaffForRequest(
@@ -128,17 +424,35 @@ export function createStaffSessionHandler({
                 allowPasswordChangeRequired:
                   true,
                 getAdminClientForRequest,
+                recordRefusals: true,
               },
             );
+
+          // The browser adds ?signedIn=1 on the first check after a
+          // new sign-in; only sessions authenticated in the last few
+          // minutes are recorded, so a replayed URL adds nothing.
+          if (searchParams.get("signedIn") === "1") {
+            await recordFreshSignIn(request, {
+              getAdminClientForRequest,
+              profile,
+              tower: searchParams.get("tower") || "",
+            });
+          }
 
           return json(
             {
               profile: {
+                accessExpiresAt:
+                  profile.accessExpiresAt ?? null,
                 fullName:
                   profile.fullName,
+                isNsp:
+                  profile.isNsp === true,
                 passwordChangeRequired:
                   profile.passwordChangeRequired,
                 role: profile.role,
+                signInMethod:
+                  profile.signInMethod ?? "password",
                 temporaryPasswordExpiresAt:
                   profile.temporaryPasswordExpiresAt,
               },
@@ -264,6 +578,16 @@ export function createStaffSessionHandler({
         const weeklyAccess =
           createWeeklyQrToken();
 
+        await recordAuditEvent(getAdminClientForRequest(), {
+          action: "weekly_qr.generated",
+          actorId: profile.userId,
+          details: {
+            validFrom: weeklyAccess.validFrom,
+            validThrough: weeklyAccess.validThrough,
+          },
+          entityType: "weekly_qr",
+        });
+
         return json(
           {
             weeklyQr: {
@@ -294,6 +618,10 @@ export function createStaffSessionHandler({
           200,
         );
       } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return json({ error: "Too many sign-in reports. Try again later." }, 429);
+        }
+
         if (error instanceof HttpError) {
           return json(
             {
@@ -342,4 +670,4 @@ export function createStaffSessionHandler({
   };
 }
 
-export default createStaffSessionHandler();
+export default withAuditContext(createStaffSessionHandler());

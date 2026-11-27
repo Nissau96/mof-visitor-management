@@ -1,17 +1,24 @@
 import {
+  ArrowUpRight,
+  Building2,
   CircleCheck,
   CreditCard,
   LoaderCircle,
+  LogOut,
+  MapPin,
   RefreshCw,
   Search,
   ShieldAlert,
   TriangleAlert,
-  X,
+  UserRound,
 } from "lucide-react";
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
+import AppSelect from "./AppSelect.jsx";
+import DialogHeader from "./DialogHeader.jsx";
 import {
   admitVisitorWithCard,
   checkoutCardVisitor,
@@ -22,12 +29,17 @@ import {
   startVisitorCardIncidentInvestigation,
 } from "../lib/visitorCardApi.js";
 
+// Shared DialogHeader on top; the body uses slate/white, which the dark
+// theme remaps.
 function ModalShell({
   busy = false,
   children,
   description,
+  eyebrow = "Visitor cards",
+  icon: Icon = CreditCard,
   onClose,
   title,
+  tone = "brand",
 }) {
   useEffect(() => {
     function handleKeyDown(event) {
@@ -65,22 +77,18 @@ function ModalShell({
         onClose();
       }
     }}>
-      <section aria-describedby="visitor-card-dialog-description" aria-labelledby="visitor-card-dialog-title" aria-modal="true" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-xl sm:rounded-3xl" role="dialog">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6">
-          <div>
-            <h2 className="text-xl font-black text-slate-950" id="visitor-card-dialog-title">
-              {title}
-            </h2>
-
-            <p className="mt-1 text-sm leading-6 text-slate-600" id="visitor-card-dialog-description">
-              {description}
-            </p>
-          </div>
-
-          <button aria-label="Close dialog" className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50" disabled={busy} onClick={onClose} type="button">
-            <X aria-hidden="true" className="size-5" />
-          </button>
-        </div>
+      <section aria-describedby="visitor-card-dialog-description" aria-labelledby="visitor-card-dialog-title" aria-modal="true" className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-4xl bg-white shadow-2xl shadow-slate-950/30 sm:max-w-xl sm:rounded-4xl" role="dialog">
+        <DialogHeader
+          busy={busy}
+          description={description}
+          descriptionId="visitor-card-dialog-description"
+          eyebrow={eyebrow}
+          icon={Icon}
+          onClose={onClose}
+          title={title}
+          titleId="visitor-card-dialog-title"
+          tone={tone}
+        />
 
         {children}
       </section>
@@ -88,56 +96,99 @@ function ModalShell({
   );
 }
 
+const SUMMARY_LABEL =
+  "text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500";
+
+function initialsOf(name) {
+  return String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+// "Ghana Investment Promotion Centre (GIPC)" -> "GIPC".
+function shortAgencyName(agency) {
+  return agency?.match(/\(([^)]+)\)\s*$/)?.[1] || agency;
+}
+
 function VisitorSummary({
   record,
 }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">
-            Visitor
-          </p>
+  const destination =
+    [
+      shortAgencyName(
+        record.destinationAgency,
+      ),
+      record.destinationDivision ||
+        record.personVisiting,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Not provided";
 
-          <p className="mt-1 font-bold text-slate-950">
-            {record.fullName}
-          </p>
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 p-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-full bg-[#ccf3ec] text-base font-black text-[#0f766e]">
+            {initialsOf(record.fullName)}
+          </span>
+
+          <div className="min-w-0">
+            <p className={SUMMARY_LABEL}>
+              Visitor
+            </p>
+
+            <p className="mt-0.5 flex min-w-0 items-center gap-2 font-black text-slate-950">
+              <span className="break-words">
+                {record.fullName}
+              </span>
+
+              <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f0fdfa] text-[#0f766e] ring-1 ring-[#99e2d6] dark:bg-[#0b2b29] dark:text-[#5eead4] dark:ring-[#14756d]">
+                <UserRound className="size-3.5" />
+              </span>
+            </p>
+          </div>
         </div>
 
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">
+        <div className="shrink-0 text-right">
+          <p className={SUMMARY_LABEL}>
             Reference
           </p>
 
-          <p className="mt-1 font-bold text-brand-800">
+          <p className="mt-1 inline-flex rounded-full bg-[#e6f7f4] px-2.5 py-0.5 font-mono text-xs font-bold tracking-wider text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]">
             {record.referenceCode}
           </p>
         </div>
+      </div>
 
+      <dl className="grid gap-4 border-t border-slate-200 p-4 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">
+          <dt className={`flex items-center gap-2.5 ${SUMMARY_LABEL}`}>
+            <MapPin aria-hidden="true" className="size-4 shrink-0 text-[#0f766e] dark:text-[#5eead4]" />
             Destination
-          </p>
+          </dt>
 
-          <p className="mt-1 text-sm font-semibold text-slate-800">
-            {record.destinationDivision ||
-              record.destinationAgency ||
-              "Not provided"}
-          </p>
+          <dd className="mt-0.5 pl-6.5 text-sm font-bold text-slate-800">
+            {destination}
+          </dd>
         </div>
 
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-500">
+          <dt className={`flex items-center gap-2.5 ${SUMMARY_LABEL}`}>
+            <Building2 aria-hidden="true" className="size-4 shrink-0 text-[#0f766e] dark:text-[#5eead4]" />
             Tower
-          </p>
+          </dt>
 
-          <p className="mt-1 text-sm font-semibold text-slate-800">
+          <dd className="mt-0.5 pl-6.5 text-sm font-bold text-slate-800">
             {record.tower === "tower_1"
               ? "Tower 1"
               : "Tower 2"}
-          </p>
+          </dd>
         </div>
-      </div>
+      </dl>
     </div>
   );
 }
@@ -154,6 +205,11 @@ function ErrorNotice({ message }) {
     </div>
   );
 }
+
+const CARD_TYPES = [
+  { label: "Regular", prefix: "MOF-V", value: "regular" },
+  { label: "VIP", prefix: "MOF-VIP", value: "vip" },
+];
 
 export function AssignVisitorCardModal({
   accessToken,
@@ -175,6 +231,14 @@ export function AssignVisitorCardModal({
   const [selectedCardId, setSelectedCardId] =
     useState("");
 
+  // Booked meeting guests never saw the privacy notice themselves.
+  const needsPrivacy = Boolean(
+    visitor.bookedGuest,
+  );
+
+  const [privacyConfirmed, setPrivacyConfirmed] =
+    useState(false);
+
   const [searching, setSearching] =
     useState(false);
 
@@ -187,12 +251,29 @@ export function AssignVisitorCardModal({
   const [errorMessage, setErrorMessage] =
     useState("");
 
-  function updateCardType(event) {
-    setCardType(event.target.value);
+  // Searches run as the receptionist types, so only the latest one may
+  // update the list.
+  const latestSearch = useRef(0);
+
+  function clearResults() {
+    latestSearch.current += 1;
     setCards([]);
     setSelectedCardId("");
     setSearchCompleted(false);
+    setSearching(false);
     setErrorMessage("");
+  }
+
+  function updateCardType(value) {
+    setCardType(value);
+    clearResults();
+
+    if (lastThreeDigits.length === 3) {
+      void findCards(
+        lastThreeDigits,
+        value,
+      );
+    }
   }
 
   function updateLastThreeDigits(event) {
@@ -201,25 +282,29 @@ export function AssignVisitorCardModal({
       .slice(0, 3);
 
     setLastThreeDigits(digits);
-    setCards([]);
-    setSelectedCardId("");
-    setSearchCompleted(false);
-    setErrorMessage("");
+    clearResults();
+
+    if (digits.length === 3) {
+      void findCards(digits, cardType);
+    }
   }
 
-  async function searchCards(event) {
+  function searchCards(event) {
     event.preventDefault();
+    clearResults();
+    void findCards(
+      lastThreeDigits,
+      cardType,
+    );
+  }
 
-    setErrorMessage("");
-    setCards([]);
-    setSelectedCardId("");
-    setSearchCompleted(false);
-
+  async function findCards(
+    digits,
+    type,
+  ) {
     if (
-      !/^\d{3}$/.test(
-        lastThreeDigits,
-      ) ||
-      lastThreeDigits === "000"
+      !/^\d{3}$/.test(digits) ||
+      digits === "000"
     ) {
       setErrorMessage(
         "Enter exactly the final three digits from 001 to 999.",
@@ -228,16 +313,24 @@ export function AssignVisitorCardModal({
       return;
     }
 
+    const search =
+      latestSearch.current + 1;
+
+    latestSearch.current = search;
     setSearching(true);
 
     try {
       const result =
         await getAvailableVisitorCards({
           accessToken,
-          cardType,
-          lastThreeDigits,
+          cardType: type,
+          lastThreeDigits: digits,
           tower: visitor.tower,
         });
+
+      if (search !== latestSearch.current) {
+        return;
+      }
 
       const availableCards =
         Array.isArray(result?.cards)
@@ -263,6 +356,10 @@ export function AssignVisitorCardModal({
         );
       }
     } catch (error) {
+      if (search !== latestSearch.current) {
+        return;
+      }
+
       setErrorMessage(
         error instanceof Error &&
           error.message
@@ -270,7 +367,9 @@ export function AssignVisitorCardModal({
           : "Available visitor cards could not be searched. Please try again.",
       );
     } finally {
-      setSearching(false);
+      if (search === latestSearch.current) {
+        setSearching(false);
+      }
     }
   }
 
@@ -298,6 +397,9 @@ export function AssignVisitorCardModal({
         await admitVisitorWithCard({
           accessToken,
           cardId: selectedCard.cardId,
+          ...(needsPrivacy
+            ? { privacyConfirmed }
+            : {}),
           tower: visitor.tower,
           visitId: visitor.visitId,
         });
@@ -334,54 +436,66 @@ export function AssignVisitorCardModal({
     }
   }
 
+  // Typing stays enabled during a search, so a search never steals focus.
   const busy =
     searching || submitting;
 
+  const prefix =
+    CARD_TYPES.find(
+      (type) => type.value === cardType,
+    )?.prefix;
+
   return (
-    <ModalShell busy={busy} description="Search using the final three digits printed on the physical card, then confirm the card being issued." onClose={onClose} title="Assign visitor card">
-      <div className="space-y-5 px-5 py-5 sm:px-6">
+    <ModalShell busy={submitting} description="Enter the last three digits printed on the physical card, then confirm the card being issued." onClose={onClose} title="Assign visitor card">
+      <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
         <VisitorSummary
           record={visitor}
         />
 
-        <form className="space-y-4" onSubmit={searchCards}>
-          <div className="grid gap-4 sm:grid-cols-[0.8fr_1.2fr]">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-800">
-                Card type
-              </span>
+        <fieldset disabled={submitting}>
+          <legend className="mb-2 text-sm font-bold text-slate-800">
+            Card type
+          </legend>
 
-              <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" disabled={busy} onChange={updateCardType} value={cardType}>
-                <option value="regular">
-                  Regular visitor
-                </option>
+          <div className="inline-flex rounded-full bg-slate-100 p-1 ring-1 ring-slate-200">
+            {CARD_TYPES.map((type) => {
+              const checked =
+                cardType === type.value;
 
-                <option value="vip">
-                  VIP visitor
-                </option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-800">
-                Last three digits
-              </span>
-
-              <div className="flex gap-2">
-                <input autoComplete="off" className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-base font-bold tracking-[0.18em] text-slate-950 outline-none placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-brand-700 focus:ring-2 focus:ring-brand-100" disabled={busy} inputMode="numeric" maxLength={3} onChange={updateLastThreeDigits} pattern="[0-9]{3}" placeholder="e.g. 168" value={lastThreeDigits} />
-
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-4 text-sm font-bold text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy} type="submit">
-                  {searching ? (
-                    <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-                  ) : (
-                    <Search aria-hidden="true" className="size-4" />
-                  )}
-
-                  Search
-                </button>
-              </div>
-            </label>
+              return (
+                <label className={`cursor-pointer rounded-full px-5 py-2.5 text-sm font-bold transition has-focus-visible:ring-4 has-focus-visible:ring-brand-200 ${checked ? "bg-[#0f766e] text-[#ffffff] shadow-md shadow-[#0f766e]/25" : "text-slate-600 hover:text-slate-900"}`} key={type.value}>
+                  <input checked={checked} className="sr-only" name="card-action-card-type" onChange={() => updateCardType(type.value)} type="radio" value={type.value} />
+                  {type.label}
+                </label>
+              );
+            })}
           </div>
+        </fieldset>
+
+        <form onSubmit={searchCards}>
+          <label className="mb-2 block text-sm font-bold text-slate-800" htmlFor="card-action-last-digits">
+            Last three digits
+          </label>
+
+          <div className="flex items-center gap-2 rounded-full border border-slate-300 bg-white p-1.5 pl-2 transition focus-within:border-brand-700 focus-within:ring-4 focus-within:ring-brand-100">
+            <span aria-hidden="true" className="shrink-0 rounded-full bg-[#e6f7f4] px-3 py-1.5 font-mono text-xs font-bold text-[#0f766e] dark:bg-[#0b2b29] dark:text-[#5eead4]">
+              {prefix}
+            </span>
+
+            <input aria-describedby="card-action-last-digits-hint" autoComplete="off" className="min-h-0 w-auto min-w-0 flex-1 rounded-none border-0 bg-transparent! px-1 py-0 font-mono text-xl font-bold tracking-[0.4em] text-slate-950 shadow-none outline-none placeholder:text-slate-400 focus-visible:ring-0" disabled={submitting} id="card-action-last-digits" inputMode="numeric" maxLength={3} onChange={updateLastThreeDigits} pattern="[0-9]{3}" placeholder="000" value={lastThreeDigits} />
+
+            <button aria-label="Search cards" className="grid size-11 shrink-0 place-items-center rounded-full bg-linear-to-br from-[#0e8077] to-[#115e59] text-[#ffffff] shadow-md shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-60" disabled={busy} type="submit">
+              {searching ? (
+                <LoaderCircle aria-hidden="true" className="size-5 animate-spin" />
+              ) : (
+                <Search aria-hidden="true" className="size-5" />
+              )}
+            </button>
+          </div>
+
+          <p className="mt-2 text-xs text-slate-500" id="card-action-last-digits-hint">
+            Matching cards appear as you type.
+          </p>
         </form>
 
         <ErrorNotice
@@ -390,7 +504,7 @@ export function AssignVisitorCardModal({
 
         {searchCompleted &&
         cards.length === 0 ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900" role="status">
             No available{" "}
             {cardType === "vip"
               ? "VIP"
@@ -414,12 +528,12 @@ export function AssignVisitorCardModal({
                   card.cardId;
 
                 return (
-                  <label className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-4 transition-colors ${selected ? "border-brand-700 bg-brand-50 ring-2 ring-brand-100" : "border-slate-200 bg-white hover:border-slate-300"}`} key={card.cardId}>
+                  <label className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border p-4 transition-colors ${selected ? "border-brand-700 bg-brand-50 ring-2 ring-brand-100" : "border-slate-200 bg-white hover:border-slate-300"}`} key={card.cardId}>
                     <span className="flex items-center gap-3">
-                      <input checked={selected} className="size-4 accent-brand-800" disabled={submitting} name="visitor-card" onChange={() => setSelectedCardId(card.cardId)} type="radio" value={card.cardId} />
+                      <input checked={selected} className="size-4 min-h-0 shrink-0 border-0 p-0 shadow-none accent-brand-800" disabled={submitting} name="visitor-card" onChange={() => setSelectedCardId(card.cardId)} type="radio" value={card.cardId} />
 
                       <span>
-                        <span className="block font-black text-slate-950">
+                        <span className="block font-mono font-black text-slate-950">
                           {card.cardNumber}
                         </span>
 
@@ -441,14 +555,26 @@ export function AssignVisitorCardModal({
             </div>
           </fieldset>
         ) : null}
+
+        {needsPrivacy ? (
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm leading-6 text-slate-800">
+            <input checked={privacyConfirmed} className="mt-1 size-4 min-h-0 shrink-0 border-0 p-0 shadow-none accent-brand-800" disabled={submitting} onChange={(event) => setPrivacyConfirmed(event.target.checked)} type="checkbox" />
+            <span>
+              <span className="block font-bold text-slate-950">
+                Booked meeting guest
+              </span>
+              Their details were sent in by the meeting organiser. I have shown the guest the privacy notice and they agree to their details being recorded.
+            </span>
+          </label>
+        ) : null}
       </div>
 
-      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-        <button className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50" disabled={busy} onClick={onClose} type="button">
+      <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#99d8cf] bg-white px-6 text-sm font-bold text-[#0f766e] transition hover:bg-[#f0fdfa] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50 dark:border-[#14756d] dark:text-[#5eead4] dark:hover:bg-[#0b2b29]" disabled={submitting} onClick={onClose} type="button">
           Cancel
         </button>
 
-        <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 text-sm font-bold text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-50" disabled={busy || !selectedCardId} onClick={confirmAdmission} type="button">
+        <button className="group inline-flex min-h-12 items-center justify-center gap-3 rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] py-1.5 pl-5 pr-1.5 text-sm font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-500 disabled:shadow-none" disabled={busy || !selectedCardId || (needsPrivacy && !privacyConfirmed)} onClick={confirmAdmission} type="button">
           {submitting ? (
             <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
           ) : (
@@ -458,6 +584,10 @@ export function AssignVisitorCardModal({
           {submitting
             ? "Confirming admission…"
             : "Assign card and admit"}
+
+          <span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-[#ffffff]/20 group-disabled:bg-white">
+            <ArrowUpRight className="size-4" />
+          </span>
         </button>
       </div>
     </ModalShell>
@@ -565,8 +695,8 @@ export function CheckoutVisitorModal({
     Boolean(submittingAction);
 
   return (
-    <ModalShell busy={busy} description="Confirm whether the physical access card has been returned before completing the visitor's departure." onClose={onClose} title="Check out visitor">
-      <div className="space-y-5 px-5 py-5 sm:px-6">
+    <ModalShell busy={busy} description="Confirm whether the physical access card has been returned before completing the visitor's departure." icon={LogOut} onClose={onClose} title="Check out visitor">
+      <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
         <VisitorSummary
           record={visitor}
         />
@@ -613,8 +743,8 @@ export function CheckoutVisitorModal({
         </div>
       </div>
 
-      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-between sm:px-6">
-        <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50" disabled={busy} onClick={reportNotReturned} type="button">
+      <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-between sm:px-6">
+        <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-red-300 bg-white px-5 text-sm font-bold text-red-700 transition hover:bg-red-50 focus-visible:ring-4 focus-visible:ring-red-200 disabled:opacity-50" disabled={busy} onClick={reportNotReturned} type="button">
           {submittingAction ===
           "not-returned" ? (
             <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
@@ -626,11 +756,11 @@ export function CheckoutVisitorModal({
         </button>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row">
-          <button className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50" disabled={busy} onClick={onClose} type="button">
+          <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50" disabled={busy} onClick={onClose} type="button">
             Cancel
           </button>
 
-          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50" disabled={busy} onClick={confirmCheckout} type="button">
+          <button className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] px-6 text-sm font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={busy} onClick={confirmCheckout} type="button">
             {submittingAction ===
             "checkout" ? (
               <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
@@ -849,8 +979,8 @@ export function IncidentManagementModal({
   }
 
   return (
-    <ModalShell busy={submitting} description={description} onClose={onClose} title={title}>
-      <div className="space-y-5 px-5 py-5 sm:px-6">
+    <ModalShell busy={submitting} description={description} icon={ShieldAlert} onClose={onClose} title={title} tone="warning">
+      <div className="scroll-pane min-h-0 flex-1 space-y-5 px-5 py-5 sm:px-6">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -963,28 +1093,22 @@ export function IncidentManagementModal({
         ) : null}
 
         {mode === "resolve" ? (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-bold text-slate-800">
-              Investigation outcome
-            </span>
-
-            <select className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100" disabled={submitting} onChange={(event) => setResolution(event.target.value)} value={resolution}>
-              <option value="late_return">
-                Card returned late
-              </option>
-
-              <option value="lost">
-                Card lost
-              </option>
-
-              <option value="damaged">
-                Card damaged
-              </option>
-
-              <option value="unusable">
-                Card unusable
-              </option>
-            </select>
+          <div>
+            <AppSelect
+              disabled={submitting}
+              id="card-action-investigation-outcome"
+              label="Investigation outcome"
+              labelClassName="mb-1.5 block text-sm font-bold text-slate-800"
+              onChange={setResolution}
+              options={[
+                { label: "Card returned late", value: "late_return" },
+                { label: "Card lost", value: "lost" },
+                { label: "Card damaged", value: "damaged" },
+                { label: "Card unusable", value: "unusable" },
+              ]}
+              size="2xl"
+              value={resolution}
+            />
 
             <p className="mt-2 text-xs leading-5 text-slate-500">
               Lost, damaged and unusable
@@ -992,7 +1116,7 @@ export function IncidentManagementModal({
               A replacement can then be
               registered.
             </p>
-          </label>
+          </div>
         ) : null}
 
         {mode !== "view" ? (
@@ -1032,15 +1156,15 @@ export function IncidentManagementModal({
         />
       </div>
 
-      <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-        <button className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
+      <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-brand-200 disabled:opacity-50" disabled={submitting} onClick={onClose} type="button">
           {mode === "view"
             ? "Close"
             : "Cancel"}
         </button>
 
         {mode !== "view" ? (
-          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-800 px-5 text-sm font-bold text-white hover:bg-brand-900 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitting} onClick={submitIncidentAction} type="button">
+          <button className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-linear-to-r from-[#0e8077] to-[#115e59] px-6 text-sm font-bold text-[#ffffff] shadow-lg shadow-[#0f766e]/25 transition-colors hover:from-[#0f766e] hover:to-[#134e4a] focus-visible:ring-4 focus-visible:ring-brand-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={submitting} onClick={submitIncidentAction} type="button">
             {submitting ? (
               <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
             ) : mode === "reprint" ? (

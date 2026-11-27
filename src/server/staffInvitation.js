@@ -37,6 +37,7 @@ const EMAIL_PATTERN =
 const STAFF_ROLES = new Set([
   "receptionist",
   "client_service_head",
+  "it_network_admin",
   "admin",
 ]);
 
@@ -175,7 +176,7 @@ export function getStaffLoginUrl() {
   return loginUrl.toString();
 }
 
-function readSmtpConfiguration() {
+export function readSmtpConfiguration() {
   const host =
     readRequiredEnvironmentVariable(
       "SMTP_HOST",
@@ -268,7 +269,7 @@ function readSmtpConfiguration() {
   };
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -312,7 +313,11 @@ function getRoleLabel(role) {
   }
 
   if (role === "client_service_head") {
-    return "Client Service Head";
+    return "Unit Head";
+  }
+
+  if (role === "it_network_admin") {
+    return "IT";
   }
 
   return "Receptionist";
