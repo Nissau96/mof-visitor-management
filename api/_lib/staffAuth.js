@@ -251,7 +251,8 @@ function addressMatches(address, entry) {
 // STAFF_ALLOWED_IPS lists the Ministry's public addresses, separated by
 // commas or spaces: exact IPv4/IPv6 addresses or IPv4 ranges such as
 // 196.10.20.0/28. Unset means no restriction, except in Production,
-// where an unset list refuses every staff request.
+// where an unset list refuses every staff request. "*" deliberately
+// allows every network, Production included, until the list is known.
 export function checkStaffNetwork(
   request,
   environment = process.env,
@@ -260,6 +261,10 @@ export function checkStaffNetwork(
     .split(/[\s,]+/)
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
+
+  if (allowed.includes("*")) {
+    return;
+  }
 
   if (!allowed.length) {
     if (environment.VERCEL_ENV === "production") {

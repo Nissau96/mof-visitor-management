@@ -212,6 +212,13 @@ describe("checkStaffNetwork", () => {
     );
     expect(() => checkStaffNetwork(from(""), environment)).toThrow();
   });
+
+  it("allows every network in Production when the list is *", () => {
+    const environment = { STAFF_ALLOWED_IPS: "*", VERCEL_ENV: "production" };
+
+    expect(() => checkStaffNetwork(from("8.8.8.8"), environment)).not.toThrow();
+    expect(() => checkStaffNetwork(from("2001:db8::1"), environment)).not.toThrow();
+  });
 });
 
 describe("staff sign-in settings validation", () => {
