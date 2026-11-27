@@ -410,7 +410,7 @@ test.describe(
 
         await expect(
           page.getByRole("heading", {
-            name: "Sign in",
+            name: "Welcome back",
           }),
         ).toBeVisible();
       },

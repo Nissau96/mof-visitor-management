@@ -760,7 +760,7 @@ await expect(
 
       await expect(
         page.getByRole("heading", {
-          name: "Sign in",
+          name: "Welcome back",
         }),
       ).toBeVisible();
 
@@ -940,7 +940,7 @@ await expect(
       await page.clock.fastForward("02:00");
 
       await expect(
-        page.getByRole("heading", { name: "Sign in" }),
+        page.getByRole("heading", { name: "Welcome back" }),
       ).toBeVisible();
 
       await expect(

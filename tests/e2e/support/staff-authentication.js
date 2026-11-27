@@ -312,7 +312,7 @@ export async function signInAsStaff(
 
   await expect(
     page.getByRole("heading", {
-      name: "Sign in",
+      name: "Welcome back",
     }),
   ).toBeVisible();
 
@@ -327,19 +327,13 @@ export async function signInAsStaff(
     .fill(password);
 
   await page
-    .getByRole("button", {
-      name: /Assigned Tower/i,
-    })
-    .click();
-
-  await page
-    .getByRole("option", {
+    .getByRole("radio", {
       name: TOWER_OPTIONS.find(
         (option) => option.value === tower,
       ).label,
       exact: true,
     })
-    .click();
+    .check({ force: true });
 
   await page
     .getByRole("button", {
